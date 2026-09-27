@@ -1,5 +1,7 @@
 # 🏡 Takenlijstje
 
+**Live:** https://takenlijstje.vercel.app
+
 Een eenvoudige, moderne webapp (PWA) om huishoudelijke taken te plannen, eerlijk te verdelen en af te vinken, gemaakt voor dagelijks gebruik op je telefoon.
 
 Bij het openen zie je direct:
