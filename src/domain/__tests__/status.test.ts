@@ -69,3 +69,46 @@ describe("statistieken", () => {
     expect(stats.members.find((m) => m.memberId === "j")).toMatchObject({ done: 2, open: 1, points: 5 });
   });
 });
+
+import { summaryMessages, taskMessages } from "../reminders";
+
+describe("herinneringen", () => {
+  const prefs = {
+    deadlineWarningMinutes: 120,
+    dailySummaryEnabled: true,
+    dailySummaryTime: "07:30",
+    eveningSummaryEnabled: true,
+    eveningSummaryTime: "20:00",
+  };
+  const task = {
+    id: "wc",
+    title: "WC schoonmaken",
+    status: "todo" as const,
+    scheduledDate: "2026-09-27",
+    scheduledTime: null,
+    dueAt: "2026-09-27T11:30:00Z", // 13:30 lokaal
+    reminderMinutesBefore: [120],
+  };
+
+  it("deadline nadert + herinnering", () => {
+    const messages = taskMessages(task, prefs, now, TZ); // 12:00 lokaal
+    expect(messages.map((m) => m.type).sort()).toEqual(["deadline_soon", "reminder"]);
+    expect(messages.find((m) => m.type === "deadline_soon")!.title).toBe("WC schoonmaken moet binnen 1,5 uur gedaan zijn");
+  });
+
+  it("verlopen, en niets voor afgeronde taken", () => {
+    const later = new Date("2026-09-27T12:00:00Z");
+    expect(taskMessages(task, prefs, later, TZ).map((m) => m.type)).toEqual(["overdue"]);
+    expect(taskMessages({ ...task, status: "done" }, prefs, later, TZ)).toEqual([]);
+  });
+
+  it("dagoverzicht om 07:30 en avondoverzicht om 20:00", () => {
+    const morning = new Date("2026-09-27T05:40:00Z"); // 07:40 lokaal
+    expect(summaryMessages(prefs, morning, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })[0].title)
+      .toBe("Vandaag staan er 4 taken gepland");
+    const evening = new Date("2026-09-27T18:05:00Z"); // 20:05 lokaal
+    expect(summaryMessages(prefs, evening, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })[0].title)
+      .toBe("Er staan nog 2 taken open");
+    expect(summaryMessages(prefs, now, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })).toEqual([]);
+  });
+});
