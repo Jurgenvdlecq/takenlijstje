@@ -1,0 +1,16 @@
+{
+  "laatstVerwerkt": "niveau:6d0b2aba-0329-4b73-a3fb-2489c4f2036a",
+  "geschiedenis": [
+    {
+      "op": "2026-09-27T20:43:36.361Z",
+      "actie": "niveau",
+      "van": null,
+      "naar": 2
+    }
+  ],
+  "niveauJurgen": {
+    "niveau": 2,
+    "op": "2026-09-27T20:43:36.361Z",
+    "reden": "bestaand project, meerdere gebruikers"
+  }
+}
