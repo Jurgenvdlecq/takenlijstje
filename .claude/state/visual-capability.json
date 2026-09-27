@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "browser": "standaard Playwright-browser (141.0.7390.37)",
+  "screenshots": [
+    "docs/screenshots/_capability/capability-390x844.png",
+    "docs/screenshots/_capability/capability-1440x900.png"
+  ],
+  "bekeken": "moet door de agent worden bevestigd door het PNG-bestand met Read te openen",
+  "op": "2026-09-27T20:41:53.945Z"
+}
