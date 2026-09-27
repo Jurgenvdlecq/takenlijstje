@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckIcon, Clock, Loader2, Repeat, SkipForward } from "lucide-react";
 import * as React from "react";
-import { shortTime, todayIn } from "@/domain/dates";
+import { shortTime, todayIn, zonedDate } from "@/domain/dates";
 import { deadlineText, relativeDayLabel } from "@/domain/status";
 import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,15 @@ export function TaskCard({
   const assignee = snapshot.members.find((m) => m.id === task.assigned_member_id);
   const done = task.status === "done";
   const skipped = task.status === "skipped";
-  const deadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
+  const rawDeadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
+  // Rustig houden: alleen tonen als het iets toevoegt (bijna/te laat, of deadline op een andere dag)
+  const deadline =
+    rawDeadline &&
+    (task.display === "overdue" ||
+      rawDeadline.startsWith("verloopt") ||
+      (task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))
+      ? rawDeadline
+      : null;
   const completedBy = done ? snapshot.members.find((m) => m.id === task.completed_by_member_id) : null;
   const swapOpen = snapshot.swapRequests.some((r) => r.task_id === task.id);
 
@@ -137,13 +145,35 @@ export function TaskCard({
   );
 }
 
-export function TaskList({ tasks, showDate, empty }: { tasks: TaskView[]; showDate?: boolean; empty?: React.ReactNode }) {
+export function TaskList({
+  tasks,
+  showDate,
+  empty,
+  limit,
+}: {
+  tasks: TaskView[];
+  showDate?: boolean;
+  empty?: React.ReactNode;
+  /** Toon eerst maximaal zoveel taken, met "Toon alles" */
+  limit?: number;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
   if (!tasks.length) return <>{empty ?? null}</>;
+  const visible = limit && !expanded ? tasks.slice(0, limit) : tasks;
   return (
     <div className="grid gap-2">
-      {tasks.map((task) => (
+      {visible.map((task) => (
         <TaskCard key={task.id} task={task} showDate={showDate} />
       ))}
+      {visible.length < tasks.length && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="h-11 rounded-2xl border border-dashed text-sm font-medium text-primary hover:bg-accent"
+        >
+          Toon alles ({tasks.length - visible.length} meer)
+        </button>
+      )}
     </div>
   );
 }

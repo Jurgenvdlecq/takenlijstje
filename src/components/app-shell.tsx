@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="safe-top sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-4">
+        <div className={cn("mx-auto flex h-14 max-w-3xl items-center gap-2 px-4", pathname.startsWith("/kalender") && "lg:max-w-6xl")}>
           <Link href="/" className="min-w-0 flex-1 truncate font-semibold">
             <span className="mr-1.5" aria-hidden>
               🏡

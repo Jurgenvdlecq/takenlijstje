@@ -15,6 +15,7 @@ import {
   SkipForward,
   Trash2,
   Trophy,
+  UserRound,
 } from "lucide-react";
 import * as React from "react";
 import { todayIn, zonedDate } from "@/domain/dates";
@@ -224,7 +225,7 @@ function TaskDetail({ task }: { task: TaskRow }) {
         )}
 
         <div className="divide-y rounded-2xl border px-3.5">
-          <InfoRow icon={CategoryIcon} label="Wie">
+          <InfoRow icon={UserRound} label="Wie">
             {open ? (
               <div className="flex items-center gap-2">
                 <MemberAvatar member={assignee} size="xs" />

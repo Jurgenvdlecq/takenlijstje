@@ -89,7 +89,7 @@ export function ShoppingPage() {
       </div>
 
       {suggestions.length > 0 && (
-        <section aria-label="Vaak gekocht">
+        <section aria-label="Vaak gekocht" className="min-w-0">
           <SectionTitle>
             <Sparkles className="size-3.5" />
             Vaak gekocht

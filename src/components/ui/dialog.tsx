@@ -48,7 +48,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("flex-1 overflow-y-auto px-5 pb-4", className)} {...props} />;
+  return <div className={cn("min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 pb-4 [&>*]:min-w-0", className)} {...props} />;
 }
 
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {

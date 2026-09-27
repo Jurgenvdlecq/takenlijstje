@@ -46,7 +46,7 @@ export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInpu
   });
 }
 
-export async function toggleShoppingItemAction(itemId: string, bought: boolean): Promise<ActionResult<null>> {
+export async function toggleShoppingItemAction(itemId: string, bought: boolean): Promise<ActionResult<true>> {
   return runAction("toggleShoppingItem", async () => {
     const { supabase, household, member } = await requireMember();
     check(
@@ -60,14 +60,14 @@ export async function toggleShoppingItemAction(itemId: string, bought: boolean):
         .eq("id", parse(uuid, itemId))
         .eq("household_id", household.id),
     );
-    return null;
+    return true as const;
   });
 }
 
 export async function updateShoppingItemAction(
   itemId: string,
   raw: Partial<z.input<typeof shoppingItemInput>>,
-): Promise<ActionResult<null>> {
+): Promise<ActionResult<true>> {
   return runAction("updateShoppingItem", async () => {
     const { supabase, household } = await requireMember();
     const input = parse(shoppingItemInput.partial(), raw);
@@ -83,15 +83,15 @@ export async function updateShoppingItemAction(
         .eq("id", parse(uuid, itemId))
         .eq("household_id", household.id),
     );
-    return null;
+    return true as const;
   });
 }
 
-export async function deleteShoppingItemAction(itemId: string): Promise<ActionResult<null>> {
+export async function deleteShoppingItemAction(itemId: string): Promise<ActionResult<true>> {
   return runAction("deleteShoppingItem", async () => {
     const { supabase, household } = await requireMember();
     check(await supabase.from("shopping_items").delete().eq("id", parse(uuid, itemId)).eq("household_id", household.id));
-    return null;
+    return true as const;
   });
 }
 

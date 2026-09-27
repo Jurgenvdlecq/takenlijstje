@@ -56,7 +56,7 @@ export async function createHouseholdAction(raw: {
   });
 }
 
-export async function switchHouseholdAction(householdId: string): Promise<ActionResult<null>> {
+export async function switchHouseholdAction(householdId: string): Promise<ActionResult<true>> {
   return runAction("switchHousehold", async () => {
     const { supabase, user } = await getUser();
     if (!user) throw new UserError("Log eerst in.");
@@ -64,7 +64,7 @@ export async function switchHouseholdAction(householdId: string): Promise<Action
     const { data } = await supabase.from("household_members").select("id").eq("household_id", id).eq("user_id", user.id).maybeSingle();
     if (!data) throw new UserError("Je bent geen lid van dit huishouden.");
     (await cookies()).set(HOUSEHOLD_COOKIE, id, appCookieOptions);
-    return null;
+    return true as const;
   });
 }
 
@@ -98,11 +98,11 @@ export async function updateHouseholdAction(raw: z.input<typeof householdSetting
   });
 }
 
-export async function completeOnboardingAction(): Promise<ActionResult<null>> {
+export async function completeOnboardingAction(): Promise<ActionResult<true>> {
   return runAction("completeOnboarding", async () => {
     const { supabase, household } = await requireAdmin();
     check(await supabase.from("households").update({ onboarding_completed: true }).eq("id", household.id));
-    return null;
+    return true as const;
   });
 }
 
@@ -161,13 +161,13 @@ export async function updateMemberAction(memberId: string, raw: Partial<z.input<
   });
 }
 
-export async function removeMemberAction(memberId: string): Promise<ActionResult<null>> {
+export async function removeMemberAction(memberId: string): Promise<ActionResult<true>> {
   return runAction("removeMember", async () => {
     const { supabase, household, member } = await requireAdmin();
     const id = parse(uuid, memberId);
     if (id === member.id) throw new UserError("Je kunt jezelf niet verwijderen.");
     check(await supabase.from("household_members").delete().eq("id", id).eq("household_id", household.id));
-    return null;
+    return true as const;
   });
 }
 
@@ -310,10 +310,10 @@ export async function createAbsenceAction(raw: z.input<typeof absenceInput>): Pr
   });
 }
 
-export async function deleteAbsenceAction(absenceId: string): Promise<ActionResult<null>> {
+export async function deleteAbsenceAction(absenceId: string): Promise<ActionResult<true>> {
   return runAction("deleteAbsence", async () => {
     const { supabase, household } = await requireMember();
     check(await supabase.from("member_absences").delete().eq("id", parse(uuid, absenceId)).eq("household_id", household.id));
-    return null;
+    return true as const;
   });
 }

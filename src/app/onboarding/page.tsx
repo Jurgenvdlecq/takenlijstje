@@ -25,7 +25,10 @@ export default async function OnboardingPage() {
       : Promise.resolve({ data: [] as MemberRow[], error: null }),
   ]);
 
-  const metaName = typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null;
+  // Naam uit de registratie (display_name) of van Google/Apple (full_name)
+  const meta = user.user_metadata ?? {};
+  const metaName =
+    typeof meta.display_name === "string" ? meta.display_name : typeof meta.full_name === "string" ? meta.full_name : null;
   const suggestedName = metaName ?? (user.email ? user.email.split("@")[0] : "");
 
   return (

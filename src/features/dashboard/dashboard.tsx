@@ -100,6 +100,7 @@ export function Dashboard() {
         <TaskList
           tasks={data.upcoming}
           showDate
+          limit={6}
           empty={<p className="px-1 text-sm text-muted-foreground">De komende 7 dagen staat er (nog) niets gepland.</p>}
         />
       </section>
@@ -114,6 +115,7 @@ export function Dashboard() {
             <TaskList
               tasks={data.mine}
               showDate
+              limit={8}
               empty={<p className="px-1 text-sm text-muted-foreground">Je hebt deze week geen open taken. Lekker bezig!</p>}
             />
           </TabsContent>

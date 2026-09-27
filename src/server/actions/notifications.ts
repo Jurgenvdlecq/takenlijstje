@@ -9,13 +9,13 @@ import { notify } from "../notifications/dispatcher";
 import { isWebPushConfigured } from "../notifications/channels/web-push";
 import { parse } from "../parse";
 
-export async function markNotificationsReadAction(ids?: string[]): Promise<ActionResult<null>> {
+export async function markNotificationsReadAction(ids?: string[]): Promise<ActionResult<true>> {
   return runAction("markNotificationsRead", async () => {
     const { supabase, member } = await requireMember();
     let query = supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("member_id", member.id).is("read_at", null);
     if (ids?.length) query = query.in("id", parse(z.array(uuid).max(200), ids));
     check(await query);
-    return null;
+    return true as const;
   });
 }
 
@@ -48,7 +48,7 @@ export async function savePreferencesAction(raw: z.input<typeof preferencesInput
   });
 }
 
-export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscriptionInput>): Promise<ActionResult<null>> {
+export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscriptionInput>): Promise<ActionResult<true>> {
   return runAction("savePushSubscription", async () => {
     const { supabase, user, household, member } = await requireMember();
     if (!isWebPushConfigured()) throw new UserError("Pushmeldingen zijn op deze server nog niet ingesteld (VAPID-sleutels).");
@@ -60,19 +60,19 @@ export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscri
       ),
     );
     check(await supabase.from("user_preferences").update({ push_enabled: true }).eq("member_id", member.id).eq("household_id", household.id));
-    return null;
+    return true as const;
   });
 }
 
-export async function deletePushSubscriptionAction(endpoint: string): Promise<ActionResult<null>> {
+export async function deletePushSubscriptionAction(endpoint: string): Promise<ActionResult<true>> {
   return runAction("deletePushSubscription", async () => {
     const { supabase, user } = await requireMember();
     check(await supabase.from("push_subscriptions").delete().eq("user_id", user.id).eq("endpoint", parse(z.url(), endpoint)));
-    return null;
+    return true as const;
   });
 }
 
-export async function sendTestNotificationAction(): Promise<ActionResult<null>> {
+export async function sendTestNotificationAction(): Promise<ActionResult<true>> {
   return runAction("sendTestNotification", async () => {
     const { supabase, household, member } = await requireMember();
     await notify({
@@ -87,6 +87,6 @@ export async function sendTestNotificationAction(): Promise<ActionResult<null>> 
         dedupeKey: `test:${Date.now()}`,
       },
     });
-    return null;
+    return true as const;
   });
 }

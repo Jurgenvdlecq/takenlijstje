@@ -311,7 +311,7 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
   });
 }
 
-export async function deleteTaskAction(taskId: string, scope: "this" | "future" = "this"): Promise<ActionResult<null>> {
+export async function deleteTaskAction(taskId: string, scope: "this" | "future" = "this"): Promise<ActionResult<true>> {
   return runAction("deleteTask", async () => {
     const { supabase, household } = await requireMember();
     const id = parse(uuid, taskId);
@@ -323,7 +323,7 @@ export async function deleteTaskAction(taskId: string, scope: "this" | "future" 
       const { count } = await supabase.from("task_completions").select("id", { count: "exact", head: true }).eq("task_id", id);
       if (count) check(await supabase.from("tasks").update({ deleted_at: new Date().toISOString() }).eq("id", id));
       else check(await supabase.from("tasks").delete().eq("id", id));
-      return null;
+      return true as const;
     }
 
     // In een reeks: zacht verwijderen zodat de planning hem niet opnieuw aanmaakt
@@ -335,7 +335,7 @@ export async function deleteTaskAction(taskId: string, scope: "this" | "future" 
     } else {
       await topUpSeries(systemDb(supabase), household.id, { recurrenceIds: [task.recurrence_id] });
     }
-    return null;
+    return true as const;
   });
 }
 
@@ -362,20 +362,20 @@ export async function pauseSeriesAction(raw: z.input<typeof pauseInput>): Promis
   });
 }
 
-export async function stopSeriesAction(recurrenceId: string): Promise<ActionResult<null>> {
+export async function stopSeriesAction(recurrenceId: string): Promise<ActionResult<true>> {
   return runAction("stopSeries", async () => {
     const { supabase, household } = await requireMember();
     const id = parse(uuid, recurrenceId);
     check(await supabase.from("task_recurrences").update({ is_active: false }).eq("id", id).eq("household_id", household.id));
     await clearOpenOccurrences(systemDb(supabase), household.id, id, "0001-01-01", null, true);
-    return null;
+    return true as const;
   });
 }
 
 // ---------------------------------------------------------------------------
 // Opmerkingen
 // ---------------------------------------------------------------------------
-export async function addCommentAction(raw: z.input<typeof commentInput>): Promise<ActionResult<null>> {
+export async function addCommentAction(raw: z.input<typeof commentInput>): Promise<ActionResult<true>> {
   return runAction("addComment", async () => {
     const { supabase, household, member } = await requireMember();
     const input = parse(commentInput, raw);
@@ -386,22 +386,22 @@ export async function addCommentAction(raw: z.input<typeof commentInput>): Promi
         { onConflict: "id", ignoreDuplicates: true },
       ),
     );
-    return null;
+    return true as const;
   });
 }
 
-export async function deleteCommentAction(commentId: string): Promise<ActionResult<null>> {
+export async function deleteCommentAction(commentId: string): Promise<ActionResult<true>> {
   return runAction("deleteComment", async () => {
     const { supabase, household } = await requireMember();
     check(await supabase.from("task_comments").delete().eq("id", parse(uuid, commentId)).eq("household_id", household.id));
-    return null;
+    return true as const;
   });
 }
 
 // ---------------------------------------------------------------------------
 // Ruilen: "Ik kan deze taak niet doen"
 // ---------------------------------------------------------------------------
-export async function requestSwapAction(taskId: string, message?: string | null): Promise<ActionResult<null>> {
+export async function requestSwapAction(taskId: string, message?: string | null): Promise<ActionResult<true>> {
   return runAction("requestSwap", async () => {
     const { supabase, household, member } = await requireMember();
     const id = parse(uuid, taskId);
@@ -435,7 +435,7 @@ export async function requestSwapAction(taskId: string, message?: string | null)
         dedupeKey: `swap:${id}:${Date.now()}`,
       },
     });
-    return null;
+    return true as const;
   });
 }
 
@@ -462,7 +462,7 @@ export async function acceptSwapAction(requestId: string): Promise<ActionResult<
   });
 }
 
-export async function cancelSwapAction(requestId: string): Promise<ActionResult<null>> {
+export async function cancelSwapAction(requestId: string): Promise<ActionResult<true>> {
   return runAction("cancelSwap", async () => {
     const { supabase, household } = await requireMember();
     check(
@@ -473,6 +473,6 @@ export async function cancelSwapAction(requestId: string): Promise<ActionResult<
         .eq("household_id", household.id)
         .eq("status", "open"),
     );
-    return null;
+    return true as const;
   });
 }
