@@ -1,0 +1,183 @@
+{
+  "_uitleg": "Configuratie van de Design Freeze-poort. Paden zijn globs relatief aan de projectroot (** = willekeurige diepte, * = binnen één map). Wijzigen kan alleen na /onderhoud-go. Zie .claude/werkwijze-subagents.md sectie 'Technische poort'.",
+  "voorFreezeToegestaan": [
+    "docs/**",
+    "CLAUDE.md",
+    "README.md",
+    ".gitignore"
+  ],
+  "prototypePaden": [
+    "docs/prototype/**"
+  ],
+  "altijdBeschermd": [
+    ".claude/state/**",
+    ".claude/gate/**",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".claude/skills/design-go/**",
+    ".claude/skills/niveau/**",
+    ".claude/skills/onderhoud-go/**",
+    "scripts/visual-check.mjs"
+  ],
+  "onderhoudBeschermd": [
+    ".claude/agents/**",
+    ".claude/werkwijze-subagents.md",
+    ".claude/templates/**",
+    ".claude/INSTALLATIE.md"
+  ],
+  "bevrorenDocumenten": [
+    "docs/SPEC.md",
+    "docs/PRODUCT_SPEC.md",
+    "docs/UX_SPEC.md",
+    "docs/DESIGN_SYSTEM.md",
+    "docs/TECHNICAL_DESIGN.md",
+    "docs/ACCEPTANCE_CRITERIA.md"
+  ],
+  "verplichteDocumentenVoorGo": {
+    "1": [
+      "docs/SPEC.md",
+      "docs/PROGRESS.md"
+    ],
+    "2": [
+      "docs/PRODUCT_SPEC.md",
+      "docs/UX_SPEC.md",
+      "docs/DESIGN_SYSTEM.md",
+      "docs/TECHNICAL_DESIGN.md",
+      "docs/ACCEPTANCE_CRITERIA.md",
+      "docs/PROGRESS.md",
+      "docs/reviews/plan-critic.md"
+    ],
+    "3": [
+      "docs/PRODUCT_SPEC.md",
+      "docs/UX_SPEC.md",
+      "docs/DESIGN_SYSTEM.md",
+      "docs/TECHNICAL_DESIGN.md",
+      "docs/ACCEPTANCE_CRITERIA.md",
+      "docs/PROGRESS.md",
+      "docs/reviews/plan-critic.md",
+      "docs/reviews/security-ontwerp.md"
+    ]
+  },
+  "vereistScreenshotVoorGo": {
+    "1": false,
+    "2": true,
+    "3": true
+  },
+  "niveau1Vrijgave": "docs/level1-release.json",
+  "agentSchrijfrechten": {
+    "product-analyst": [
+      "docs/PRODUCT_SPEC.md",
+      "docs/ACCEPTANCE_CRITERIA.md",
+      "docs/SPEC.md"
+    ],
+    "product-designer": [
+      "docs/UX_SPEC.md",
+      "docs/SPEC.md",
+      "docs/prototype/wireframes/**"
+    ],
+    "visual-designer": [
+      "docs/DESIGN_SYSTEM.md",
+      "docs/SPEC.md",
+      "docs/prototype/**"
+    ],
+    "solution-architect": [
+      "docs/TECHNICAL_DESIGN.md",
+      "docs/SPEC.md"
+    ],
+    "plan-critic": [
+      "docs/reviews/plan-critic.md"
+    ],
+    "code-reviewer": [],
+    "security-reviewer": [],
+    "ux-reviewer": [],
+    "visual-qa": [],
+    "performance-reviewer": [],
+    "accessibility-reviewer": [],
+    "test-writer": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "tests/**",
+      "test/**",
+      "e2e/**",
+      "**/__tests__/**",
+      "**/__mocks__/**",
+      "**/fixtures/**",
+      "playwright.config.*",
+      "vitest.config.*",
+      "jest.config.*"
+    ]
+  },
+  "vertrouwdeScripts": [
+    "scripts/visual-check.mjs"
+  ],
+  "niveauSignalen": {
+    "_uitleg": "Aanwezigheid van een van deze signalen betekent minimaal niveau 2. Claude kan dit niet zelf wegclassificeren; alleen Jurgen via /niveau.",
+    "bestanden": [
+      "prisma/schema.prisma",
+      "supabase/**",
+      "drizzle.config.*",
+      "middleware.ts",
+      "src/middleware.ts"
+    ],
+    "pakketten": [
+      "next-auth",
+      "@auth/",
+      "@prisma/client",
+      "prisma",
+      "@supabase/",
+      "drizzle-orm",
+      "pg",
+      "mysql2",
+      "mongoose",
+      "mongodb",
+      "lucia",
+      "bcrypt",
+      "bcryptjs",
+      "argon2",
+      "jsonwebtoken",
+      "jose",
+      "iron-session",
+      "firebase",
+      "firebase-admin",
+      "stripe",
+      "@clerk/"
+    ],
+    "omgevingsvariabelen": [
+      "DATABASE_URL",
+      "SUPABASE_",
+      "AUTH_SECRET",
+      "NEXTAUTH_SECRET",
+      "JWT_SECRET",
+      "STRIPE_"
+    ]
+  },
+  "scaffoldEnMigratieCommandos": [
+    "create-next-app",
+    "create-vite",
+    "create-react-app",
+    "create-t3-app",
+    "create-remix",
+    "create-svelte",
+    "create-astro",
+    "npm create",
+    "npm init",
+    "pnpm create",
+    "yarn create",
+    "bun create",
+    "npx degit",
+    "prisma migrate",
+    "prisma db push",
+    "prisma db execute",
+    "drizzle-kit push",
+    "drizzle-kit migrate",
+    "supabase db push",
+    "supabase migration",
+    "shadcn add",
+    "shadcn init",
+    "shadcn@latest"
+  ],
+  "exclusieveBestanden": {
+    "_uitleg": "Bestanden die alleen door één specifieke agent geschreven mogen worden, zodat de hoofdsessie een oordeel niet kan invullen.",
+    "docs/reviews/plan-critic.md": "plan-critic"
+  }
+}
