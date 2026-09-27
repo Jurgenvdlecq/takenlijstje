@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
+import { publicEnvSnapshot } from "@/lib/env";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,6 +29,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="nl" suppressHydrationWarning>
+      <head>
+        {/* Publieke instellingen (URL + publieke sleutels) tijdens het draaien doorgeven aan de browser */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__TAKENLIJSTJE_ENV__=${JSON.stringify(publicEnvSnapshot()).replace(/</g, "\\u003c")};`,
+          }}
+        />
+      </head>
       <body className="min-h-dvh">
         {children}
         <Toaster
