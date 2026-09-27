@@ -1,0 +1,304 @@
+"use client";
+
+/**
+ * Centrale client-state van het huishouden.
+ *  - start met de snapshot die de server meestuurt
+ *  - ververst bij realtime-wijzigingen van andere gezinsleden
+ *  - bewaart de laatste stand in IndexedDB (offline bekijken)
+ *  - voert acties optimistisch uit en zet ze offline in de wachtrij
+ */
+import * as React from "react";
+import { toast } from "sonner";
+import { loadSnapshot, type Snapshot } from "@/lib/data/snapshot";
+import { readCachedSnapshot, writeCachedSnapshot } from "@/lib/offline/cache";
+import { isNetworkError, readOutbox, writeOutbox, type OutboxEntry } from "@/lib/offline/outbox";
+import { getBrowserClient } from "@/lib/supabase/client";
+import { newId } from "@/lib/utils";
+import type { ActionResult } from "@/server/errors";
+import type { CompletionRow, NotificationRow } from "@/types/database";
+import {
+  applyOptimistic,
+  isOfflineCapable,
+  sendMutation,
+  type MutationKind,
+  type MutationPayload,
+} from "./mutations";
+
+interface HouseholdStore {
+  snapshot: Snapshot;
+  online: boolean;
+  /** Aantal acties dat nog verstuurd moet worden */
+  pending: number;
+  refresh: () => Promise<void>;
+  /** Snelle actie (optimistisch, offline-bestendig) */
+  mutate: <K extends MutationKind>(kind: K, payload: MutationPayload<K>) => Promise<boolean>;
+  /** Gewone server action met foutmelding en verversen na afloop */
+  run: <T>(action: () => Promise<ActionResult<T>>, options?: { success?: string }) => Promise<T | null>;
+}
+
+const StoreContext = React.createContext<HouseholdStore | null>(null);
+
+export function useHousehold(): HouseholdStore {
+  const ctx = React.useContext(StoreContext);
+  if (!ctx) throw new Error("useHousehold buiten HouseholdProvider");
+  return ctx;
+}
+
+export function useSnapshot(): Snapshot {
+  return useHousehold().snapshot;
+}
+
+const REALTIME_TABLES = [
+  "tasks",
+  "task_completions",
+  "task_comments",
+  "task_swap_requests",
+  "shopping_items",
+  "shopping_lists",
+  "household_members",
+] as const;
+
+export function HouseholdProvider({ initial, children }: { initial: Snapshot; children: React.ReactNode }) {
+  const [snapshot, setSnapshot] = React.useState(initial);
+  const [online, setOnline] = React.useState(true);
+  const [pending, setPending] = React.useState(0);
+
+  const householdId = initial.household.id;
+  const meId = initial.me.id;
+
+  // Refs voor de nieuwste waarden binnen callbacks
+  const inFlight = React.useRef(new Map<string, OutboxEntry>());
+  const outbox = React.useRef<OutboxEntry[]>([]);
+  const ownMutationIds = React.useRef(new Set<string>());
+  const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRefresh = React.useRef(0);
+  const flushing = React.useRef(false);
+
+  const ctx = React.useCallback(() => ({ meId, now: new Date().toISOString() }), [meId]);
+
+  /** Nog niet bevestigde acties opnieuw toepassen op verse data */
+  const reapplyPending = React.useCallback(
+    (s: Snapshot) =>
+      [...outbox.current, ...inFlight.current.values()].reduce(
+        (acc, entry) => applyOptimistic(acc, entry.kind as MutationKind, entry.payload, ctx()),
+        s,
+      ),
+    [ctx],
+  );
+
+  const refresh = React.useCallback(async () => {
+    lastRefresh.current = Date.now();
+    try {
+      const fresh = await loadSnapshot(getBrowserClient(), householdId, meId);
+      setSnapshot(reapplyPending(fresh));
+    } catch (error) {
+      if (!isNetworkError(error)) console.error("[store] verversen mislukt");
+    }
+  }, [householdId, meId, reapplyPending]);
+
+  const scheduleRefresh = React.useCallback(
+    (delay = 400) => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => void refresh(), delay);
+    },
+    [refresh],
+  );
+
+  const updatePending = React.useCallback(() => setPending(outbox.current.length + inFlight.current.size), []);
+
+  // --- wachtrij versturen ---------------------------------------------------
+  const flushOutbox = React.useCallback(async () => {
+    if (flushing.current || outbox.current.length === 0) return;
+    flushing.current = true;
+    try {
+      while (outbox.current.length) {
+        const entry = outbox.current[0];
+        try {
+          const result = await sendMutation(entry.kind as MutationKind, entry.payload);
+          if (!result.ok) toast.error(result.error);
+        } catch (error) {
+          if (isNetworkError(error)) break; // later opnieuw
+          toast.error("Een offline actie kon niet worden verwerkt.");
+        }
+        outbox.current = outbox.current.slice(1);
+        await writeOutbox(outbox.current);
+        updatePending();
+      }
+    } finally {
+      flushing.current = false;
+      scheduleRefresh(200);
+    }
+  }, [scheduleRefresh, updatePending]);
+
+  // --- snelle acties ----------------------------------------------------------
+  const mutate = React.useCallback(
+    async <K extends MutationKind>(kind: K, payload: MutationPayload<K>): Promise<boolean> => {
+      // "Ongedaan maken" van een nog niet verstuurde afvinkactie: gewoon uit de wachtrij halen
+      if (kind === "undo") {
+        const taskId = (payload as MutationPayload<"undo">).taskId;
+        const queued = outbox.current.find(
+          (e) => e.kind === "complete" && (e.payload as MutationPayload<"complete">).taskId === taskId,
+        );
+        if (queued) {
+          outbox.current = outbox.current.filter((e) => e !== queued);
+          await writeOutbox(outbox.current);
+          updatePending();
+          setSnapshot((s) => applyOptimistic(s, "undo", payload, ctx()));
+          return true;
+        }
+      }
+
+      if (kind === "complete") ownMutationIds.current.add((payload as MutationPayload<"complete">).mutationId);
+
+      const entry: OutboxEntry = { id: newId(), kind, payload, createdAt: new Date().toISOString(), attempts: 0 };
+      setSnapshot((s) => applyOptimistic(s, kind, payload, ctx()));
+
+      const queue = async () => {
+        outbox.current = [...outbox.current, entry];
+        await writeOutbox(outbox.current);
+        updatePending();
+        toast("Opgeslagen op dit apparaat", { description: "Wordt verstuurd zodra je weer online bent." });
+        return true;
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine && isOfflineCapable(kind)) return queue();
+
+      inFlight.current.set(entry.id, entry);
+      updatePending();
+      try {
+        const result = await sendMutation(kind, payload);
+        inFlight.current.delete(entry.id);
+        updatePending();
+        if (!result.ok) {
+          toast.error(result.error);
+          scheduleRefresh(0);
+          return false;
+        }
+        scheduleRefresh();
+        return true;
+      } catch (error) {
+        inFlight.current.delete(entry.id);
+        updatePending();
+        if (isNetworkError(error) && isOfflineCapable(kind)) return queue();
+        toast.error("Geen verbinding. Probeer het opnieuw.");
+        scheduleRefresh(0);
+        return false;
+      }
+    },
+    [ctx, scheduleRefresh, updatePending],
+  );
+
+  const run = React.useCallback(
+    async <T,>(action: () => Promise<ActionResult<T>>, options?: { success?: string }): Promise<T | null> => {
+      try {
+        const result = await action();
+        if (!result.ok) {
+          toast.error(result.error);
+          return null;
+        }
+        if (options?.success) toast.success(options.success);
+        scheduleRefresh(100);
+        return result.data;
+      } catch (error) {
+        toast.error(isNetworkError(error) ? "Je bent offline. Deze actie kan alleen online." : "Er ging iets mis.");
+        return null;
+      }
+    },
+    [scheduleRefresh],
+  );
+
+  // --- opstarten: cache + wachtrij -----------------------------------------------
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [cached, queued] = await Promise.all([readCachedSnapshot(householdId), readOutbox()]);
+      if (cancelled) return;
+      outbox.current = queued;
+      updatePending();
+      // Offline geopende (gecachte) pagina kan ouder zijn dan wat in IndexedDB staat
+      if (cached && cached.loadedAt > initial.loadedAt) setSnapshot(reapplyPending(cached));
+      else if (queued.length) setSnapshot((s) => reapplyPending(s));
+      if (navigator.onLine) void flushOutbox();
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- alleen bij opstarten
+  }, [householdId]);
+
+  // Laatste stand bewaren voor offline gebruik
+  React.useEffect(() => {
+    const timer = setTimeout(() => void writeCachedSnapshot(snapshot), 800);
+    return () => clearTimeout(timer);
+  }, [snapshot]);
+
+  // --- online/offline + terugkomen in de app ---------------------------------------
+  React.useEffect(() => {
+    const update = () => {
+      setOnline(navigator.onLine);
+      if (navigator.onLine) {
+        void flushOutbox();
+        scheduleRefresh(300);
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastRefresh.current > 30_000) scheduleRefresh(0);
+    };
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [flushOutbox, scheduleRefresh]);
+
+  // --- realtime: wijzigingen van andere gezinsleden ----------------------------------
+  const membersRef = React.useRef(snapshot.members);
+  React.useEffect(() => {
+    membersRef.current = snapshot.members;
+  }, [snapshot.members]);
+
+  React.useEffect(() => {
+    const db = getBrowserClient();
+    let channel = db.channel(`household:${householdId}`);
+    for (const table of REALTIME_TABLES) {
+      channel = channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter: `household_id=eq.${householdId}` },
+        (payload) => {
+          if (table === "task_completions" && payload.eventType === "INSERT") {
+            const completion = payload.new as CompletionRow;
+            if (!completion.client_mutation_id || !ownMutationIds.current.has(completion.client_mutation_id)) {
+              const who = membersRef.current.find((m) => m.id === completion.member_id)?.display_name ?? "iemand";
+              toast(`“${completion.title}” gedaan door ${who}`, { icon: "✅" });
+            }
+          }
+          scheduleRefresh();
+        },
+      );
+    }
+    channel = channel.on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "notifications", filter: `member_id=eq.${meId}` },
+      (payload) => {
+        const n = payload.new as NotificationRow;
+        if (n.type !== "task_completed") toast(n.title, { description: n.body ?? undefined, icon: "🔔" });
+        scheduleRefresh();
+      },
+    );
+    channel.subscribe();
+    return () => {
+      void db.removeChannel(channel);
+    };
+  }, [householdId, meId, scheduleRefresh]);
+
+  const value = React.useMemo<HouseholdStore>(
+    () => ({ snapshot, online, pending, refresh, mutate, run }),
+    [snapshot, online, pending, refresh, mutate, run],
+  );
+
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+}
