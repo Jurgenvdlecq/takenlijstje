@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP1 (rechtenmodel en securityfixes op live)
-Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test-writer op supabase/tests/** en het su -c-gat in de poort, (2) Jurgen: controle mogelijke sleutel in commit b8a10a0, (3) test-writer werkt DB-tests bij (leden met account alleen via RPC; delete_task zonder orakel) en plaatst ze, (4) herreview code + security, (5) live: migraties _100/_110 via de koppeling, push naar main ('s avonds), rooktest.
+Volgende stap: WP1 rooktest op live door Jurgen (de sandbox kan takenlijstje.vercel.app niet bereiken): inloggen, Vandaag, afvinken + ongedaan maken. Daarna WP1 afgerond en door naar WP2a.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -56,7 +56,7 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
 ## Open vragen
-- (geen)
+- V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
@@ -64,7 +64,7 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 ## Work packages
 | WP | Omschrijving | Acceptatiecriteria | Checkpoint | Status |
 | --- | --- | --- | --- | --- |
-| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | — | bezig |
+| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | code-review GO (r3), security GO (r2), test-writer GO (r4) | live gezet 2026-09-28 ~23:00; rooktest door Jurgen open |
 | WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | open |
 | WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | open |
 | WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | open |
@@ -78,6 +78,8 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 
 ## Bevindingen per work package
+- WP1 eindstand tests (commit 0911e3f): typecheck en lint groen; vitest 183/183; databasetests 276 controles groen, mutatiecontrole 20/20; E2E 43/43 op de lokale stack (TD §12.3.1).
+- WP1 livegang (2026-09-28): stap 0 opnieuw geteld → 0 uitgezette leden met account, 0 afwijkende urls. Migraties `rechten_actief_lid` (_100) en `reeks_rpcs` (_110) toegepast via de koppeling, beide geslaagd. Code: `main` → 0911e3f (fast-forward). Supabase-beveiligingsadvies: alleen de bewust aanroepbare RPC's (elk met eigen rechtencheck) en `get_invitation` voor anon (uitnodigingspagina vóór inloggen, bewust); geen `private`-functie aanroepbaar. Wel: "Leaked password protection" staat uit (Auth-instelling, zie Open vragen). Rooktest op live: niet door mij uit te voeren, het netwerkbeleid van de sandbox weigert takenlijstje.vercel.app.
 - Planreview: `docs/reviews/plan-critic.md` — ronde 1 (2026-09-28) NEE: 0 blokkerend, 14 moet, 8 aanbevelingen, alle 14 opgelost; ronde 2 NEE: 2 moet-punten (door herstel ontstaan), opgelost; ronde 3 NEE: 1 moet-punt, opgelost; ronde 4 (2026-09-28) **JA**, 1 aanbeveling (AC-055 herkenregel).
 - Inventarisatie (2026-09-27): zie `docs/INVENTARIS.md` §7. Open BLOKKEREND: B-01 (gezinslid kan open taken van andermans reeks laten verwijderen). GEMIDDELD: B-02, B-03, R-01, R-02, S-01, S-02, A-01, A-02, P-01. Worden na de Design Freeze als eerste work packages behandeld (werkwijze §15 stap 6); geen code gewijzigd.
 
