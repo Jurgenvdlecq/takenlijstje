@@ -9,7 +9,7 @@ Status: inventarisatie. Er is geen productiecode gewijzigd en er zijn geen funct
   - `README.md` (functies, MVP-tabel, veiligheid, tests);
   - `docs/ARCHITECTUUR.md` (uitgangspunten, datastroom, terugkerende taken, schema).
 
-  Die besluiten neem ik over en vraag ik niet opnieuw (zie §2). Zie V-02 in `docs/PROGRESS.md`: bestaat `PLAN.md` ergens anders?
+  Die besluiten neem ik over en vraag ik niet opnieuw (zie §2). Jurgen heeft op 2026-09-28 bevestigd dat dit het uitgangspunt is (V-02).
 - **Bronnen voor deze inventaris:**
   - eigen leeswerk van de code;
   - twee verkenningsrapporten (frontend en backend);
@@ -119,11 +119,36 @@ In `docs/screenshots/bestaand/`, op 390×844 (telefoon) en 1440×900. Lokaal ged
 | `offline-390x844.png` | Icoon van een doorgestreepte wolk, "Je bent offline" en een korte uitleg. Correct en eenvoudig |
 | `uitnodiging-ongeldig-390x844.png` | Rode waarschuwingsdriehoek met "Deze uitnodiging is ongeldig of verlopen", uitleg waar een nieuwe link te halen is, en de knop "Naar de app". Duidelijke foutstaat |
 
-- **Niet vastgelegd:** alle schermen na het inloggen (Vandaag, Taken, Kalender, Boodschappen, Huishouden, Meldingen, Instellingen, Onboarding). Daarvoor is een werkende inlogserver met voorbeelddata nodig.
-- **Waarom het niet lukte:**
-  - De live site (`takenlijstje.vercel.app`) is vanuit deze omgeving niet bereikbaar: de verbinding werd geweigerd en er kwamen alleen witte pagina's terug. Die heb ik weggegooid.
-  - De lokale mini-Supabase uit `tests/e2e/support/local-stack.sh` heeft een zelf gebouwde Supabase Auth-server nodig. Het starten daarvan is door de beveiliging van deze omgeving geweigerd, omdat het code van buitenaf is.
-- **Gevolg:** de visuele beoordeling van de bestaande hoofdschermen ontbreekt nog. Oplossingen staan bij V-03 in `docs/PROGRESS.md`.
+### Ingelogde schermen (2026-09-28)
+
+- **Hoe:** lokale teststack uit `tests/e2e/support/local-stack.sh` (op toestemming van Jurgen, V-03), met de voorbeelddata "Familie" uit `scripts/seed.ts`. Ingelogd als jurgen@example.com.
+- **Console:** alleen fouten over de ontbrekende realtime-verbinding. Die is er in deze teststack bewust niet. Verder geen console- of paginafouten.
+- **Artefacten van de opname, geen fouten in de app:**
+  - de ronde "N"-knop linksonder is de ontwikkelindicator van Next.js;
+  - de onderbalk staat halverwege de pagina, omdat een vaste balk op een schermafdruk van de hele pagina zo wordt vastgelegd.
+
+| Screenshot | Wat ik zie |
+| --- | --- |
+| `vandaag-390x844.png` | "Goedemorgen, Jurgen" met 4 tegels (vandaag, voltooid, nog open, verlopen), een voortgangsbalk, de regel "Eerstvolgende deadline", snel toevoegen, en de secties Verlopen, Vandaag, Samen sparen, Binnenkort (17, met "Toon alles (11 meer)") en Mijn taken/Iedereen. **Vol:** vóór de eerste taak staan vijf blokken. De verlopen taak "Fietsband plakken" staat twee keer op het scherm (Verlopen en Mijn taken). De deadlineregel breekt op de telefoon rommelig af over drie kolommen. De voorbeeldtekst in snel toevoegen is afgekapt ("badkamer zaterc") |
+| `vandaag-1440x900.png` | Dezelfde telefoonindeling in een kolom van ongeveer 735 px, met de onderbalk ook op de computer. Werkt, maar gebruikt de breedte niet |
+| `taken-390x844.png` | 37 taken, gegroepeerd per dag. Zoekveld, filterknop en snelfilterchips (Open, Mijn taken, Verlopen, Voltooid…). De laatste chip valt rechts buiten beeld. Netjes, maar een lange lijst |
+| `kalender-390x844.png` | Weekweergave: "Week 40", Dag/Week/Maand, filterchips per persoon (die buiten beeld lopen), per dag een kaart met taken en een +. Vandaag is warm gemarkeerd. Duidelijk |
+| `nieuwe-taak-390x844.png` | Een venster van onderen: Naam taak, Wie? (chips per persoon), Wanneer? (Vandaag, Morgen, Zaterdag, Zondag…), Herhalen en "Meer instellingen". "Toevoegen" is uitgeschakeld tot er een naam staat. Past bij het besluit *Naam · Wie? · Wanneer?*. De chips lopen rechts buiten beeld, zonder aanwijzing dat je kunt schuiven |
+| `boodschappen-390x844.png` | Invoerveld met een + knop, "Vaak gekocht" als chips, categorieën met emoji (Zuivel, Brood, Dranken, Drogisterij), een ⋯-menu per product en "In je mandje". Overzichtelijk. De status van "Cola" (groen omrand vakje) is niet direct te begrijpen |
+| `huishouden-390x844.png` | Periodetabs, 4 tegels, per persoon voortgang en taakbelasting, puntendoel, "meest gedaan" / "meest vergeten" en afwezig. Getallen als "6% gemiddelde voltooiing" en "0,3 taken gemiddeld per persoon" zeggen de gebruiker weinig |
+| `meldingen-390x844.png` | Ruilverzoek van Lynn, met citaat en de knoppen "Bekijken" en "Overnemen". Daaronder meldingen met ongelezen-stip en "Alles gelezen". Helder en goed |
+| `instellingen-390x844.png` | **Eén pagina van ongeveer 8700 px hoog**, met profiel, meldingen, afwezigheid, huishouden, gezinsleden, terugkerende taken, de hele standaardtakenbibliotheek en account. Op de telefoon is dit moeilijk te overzien, ondanks de ankerlinks bovenaan |
+
+- **Algemene visuele indruk:**
+  - Consistent: gebroken witte achtergrond, witte afgeronde kaarten, indigo als accentkleur, emoji-avatars in kleur, rood voor verlopen en groen voor gedaan.
+  - Verzorgd en vriendelijk, maar vrij generiek (standaard component-look). Veel kaarten die even zwaar wegen, waardoor de hiërarchie op Vandaag zwak is.
+  - De computerweergave is een uitgerekte telefoonweergave.
+- **Nog niet vastgelegd:**
+  - onderwerpen die alleen met acties te zien zijn: taakdetail, onboarding, "kan niet"-dialoog, maand- en dagweergave;
+  - lege, laad- en foutstates;
+  - donkere modus.
+
+  Die komen in de ontwerpfase en bij de checkpoints aan bod.
 
 ## 6. Wat werkt (aangetoond)
 
@@ -196,7 +221,14 @@ In `docs/screenshots/bestaand/`, op 390×844 (telefoon) en 1440×900. Lokaal ged
   - De dark-modetokens staan dubbel in `globals.css`.
   - Er is een hardgecodeerde kleur in `app-shell.tsx:51`.
   - Veel losse chipknoppen, zonder gedeelde component.
-- **D-02**: de visuele kwaliteit van de hoofdschermen is **nog niet beoordeeld**, omdat daar geen screenshots van zijn (§5). Het inlogscherm is netjes maar generiek.
+- **D-02 — GEMIDDELD**: Vandaag is vol en heeft een zwakke hiërarchie. Er staan 5 blokken vóór de eerste taak, een verlopen taak staat dubbel op het scherm en de deadlineregel breekt rommelig af (§5).
+- **D-03 — GEMIDDELD**: Instellingen is één pagina van ongeveer 8700 px op de telefoon.
+- **D-04 — LAAG**:
+  - Chiprijen (snelfilters, personen, dagen) lopen buiten beeld, zonder aanwijzing dat je kunt schuiven.
+  - De voorbeeldtekst in snel toevoegen is afgekapt.
+  - De statistieken in Huishouden zijn weinig betekenisvol.
+- **D-05 — LAAG**: op de computer staat een uitgerekte telefoonindeling, met de onderbalk.
+- **Algemeen:** consistent en verzorgd, maar generiek. De visual-designer beoordeelt of dit een basis is om op door te bouwen.
 
 ### Prestaties
 
@@ -228,4 +260,4 @@ Volgt in **stap 4** van §15, nadat het nieuwe product-, UX-, visuele en technis
   - schema van de tick (R-01);
   - globale laad- en foutstates (S-01);
   - toegankelijkheid van de taakkaart en de kalender.
-- **Nog onbekend:** de visuele laag. Daarvoor zijn eerst screenshots van de ingelogde schermen nodig.
+- **Visuele laag:** consistent maar generiek. De visual-designer beslist of de stijl blijft en wordt verfijnd, of opnieuw wordt ontworpen. Vandaag en Instellingen vragen in elk geval om herwerk van de indeling (D-02, D-03).
