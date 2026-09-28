@@ -1,7 +1,7 @@
 # Productspecificatie — Takenlijstje
 
 Versie: ronde 3 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15, stap 3 (bestaand project).
-Status: alle productvragen zijn beantwoord (V-05 t/m V-27, plus V-04 en V-20). Het document is klaar als basis voor het UX-ontwerp. Nog niet bevroren.
+Status: ronde 4 (na plan-critic ronde 1). Er staan nog vier vragen open bij Jurgen: V-36, V-37 en V-38 van de plan-critic, en V-39 over de tijdzone (zie §13). Nog niet bevroren.
 
 **Bronnen**
 - De besluiten en antwoorden van Jurgen in `docs/PROGRESS.md` (V-04, en V-05 t/m V-27). Die zijn leidend.
@@ -235,7 +235,7 @@ Jurgen heeft per gegeven besloten (V-25):
 ### UC-12 — Instellingen en beheer
 - **Iedereen:** eigen profiel (naam, kleur, emoji), meldingen en push, uitloggen, account verwijderen.
 - **Beheerder daarnaast:**
-  - huishouden: naam, tijdzone, "gezinsleden mogen taken maken";
+  - huishouden: naam, tijdzone, "gezinsleden mogen taken maken". Wat er met de deadlines van open taken gebeurt als de tijdzone verandert, of dat de tijdzone vast blijft: `[OPEN: V-39]`;
   - gezinsleden: (de)activeren, rol wijzigen en verwijderen. Voorkeur: deactiveren in plaats van verwijderen (V-15);
   - uitnodigingen;
   - terugkerende taken en standaardtaken;
@@ -264,7 +264,13 @@ Jurgen heeft per gegeven besloten (V-25):
 - **BR-11 — Eén keer voltooid:** een taak wordt maar één keer als voltooid geregistreerd, ook als twee mensen tegelijk afvinken.
 - **BR-12 — Historie zonder personen:**
   - **Wat wordt vastgelegd:** titel (als momentopname), categorie, wanneer gedaan, de geplande dag, de deadline, of het te laat was (en hoeveel minuten), en een optionele notitie.
-  - **Wat nooit wordt vastgelegd:** wie afvinkte (V-21). Ook niet in logs of in de meldingstekst.
+  - **Wat de app nooit vastlegt:** wie afvinkte (V-21).
+    - Niet in de database, niet in de tekst van meldingen en niet in de eigen logregels van de app. De app logt alleen actienaam, foutnaam en code.
+    - **Grens van die belofte:** de platforms waarop de app draait, houden zelf toegangslogs bij die de app niet beheert.
+      - **Supabase:** de API- en auth-logs leggen per aanroep vast welk account welke functie aanriep (bijvoorbeeld `complete_task`) en wanneer. Volgens de documentatie van Supabase is de bewaartermijn op het gratis plan 1 dag, en langer op betaalde plannen. Welk plan het project heeft, is niet in de documenten vastgelegd; het technisch ontwerp gaat uit van Free.
+      - **Vercel:** de runtime-logs bewaren op het Hobby-plan 1 uur. Omdat de app geen invoer en geen `user_id` logt, bevatten ze geen persoonsgegevens van de app zelf.
+      - Deze termijnen zijn gecontroleerd op 2026-09-28 en kunnen bij de aanbieders veranderen.
+    - De bouwer noemt dit in het totaalvoorstel aan Jurgen (plan-critic ronde 1, punt 3).
   - De historie blijft bestaan als de taak of reeks later wordt verwijderd.
   - Offline afgevinkt? Dan geldt het moment van afvinken, maar nooit in de toekomst en nooit meer dan 7 dagen terug.
   - *(afwijking: de code slaat nu `completed_by_member_id` en `task_completions.member_id` op, en kan "namens" een ander afvinken; B-04 vervalt daarmee)*
@@ -304,7 +310,9 @@ Jurgen heeft per gegeven besloten (V-25):
   - **Verlopen:** één keer, binnen 24 uur na de deadline.
   - **Dagoverzicht** (standaard 07:30): "Vandaag staan er N taken", alleen als N > 0.
   - **Avondoverzicht** (standaard 20:00): "Er staan nog N taken open (vandaag en verlopen)", alleen als N > 0.
-  - **Taak gedaan:** "'Vaatwasser uitruimen' is gedaan", **zonder naam**, en niet naar degene die op dat moment afvinkte. Dat laatste wordt alleen tijdens de actie gebruikt en niet opgeslagen. Standaard uit.
+  - **Taak gedaan:** "'Vaatwasser uitruimen' is gedaan", **zonder naam**. Standaard uit.
+    - **Wie hem krijgt, is nog open `[OPEN: V-38]`.** Volgens de eerdere tekst ging de melding niet naar degene die afvinkte. Maar dan is in de opgeslagen meldingen 90 dagen lang af te leiden wie het was, en dat botst met V-21 (plan-critic ronde 1, punt 2).
+    - Tot het antwoord er is, geldt geen van de opties als besloten.
   - **Nooit dubbel:** dezelfde melding komt per ontvanger nooit twee keer.
   - **Voorkeuren:** gelden per persoon.
   - **Ontvangers (V-23):**
@@ -339,6 +347,8 @@ Jurgen heeft per gegeven besloten (V-25):
 - **BR-46 — Overgang van de live gegevens (V-26):**
   1. Eerst wordt een **back-up** gemaakt van de live database, en er wordt gecontroleerd dat die terug te zetten is.
   2. **Vlak vóór het wissen vraagt de bouwer Jurgen nogmaals om uitdrukkelijke bevestiging.** Zonder die bevestiging wordt er **nooit** iets gewist.
+     - Hij toont daarbij de exacte aantallen per soort gegevens die verdwijnen, **inclusief de bestaande meldingen uit punt 3**.
+     - De aantallen worden direct vóór die vraag opnieuw geteld, omdat het gezin de app intussen blijft gebruiken.
   3. Daarna worden gewist:
      - toewijzingen en toewijzingshistorie;
      - wie afvinkte ("gedaan door", en de persoon in de afvinkhistorie);
@@ -346,9 +356,16 @@ Jurgen heeft per gegeven besloten (V-25):
      - ruilverzoeken;
      - afwezigheden;
      - meldingen van soorten die vervallen (toegewezen, ruilverzoek, ruil geaccepteerd);
+     - **alle bestaande meldingen "taak gedaan" van vóór de overgang.** Hun tekst noemt letterlijk wie afvinkte ("… is gedaan door <naam>");
+     - **alle bestaande dag- en avondoverzichten van vóór de overgang.** Hun tekst is een afgeleide van toewijzing ("Waarvan N voor jou", "op jouw naam");
      - "toegevoegd door" en "gekocht door" bij boodschappen;
      - leden zonder account.
+
+     Na het wissen staat nergens in de database, **ook niet in de tekst van meldingen**, wie een taak deed (plan-critic ronde 1, punt 1).
   4. **Blijft bestaan:** de afvinkhistorie zelf (wat, wanneer, op tijd of te laat, notitie), zonder personen. Ook de makers van taken en reeksen en de schrijvers van notities blijven bestaan (V-25).
+  5. **Meldingsvoorkeuren van bestaande gezinsleden** (nu Lynn en Kai, als ze een account hebben) worden bij de overgang op de nieuwe standaard gezet: alle soorten **uit**. Dat geldt ook als ze die meldingen zelf hadden aangezet. De voorkeuren van beheerders blijven ongewijzigd. Dit volgt uit V-23. De bouwer noemt het expliciet in het totaalvoorstel aan Jurgen, zodat Lynn en Kai niet ongemerkt geen herinneringen meer krijgen. Ze kunnen het daarna zelf weer aanzetten.
+
+  **Hoe de nieuwe versie live gaat tijdens het bouwen** (per onderdeel, of alles samen): `[OPEN: V-36]`.
 
   — waarom: het wissen is onomkeerbaar en raakt gegevens van het gezin.
 
@@ -437,7 +454,7 @@ Leden zonder account vervallen (§0).
   - wie iets op de boodschappenlijst zette of kocht (V-25);
   - wachtwoorden (alleen bij Supabase Auth);
   - locatie, telefoonnummers, geboortedata en foto's;
-  - invoer of persoonsgegevens in logs.
+  - invoer of persoonsgegevens in de eigen logs van de app. De toegangslogs van Supabase en Vercel vallen daarbuiten; zie BR-12 voor wat die bevatten en hoe lang.
 - **Te verwijderen bij de overgang:** volgens BR-46: eerst een back-up, dan vlak vóór het wissen nogmaals bevestiging van Jurgen.
 - **Verwijderen:**
   - ieder lid kan het eigen account verwijderen;
@@ -447,6 +464,7 @@ Leden zonder account vervallen (§0).
   - **Supabase:** database, authenticatie en e-mail. Het project staat in regio eu-central-1 (Frankfurt, EU) (V-20).
   - **Vercel:** hosting.
   - **Pushdiensten van Apple en Google:** de inhoud is versleuteld, maar bevat taaktitels.
+  - **Supabase en Vercel** houden daarnaast eigen, kortdurende toegangslogs bij (BR-12).
   - Er zijn geen analytics, geen advertenties en geen AI-diensten.
 
 ## 9. Afhankelijkheden
@@ -475,7 +493,11 @@ Leden zonder account vervallen (§0).
 
 Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlijke verdeling, doordat zichtbaar is wat er moet en wanneer. Akkoord van Jurgen (V-27). Controleerbaar drie maanden na de livegang van de nieuwe versie:
 
-1. **Minder vergeten:** het aandeel taken dat verlopen of overgeslagen is, is in maand 3 lager dan in maand 1. Te zien in het Huishouden-overzicht.
+1. **Minder vergeten:** het aandeel taken dat verlopen of overgeslagen is, is in maand 3 lager dan in maand 1.
+   - **Zo gemeten:** het Overzicht toont maximaal 30 dagen, dus maand 1 is daar later niet meer af te lezen.
+   - De bouwer bepaalt het cijfer met een alleen-lezen query op de afvinkhistorie en de overgeslagen of verlopen taken. Dat gebeurt op dag 30 en op dag 90 na de livegang van de nieuwe versie, en beide keren komt het cijfer in `docs/PROGRESS.md`.
+   - Het cijfer is (verlopen + overgeslagen) / (alle taken met een geplande dag in die 30 dagen).
+   - De query telt alleen, en leest geen personen.
 2. **Op tijd:** minstens 80% van de afgevinkte taken is vóór de deadline gedaan. Te zien in de historie ("te laat").
 3. **Dagelijks gebruik:** op minstens 5 van de 7 dagen per week wordt er iets afgevinkt. Dit is gemeten voor het huishouden als geheel; per persoon kan en mag het niet (V-21).
 4. **Ervaren eerlijkheid:** Ellen en Jurgen geven na drie maanden aan dat er minder discussie is over wie wat doet. Dat is een gesprek, geen meting in de app, want de app meet dit bewust niet.
@@ -485,8 +507,9 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
    - herinneringen komen binnen 15 minuten na het geplande moment (R-01 opgelost).
 6. **Snel:**
    - afvinken is één tik, toevoegen minimaal *Naam · Wanneer?*;
+   - of wijzigen (naam of andere details) meer dan twee tikken mag kosten, tegenover het overgenomen besluit "maximaal twee tikken": `[OPEN: V-37]`;
    - op 390×844 zijn de verlopen taken en die van vandaag zichtbaar zonder te scrollen, bij een normale dag (tot ongeveer 6 taken).
-7. **Privacy klopt:** de database bevat geen gegevens over wie een taak afvinkte. Dat is te controleren in het schema en met een test.
+7. **Privacy klopt:** de database bevat geen gegevens over wie een taak afvinkte. Geen kolom, en ook geen meldingstekst of ontvangerspatroon waaruit het af te leiden is (V-38). Dat is te controleren in het schema, op de inhoud van de meldingen en met een test. De toegangslogs van de platforms vallen erbuiten (BR-12).
 
 ## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27)
 
@@ -522,4 +545,11 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
 **Aannames** (zonder invloed op rechten, gegevens, privacy, scope of gebruikerservaring):
 - `[AANNAME]` De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (ook vastgelegd in PROGRESS).
 
-**Open vragen:** geen.
+**Open vragen:**
+
+| Vraag | Onderwerp | Waar in dit document |
+| --- | --- | --- |
+| V-36 | Hoe de nieuwe versie live gaat tijdens het bouwen (plan-critic) | BR-46 |
+| V-37 | Mag wijzigen meer dan twee tikken kosten (plan-critic) | §11.6 |
+| V-38 | Wie krijgt de melding "taak gedaan" zonder dat af te leiden is wie afvinkte (plan-critic) | BR-31 |
+| V-39 | Tijdzone van het huishouden: alleen-lezen, of wijzigbaar met vastgelegd gedrag voor open deadlines | UC-12 |

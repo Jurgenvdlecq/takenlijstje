@@ -245,6 +245,12 @@ WANNEER de fout bij de gebruiker en in de log komt
 DAN ziet de gebruiker een Nederlandse tekst zonder policynaam of stacktrace. De log bevat alleen de actienaam, de foutnaam en de code: geen invoer, titels, namen, e-mailadressen, tokens of `user_id`
 **Toets:** Unit (`friendlyMessage`) + code-review
 
+### AC-170 — Niemand verliest ongemerkt toegang bij de invoering van "uitgezet" (WP1; V-29; plan-critic punt 7)
+GEGEVEN de live database vóór de deploy van WP1
+WANNEER de bouwer met een alleen-lezen telling vaststelt hoeveel leden een account hebben en `is_active = false`
+DAN wordt WP1 alleen uitgerold bij 0. Is de telling groter dan 0, dan legt de bouwer eerst aan Jurgen voor welke leden het zijn, en wordt er niets uitgerold tot hij heeft beslist
+**Toets:** Proces + Live (alleen lezen)
+
 ---
 
 ## WP2 — Datamodel, scope en datamigratie
@@ -258,8 +264,10 @@ DAN bevat de nieuwe historie-rij titel, categorie, `completed_at`, geplande dag,
 ### AC-035 — Privacytest op het schema (WP2; BR-12; succescriterium 7)
 GEGEVEN de database na de contract-migratie
 WANNEER `supabase/tests/30_privacy.sql` draait
-DAN bestaat in `tasks`, `task_completions` en `shopping_items` geen kolom `completed_by*`, `member_id`, `added_by*` of `bought_by*`. De test faalt zodra zo'n kolom terugkomt
-**Toets:** DB (in CI) + Live (alleen lezen, na M6)
+DAN:
+- **Schema:** in `tasks`, `task_completions` en `shopping_items` bestaat geen kolom `completed_by*`, `member_id`, `added_by*` of `bought_by*`. De test faalt zodra zo'n kolom terugkomt.
+- **Inhoud:** er is geen melding waarvan de titel of tekst "gedaan door" bevat, of de weergavenaam van een lid in combinatie met "gedaan", "voor jou" of "jouw naam". Er is geen melding van het type `task_completed`, `daily_summary` of `evening_summary` met `created_at` vóór het moment van de contract-migratie.
+**Toets:** DB (in CI, met seed-data die zulke oude meldingen bevat) + Live (alleen lezen, na M6)
 
 ### AC-036 — Dubbel tikken geeft één registratie (WP2; BR-10, BR-11)
 GEGEVEN een open taak
@@ -366,8 +374,9 @@ DAN staan bij een beheerder herinneringen, "deadline nadert", "verlopen", dagove
 ### AC-053 — Bestaande gezinsleden krijgen de nieuwe standaard (WP2; V-23; TECHNICAL_DESIGN §3.3)
 GEGEVEN bestaande leden vóór de migratie `…_200`
 WANNEER die migratie draait
-DAN staan de genoemde soorten uit voor leden met rol gezinslid, en zijn de voorkeuren van beheerders ongewijzigd
-**Toets:** DB (op een kopie van het oude schema) + Live-controle
+DAN staan de genoemde soorten uit voor leden met rol gezinslid, ook als het lid die zelf had aangezet, en zijn de voorkeuren van beheerders ongewijzigd (PRODUCT_SPEC BR-46.5)
+- Het totaalvoorstel aan Jurgen noemt dit gevolg expliciet, voordat het gebeurt.
+**Toets:** DB (op een kopie van het oude schema, met een gezinslid dat zelf herinneringen aan had) + Live-controle + Proces (totaalvoorstel)
 
 ### AC-054 — Na de expand-stap schrijft de app geen persoon meer (WP2; BR-46; draaiboek M1)
 GEGEVEN `…_200` en de WP2-code staan op live
@@ -376,7 +385,11 @@ DAN is het aantal taken met `completed_by_member_id is not null` en `completed_a
 **Toets:** Live + Proces
 
 ### AC-055 — Voorcontroles stoppen bij twijfel (WP2; BR-46; M2)
-GEGEVEN de voorcontroles op live, alleen lezend: gebruiker in meer dan één huishouden, meer dan één afvinking per taak, meer dan één actieve lijst per huishouden
+GEGEVEN de voorcontroles op live, alleen lezend, uitgevoerd vóór de eerste migratie die ervan afhangt:
+- een gebruiker in meer dan één huishouden;
+- meer dan één afvinking per taak;
+- meer dan één actieve lijst per huishouden;
+- leden met een account en `is_active = false`.
 WANNEER een van die tellingen niet 0 is
 DAN stopt het draaiboek, wordt er niets gewist of gewijzigd, en legt de bouwer de opties voor aan Jurgen. Hij verzint zelf geen ontdubbelregel
 **Toets:** Proces
@@ -401,9 +414,16 @@ DAN zijn de aantallen en checksums per tabel gelijk aan live. Anders stopt het d
 ### AC-058 — Nooit wissen zonder Jurgens bevestiging vlak ervoor (WP2; BR-46.2; V-26; M5)
 GEGEVEN de back-up en de restore-test zijn geslaagd
 WANNEER de bouwer de contract-migratie `…_210` op live wil uitvoeren
-DAN heeft hij Jurgen eerst in gewone taal de datum en plaats van de back-up, de geslaagde restore-test en de exacte aantallen die verdwijnen getoond, en heeft Jurgen daarna letterlijk geantwoord met "ja, wissen". Dat antwoord staat letterlijk in `docs/PROGRESS.md`
+DAN heeft hij Jurgen eerst in gewone taal getoond:
+- de datum en plaats van de back-up;
+- de geslaagde restore-test;
+- de exacte aantallen die verdwijnen, per soort gegevens, **inclusief de bestaande meldingen "taak gedaan" en de dag- en avondoverzichten** (BR-46.3). Die aantallen zijn **direct vóór de vraag opnieuw geteld**.
+
+Daarna heeft Jurgen letterlijk geantwoord met "ja, wissen". Dat antwoord staat letterlijk in `docs/PROGRESS.md`
 - Zonder dat antwoord wordt `…_210` niet uitgevoerd.
 - Een eerder akkoord, ook `/design-go`, telt niet.
+- De contract-migratie draait in dezelfde werksessie als het antwoord.
+- Is er intussen iets gewijzigd waardoor de aantallen niet meer kloppen, dan wordt opnieuw gevraagd.
 **Toets:** Proces (code-reviewer controleert PROGRESS en het bouwverslag)
 
 ### AC-059 — Wat verdwijnt en wat blijft (WP2; BR-46.3/4; M6)
@@ -411,9 +431,10 @@ GEGEVEN de contract-migratie is uitgevoerd
 WANNEER de controles op live draaien
 DAN:
 - zijn toewijzingen, ruilverzoeken, afwezigheden, punten, "wie afvinkte", "toegevoegd/gekocht door", meldingen van vervallen soorten en leden zonder account weg;
+- zijn **alle meldingen "taak gedaan" en alle dag- en avondoverzichten van vóór de overgang weg**;
 - is het aantal historie-rijen gelijk aan vóór het wissen (zonder persoon);
 - bestaan makers van taken en reeksen en schrijvers van notities nog;
-- geeft de privacytest (AC-035) op live geen kolommen.
+- geeft de privacytest (AC-035) op live zowel voor het schema als voor de inhoud van de meldingen 0 treffers.
 **Toets:** Live + Proces
 
 ### AC-060 — Terugrollen kan (WP2; TECHNICAL_DESIGN §12.4)
@@ -514,10 +535,12 @@ DAN krijgt de ontvanger:
 Bij 0 open taken komt er geen overzicht. Er staat nergens "voor jou"
 **Toets:** Unit + Int
 
-### AC-073 — "Taak gedaan" zonder naam en niet naar de afvinker (WP3; BR-31; V-21)
+### AC-073 — "Taak gedaan" zonder naam, en niet af te leiden wie het deed (WP3; BR-31; V-21; `[OPEN: V-38]`)
 GEGEVEN Ellen en Jurgen hebben "taak gedaan" aan staan
 WANNEER Ellen "Vaatwasser uitruimen" afvinkt
-DAN krijgt Jurgen "Vaatwasser uitruimen is gedaan", zonder naam, en krijgt Ellen niets. Er wordt nergens opgeslagen dat Ellen het deed
+DAN is de tekst "Vaatwasser uitruimen is gedaan", zonder naam. Uit de opgeslagen meldingen (tekst **en** de ontvangers) is niet af te leiden dat Ellen het deed
+- Wie de melding precies krijgt, hangt af van V-38. Dit criterium wordt na het antwoord concreet gemaakt.
+- De eerdere versie ("Ellen krijgt niets") is vervallen, omdat die het lek juist afdwong (plan-critic ronde 1, punt 2).
 **Toets:** Int
 
 ### AC-074 — Meldingsteksten bevatten geen namen van leden (WP3; V-21; UX §4.9)
@@ -1022,7 +1045,10 @@ DAN ziet ze Profiel, Meldingen, Gezinsleden (alleen-lezen, met "Ellen en Jurgen 
 ### AC-143 — Eigen profiel (WP7; UC-12)
 GEGEVEN een lid
 WANNEER het de eigen naam, kleur of emoji wijzigt
-DAN is dat direct opgeslagen ("Opgeslagen"), en zien huisgenoten de nieuwe naam bij notities en in de ledenlijst
+DAN:
+- is dat direct opgeslagen ("Opgeslagen");
+- zien huisgenoten de nieuwe naam in de ledenlijst en bij **nieuwe** notities;
+- houden **bestaande** notities de naam van het moment waarop ze werden geplaatst, want de interface toont `author_name` als momentopname (TECHNICAL_DESIGN §3.1, V-34).
 **Toets:** E2E
 
 ### AC-144 — Meldingen instellen (WP7; BR-31; V-23; UX §4.10)
@@ -1062,8 +1088,8 @@ Halverwege stoppen en terugkomen gaat verder bij dezelfde stap
 Zie AC-023. Aanvullend:
 GEGEVEN Kai op `/geen-toegang`
 WANNEER hij Uitloggen kiest, of de link Account verwijderen
-DAN logt hij uit, of komt hij in de flow van AC-134
-**Toets:** E2E
+DAN logt hij uit, of komt hij in de flow van AC-134. Het verwijderen van zijn account slaagt, ook al is hij uitgezet: de RPC herkent hem aan zijn eigen account, niet aan een actief lidmaatschap
+**Toets:** E2E + DB (uitgezet lid roept `delete_my_account` aan → geslaagd)
 
 ---
 
@@ -1226,8 +1252,9 @@ DAN dekken ze minimaal deze onderwerpen, met de AC's waar ze bij horen:
 GEGEVEN productie na de release
 WANNEER de bouwer de succescriteria controleert
 DAN:
-- zijn de tijd tussen het geplande moment en de melding (criterium 5) en het aandeel "op tijd" en "vergeten" (criteria 1 en 2) uit logs of het Overzicht af te lezen;
-- draait de privacytest (criterium 7) in CI.
+- **Criterium 1:** het aandeel vergeten taken wordt met een alleen-lezen query bepaald op dag 30 en op dag 90 na de livegang: (verlopen + overgeslagen) / (alle taken met een geplande dag in die 30 dagen). Beide cijfers staan in `docs/PROGRESS.md`, en de query telt alleen, zonder personen (PRODUCT_SPEC §11.1);
+- **Criteria 2 en 5:** het aandeel "op tijd" en de tijd tussen het geplande moment en de melding zijn uit de historie en de tick-tellingen af te lezen;
+- **Criterium 7:** de privacytest (AC-035, schema en inhoud) draait in CI.
 **Toets:** Proces + Live
 
 ### AC-169 — Toegankelijkheid basis (WP9; A-01, A-02, A-03)

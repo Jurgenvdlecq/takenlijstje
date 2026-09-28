@@ -1,10 +1,10 @@
 # UX-specificatie — Takenlijstje
 
-Versie: ronde 4 (2026-09-28, V-28, V-29 en V-34 verwerkt; §4.13 gelijkgetrokken met TECHNICAL_DESIGN §4.5) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
+Versie: ronde 5 (2026-09-28, plan-critic ronde 1 punten 10, 12, 13 en 21 verwerkt; V-37 open) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
 Basis: `docs/PRODUCT_SPEC.md` (ronde 3), de besluiten en antwoorden in `docs/PROGRESS.md`, `docs/INVENTARIS.md` en de huidige schermen in `docs/screenshots/bestaand/`.
 Dit document beschrijft **hoe de gebruiker zijn doel bereikt**: structuur, flows, schermen en states. Kleur, typografie en vorm zijn werk voor de visual-designer; de wireframes zijn bewust grijs.
 
-Er zijn geen open plekken meer: V-28 en V-29 zijn beantwoord (zie §12).
+Open plekken zijn gemarkeerd met `[OPEN: V-nr]` (zie §12). Nu open: V-37.
 
 ---
 
@@ -13,7 +13,7 @@ Er zijn geen open plekken meer: V-28 en V-29 zijn beantwoord (zie §12).
 1. **Eén oogopslag.** Bij het openen zie je zonder te scrollen wat verlopen is en wat vandaag moet, elk met **vóór wanneer** (PRODUCT_SPEC §11.6).
 2. **Eén tik om af te vinken**, overal hetzelfde rondje links in de rij. Ongedaan maken kan altijd: direct via de melding onderin, later door het gevulde rondje opnieuw aan te tikken of via het taakdetail.
 3. **Geen personen bij taken.** Geen avatars, geen "Wie?", geen "Mijn taken / Iedereen", geen "gedaan door" (V-21, V-22, V-25). Namen verschijnen alleen bij notities ("Ellen: …"), in de ledenlijst en in het profiel.
-4. **Maximaal twee tikken** voor afvinken, toevoegen, wijzigen en verplaatsen (overgenomen besluit, INVENTARIS §2; typen telt niet als tik, een keuze uit een datumkiezer wel). "Toewijzen" vervalt.
+4. **Maximaal twee tikken** voor afvinken, toevoegen, wijzigen en verplaatsen (overgenomen besluit, INVENTARIS §2; typen telt niet als tik, een keuze uit een datumkiezer wel). "Toewijzen" vervalt. Afvinken, toevoegen, verplaatsen ("Naar morgen") en bezig halen dit. Naam of details wijzigen kost 4 à 5 tikken (§4.5): `[OPEN: V-37]` of Jurgen die afwijking accepteert.
 5. **Minder op het scherm.** Wat niet nodig is voor de taak van dat moment, zit achter één tik (progressive disclosure): gedane taken, meer instellingen, historie.
 6. **Verbergen versus uitschakelen.** Wat een rol *nooit* mag, wordt verborgen. Wat *nu even* niet kan (offline, lege naam, laatste beheerder), wordt uitgeschakeld met een zin uitleg.
 
@@ -115,7 +115,7 @@ Vanuit Nieuwe taak (wireframe 09):
 3. Bij een taak uit een reeks **en** je mag de reeks wijzigen (beheerder of maker): sheet **"Wat wil je wijzigen?"** met twee grote keuzes en een zin per keuze wat er gebeurt (wireframe 11): "Alleen deze keer" / "Deze en alle volgende keren". (5)
 4. Gezinslid dat de reeks niet instelde: de keuze verschijnt niet; boven Opslaan staat "Dit verandert alleen deze keer. De hele reeks aanpassen kan een beheerder." Er wordt nooit iets aan de reeks gedaan (BR-22).
 
-Wijzigen is hiermee meer dan twee tikken; het snelle wijzigen dat vaak voorkomt (verplaatsen, bezig, afvinken) staat daarom direct in het detail (4.6). Titel wijzigen = detail → Bewerken → typen → Opslaan.
+`[OPEN: V-37]` Wijzigen is hiermee meer dan twee tikken (4 à 5), in afwijking van het overgenomen besluit; wacht op Jurgen. het snelle wijzigen dat vaak voorkomt (verplaatsen, bezig, afvinken) staat daarom direct in het detail (4.6). Titel wijzigen = detail → Bewerken → typen → Opslaan.
 - Foutpad: server weigert (rechten gewijzigd, reeks gestopt) → sheet blijft open met de invoer, melding "Dit mag je niet (meer) wijzigen. Er is niets veranderd."
 - Wijziging aan een taak die intussen is afgevinkt: de wijziging wordt opgeslagen, de taak blijft gedaan (PRODUCT_SPEC §6).
 
@@ -123,7 +123,7 @@ Wijzigen is hiermee meer dan twee tikken; het snelle wijzigen dat vaak voorkomt 
 - Taakdetail: **Naar morgen** (1 tik na het openen = **2 tikken**) of **Andere dag…** → datumkiezer met snelkeuzes (Vandaag, Morgen, Za, Zo) en een kalender (3 tikken).
 - Kalender (week/dag): lang indrukken en slepen naar een andere dag (1 gebaar). Slepen is een extra, geen vereiste: dezelfde uitkomst kan altijd via het detail en met het toetsenbord (A-02).
 - Verplaatsen van een taak uit een reeks geldt altijd **alleen voor deze keer** en vraagt dus niets (UC-05, BR-08). Melding: "Verplaatst naar dinsdag · Ongedaan maken".
-- Iedereen mag verplaatsen (BR-23). De deadline schuift mee met dezelfde afstand tot de geplande dag (uitvoeringskeuze voor de architect om te bevestigen).
+- Iedereen mag verplaatsen (BR-23). "Mag al" en de deadline schuiven mee met hetzelfde aantal dagen (uitvoeringskeuze van de architect, TECHNICAL_DESIGN §6.1 `moveTaskAction`).
 
 ### 4.7 Pauzeren, stoppen en verwijderen (BR-09, BR-22, BR-23)
 Alleen zichtbaar voor wie het mag (beheerder, of maker van de reeks/taak). Anderen zien in het detail onder "Herhaalt" de regel "Reeks aanpassen kan een beheerder of wie hem instelde."
@@ -182,6 +182,7 @@ Ontvanger:
 
 ### 4.14 Huishouden verwijderen (UC-12, V-15) — beheerder
 Instellingen › Huishouden › onderaan **Huishouden verwijderen…** → pagina met gevolgen ("Alle taken, reeksen, historie, boodschappen en leden verdwijnen voor iedereen. Dit kan niet ongedaan worden.") → typ de naam van het huishouden ("Familie") → knop wordt actief → **Alles verwijderen** → uitgelogd naar een scherm "Het huishouden is verwijderd." De sterkste bevestiging van de app, omdat dit onomkeerbaar is en iedereen raakt.
+- De andere leden zien bij hun volgende bezoek het scherm **Geen huishouden meer** (§4.16), niet de onboarding.
 
 ### 4.15 Gezinsleden beheren (UC-12) — beheerder
 Instellingen › Gezinsleden (wireframe 16) → tik een lid → sheet: naam, rol (Beheerder / Gezinslid), **Uitzetten** / **Weer aanzetten**, **Verwijderen uit huishouden** (bevestiging). Voor de enige beheerder zijn "Gezinslid maken" en "Verwijderen" uitgeschakeld met "Er moet altijd minstens één beheerder zijn." (BR-24). Jezelf verwijderen kan hier niet (dat is "Account verwijderen").
@@ -190,6 +191,18 @@ Instellingen › Gezinsleden (wireframe 16) → tik een lid → sheet: naam, rol
 - Uitzetten is niet mogelijk voor jezelf en niet voor de enige beheerder (anders kan niemand het huishouden nog beheren; volgt uit BR-24). Die knop is dan uitgeschakeld met "Er moet altijd minstens één beheerder met toegang zijn."
 - Het uitgezette lid zelf: bij openen van de app (of bij de eerstvolgende verbinding) één scherm: "Je hebt op dit moment geen toegang tot ‘Familie’. Een beheerder kan je weer toegang geven." met **Uitloggen**. Geen taken, geen onderbalk. Account verwijderen blijft bereikbaar via een link op dat scherm. De offline opgeslagen stand op het toestel verdwijnt dan (technische uitwerking voor de architect).
 - Notities van een uitgezet lid blijven met zijn naam zichtbaar bij de taak. Ook na verwijderen uit het huishouden blijft de naam bij zijn notities staan (V-34).
+
+
+### 4.16 Niet meer in een huishouden (plan-critic punt 12) · wireframe 22
+Voor wie uit het huishouden is **verwijderd**, of van wie het **huishouden is verwijderd** door een beheerder. Zonder dit scherm zou die persoon zonder uitleg in de onboarding ("Nieuw huishouden starten") belanden, en per ongeluk een eigen huishouden kunnen maken, waarna een nieuwe uitnodiging van het gezin niet meer werkt (BR-44).
+- **Wanneer:** bij het openen van de app (of bij de eerstvolgende verbinding) heeft het account geen lidmaatschap meer, terwijl het toestel nog een huishouden kende. Hoe de app dat herkent (bijv. de laatst bekende huishoudnaam uit de lokale cache, vóór die gewist wordt), is een technische uitwerking voor de architect.
+- **Scherm (analoog aan "Geen toegang" bij uitzetten, §4.15):** titel "Je hoort niet meer bij ‘Familie’". Uitleg: "Je bent uit dit huishouden gehaald, of het huishouden bestaat niet meer. Wil je er weer bij? Vraag iemand uit je gezin om een nieuwe uitnodiging en open de link." Is de naam niet bekend: "Je hoort niet meer bij een huishouden".
+  - **Uitloggen** (hoofdknop).
+  - Kleiner: "Een eigen huishouden starten" → bevestiging "Weet je het zeker? Je kunt maar bij één huishouden horen. Een uitnodiging van je gezin werkt dan pas weer als je dit huishouden verlaat." → **Toch starten** → onboarding (§8).
+  - Kleiner: "Account verwijderen" (§4.13).
+- Geen onderbalk, geen taken. De offline opgeslagen stand op het toestel wordt gewist (BR-43, zoals bij uitloggen).
+- Opent de persoon later een geldige uitnodiging, dan gaat alles zoals in §4.11.
+- Verschil met uitzetten (§4.15): een uitgezet lid is nog lid en kan door een beheerder met één tik terug; iemand die verwijderd is, heeft een nieuwe uitnodiging nodig.
 
 ## 5. Schermen
 
@@ -216,7 +229,7 @@ Per scherm: **Behouden / Herwerken / Vervallen** ten opzichte van de huidige app
 - **Opbouw:** zoekveld (met label "Zoek een taak") + Filter-knop · segment **Open | Gedaan | Terugkerend** · actieve filters als chips met ✕ en "Filters wissen" (S-03) · lijst.
   - **Open:** groepen Verlopen, Vandaag, Morgen, Deze week, Volgende week, Later; rechts per rij de dag of "vóór …".
   - **Gedaan:** laatste 30 dagen, per dag, met "op tijd" / "te laat"; tik → detail met Terugzetten.
-  - **Terugkerend:** één rij per reeks: naam, ritme in gewone taal, "volgende: …", label "gepauzeerd t/m …". Tik → reeksdetail (ritme, deadline-venster, volgende keren, historie; acties Wijzigen, Pauzeren/Hervatten, Stoppen voor wie het mag). Dit **vervangt** de sectie "Terugkerende taken" in Instellingen.
+  - **Terugkerend:** één rij per reeks: naam, ritme in gewone taal, "volgende: …", label "gepauzeerd t/m …". Tik → **reeksdetail** (wireframe 23): kop met naam en ritme in gewone taal; **Volgende keren** (de eerstvolgende 3 geplande keren, tik → taakdetail); gegevens (Uiterlijk, Mag al eerder, Herinnering, Duur/categorie); **Vorige keren**. Acties voor wie het mag: **Reeks wijzigen** (zelfde formulier als Nieuwe taak met Herhalen aan; geldt altijd voor alle toekomstige keren en vraagt dus niet "alleen deze"), **Pauzeren**/**Hervatten**, **Stoppen…**. Dit werkt ook voor een gepauzeerde reeks of een reeks zonder open keer (de wijziging gaat over de reeks, niet over een losse keer; technische route: plan-critic punt 10, architect). Dit **vervangt** de sectie "Terugkerende taken" in Instellingen.
   - Filter-sheet: categorie, prioriteit, "met deadline". Geen filter per persoon.
 - **Vervalt:** snelfilter "Mijn taken", filter per persoon, horizontale chiprij (D-04), knop "+ Taak" in de kop (de + staat in de balk).
 - **Rollen:** gezinslid ziet bij Terugkerend de regel "Een reeks aanpassen, pauzeren of stoppen kan een beheerder of wie de reeks heeft ingesteld." en in het reeksdetail geen acties voor andermans reeks. Beheerder ziet die regel niet.
@@ -340,7 +353,7 @@ Algemene afspraken (gelden voor alle schermen, lossen S-01 op):
 - **Laden met cache:** direct de bewaarde stand; op de achtergrond verversen zonder zichtbare laadindicator. Duurt verversen > 5 s: kleine regel onder de kop "Bijwerken…".
 - **Fout bij laden zonder cache:** wireframe 18: uitleg in gewone taal, **Opnieuw proberen**, onderbalk blijft bruikbaar.
 - **Fout bij laden met cache:** bewaarde stand tonen met balk "Kon niet bijwerken · stand van 08:12 · Opnieuw".
-- **Offline:** balk bovenaan "Offline · stand van 08:12. Afvinken kan gewoon; n wijzigingen worden verstuurd zodra je weer verbinding hebt." (wireframe 17). Acties in de wachtrij tonen "wacht op verbinding". Acties die online moeten: uitgeschakeld, met "Hiervoor heb je internet nodig" bij aantikken. Welke acties precies offline kunnen, bepaalt het technisch ontwerp; minimaal afvinken, terugzetten, bezig en boodschappen (zoals nu).
+- **Offline:** balk bovenaan "Offline · stand van 08:12. Afvinken kan gewoon; n wijzigingen worden verstuurd zodra je weer verbinding hebt." (wireframe 17). Acties in de wachtrij tonen "wacht op verbinding". Acties die online moeten: uitgeschakeld, met "Hiervoor heb je internet nodig" bij aantikken. **Offline via de wachtrij (TECHNICAL_DESIGN §9.3):** afvinken, terugzetten, bezig/niet bezig, overslaan, verplaatsen, een nieuwe **losse** taak, boodschappen (toevoegen, afvinken, wijzigen, verwijderen) en meldingen als gelezen markeren. Al het andere is online-only (o.a. bewerken, reeksen maken of wijzigen, notities, instellingen, uitnodigen, account).
 - **Weer online:** balk verdwijnt; bij mislukte wachtrij-actie: melding "1 offline wijziging kon niet worden verwerkt: <taak>" met uitleg.
 - **Bezig (actie):** knop toont "Bezig…" en is uitgeschakeld; snelle acties (afvinken) zijn optimistisch en tonen geen spinner.
 - **Succes:** korte melding onderin (≈5 s) met, waar mogelijk, "Ongedaan maken". Geen succesmeldingen voor instellingen-schakelaars behalve een kort "Opgeslagen".
@@ -352,23 +365,24 @@ Algemene afspraken (gelden voor alle schermen, lossen S-01 op):
 | Taken › Open | "Geen open taken" ; met filter/zoekterm: "Niets gevonden voor ‘oven’ · Filters wissen" | skeletrijen | algemeen | — | — | — | — | cache, zoeken werkt lokaal |
 | Taken › Gedaan | "Nog niets afgevinkt in de afgelopen 30 dagen" | skelet | algemeen | "Weer open: …" | — | — | — | cache |
 | Taken › Terugkerend | "Nog geen terugkerende taken" + "Nieuwe terugkerende taak" (met recht) | skelet | algemeen | "Gepauzeerd t/m …" | acties verborgen zonder recht | knoppen "Bezig…" | — | alleen bekijken |
-| Kalender | lege week: "Niets gepland deze week"; lege dag: alleen "+ Taak" | skelet per dag bij navigeren (S-02) | "Deze week kon niet worden geladen · Opnieuw" | "Verplaatst naar … · Ongedaan maken" | verplaatsen offline: via de wachtrij als het technisch ontwerp dat toestaat, anders uitgeschakeld met reden | — | spookjes na 14 dagen | cache voor geladen weken, andere weken: "Niet beschikbaar zonder verbinding" |
-| Nieuwe taak | — | — | serverfout bovenaan, invoer blijft | "Toegevoegd voor zaterdag · Bekijken" | Toevoegen uit bij lege of te lange naam, of bij ongeldig venster | "Bezig…" | — | Toevoegen uitgeschakeld tenzij het technisch ontwerp aanmaken in de wachtrij toestaat |
-| Taakdetail | — | skelet binnen de sheet | "Deze taak bestaat niet meer" + Naar Vandaag; notities laden mislukt: "Notities konden niet worden geladen · Opnieuw" (S-03) | meldingen per actie | reeksacties/verwijderen verborgen zonder recht | knoppen "Bezig…" | notities laden apart | afvinken/terugzetten/bezig werken; overige acties uitgeschakeld |
+| Kalender | lege week: "Niets gepland deze week"; lege dag: alleen "+ Taak" | skelet per dag bij navigeren (S-02) | "Deze week kon niet worden geladen · Opnieuw" | "Verplaatst naar … · Ongedaan maken" | — | — | spookjes na 14 dagen | cache voor geladen weken, andere weken: "Niet beschikbaar zonder verbinding"; afvinken en verplaatsen (ook slepen) via de wachtrij (TD §9.3) |
+| Nieuwe taak | — | — | serverfout bovenaan, invoer blijft | "Toegevoegd voor zaterdag · Bekijken" | Toevoegen uit bij lege of te lange naam, of bij ongeldig venster | "Bezig…" | — | **losse** taak toevoegen kan via de wachtrij (TD §9.3), melding "Toegevoegd · wordt verstuurd zodra je verbinding hebt"; met Herhalen aan is Toevoegen uitgeschakeld met "Een terugkerende taak maken kan alleen met internet" |
+| Taakdetail | — | skelet binnen de sheet | "Deze taak bestaat niet meer" + Naar Vandaag; notities laden mislukt: "Notities konden niet worden geladen · Opnieuw" (S-03) | meldingen per actie | reeksacties/verwijderen verborgen zonder recht | knoppen "Bezig…" | notities laden apart | afvinken, terugzetten, bezig/niet bezig, deze keer overslaan, Naar morgen en Andere dag… gaan via de wachtrij (TECHNICAL_DESIGN §9.3); Bewerken, notitie plaatsen, reeksacties en Verwijderen uitgeschakeld met "Hiervoor heb je internet nodig" |
 | Wijzigen-keuze | — | — | weigering: "Er is niets veranderd" | "Alleen deze keer aangepast" / "Reeks aangepast vanaf za 3 okt" | "deze en volgende" niet getoond zonder recht | "Bezig…" | — | uitgeschakeld |
-| Boodschappen | "De lijst is leeg. Wat moet er gehaald worden?" + Vaak gekocht | skelet | algemeen | "Lijst afgerond · Ongedaan maken" | Klaar met winkelen verborgen als niets gekocht is | — | — | toevoegen en afvinken via wachtrij |
-| Meldingen | "Nog geen meldingen. Hier komt een seintje als iets bijna moet of verlopen is." | skelet | algemeen | — | Alles gelezen uit als alles gelezen is | "Laden…" bij Oudere | meer dan 30: "Oudere meldingen laden" | cache, alleen lezen |
+| Boodschappen | "De lijst is leeg. Wat moet er gehaald worden?" + Vaak gekocht | skelet | algemeen | "Lijst afgerond · Ongedaan maken" | Klaar met winkelen verborgen als niets gekocht is | — | — | toevoegen, afvinken, wijzigen en verwijderen via de wachtrij (TD §9.3); Klaar met winkelen uitgeschakeld met reden |
+| Meldingen | "Nog geen meldingen. Hier komt een seintje als iets bijna moet of verlopen is." | skelet | algemeen | — | Alles gelezen uit als alles gelezen is | "Laden…" bij Oudere | meer dan 30: "Oudere meldingen laden" | cache; openen markeert als gelezen via de wachtrij (TD §9.3); Oudere laden uitgeschakeld |
 | Meldingen instellen | — | skelet | "Opslaan lukte niet" per schakelaar, schakelaar springt terug | "Opgeslagen" | aanzetten uit als de browser push niet kent, met uitleg (§4.10) | schakelaar toont bezig | — | uitgeschakeld |
 | Instellingen + subpagina's | Gezinsleden met alleen jou: "Nodig iemand uit om samen te werken" | skelet | algemeen | "Opgeslagen" / "Link gekopieerd" / "Kai heeft weer toegang" | enige beheerder (BR-24): degraderen, verwijderen en uitzetten uit; jezelf uitzetten uit; account verwijderen uit zonder wachtwoord (§4.13); gezinslid: beheer verborgen | "Bezig…" | — | alleen bekijken, knoppen uit |
 | Overzicht | S-03: zie §5.9 | skelet | algemeen | — | — | — | periode met weinig gegevens: getallen tonen, lijsten weglaten | cache |
 | Inloggen | — | knop "Bezig…" | zie §4.12 | door naar Vandaag / "Check je mail" | Inloggen uit bij leeg veld | "Bezig…" | — | "Je bent offline. Inloggen kan alleen met verbinding." |
+| Geen toegang (uitgezet, §4.15) / Niet meer in een huishouden (§4.16) | — | — | uitloggen mislukt: "Probeer het opnieuw" | — | — | "Bezig…" | naam huishouden onbekend: tekst zonder naam | scherm blijft gewoon staan; Uitloggen werkt ook offline (wist lokaal) |
 | Uitnodiging | — | "Uitnodiging controleren…" | zie §4.11 | "Welkom bij Familie" | — | "Bezig…" | — | offline-melding |
 
 ## 8. Onboarding en eerste gebruik
 
 In de praktijk zelden gebruikt (het gezin bestaat al, UC-10), maar moet kloppen.
 
-**Account zonder huishouden** (nieuw account dat niet via een uitnodiging kwam):
+**Account zonder huishouden** (nieuw account dat niet via een uitnodiging kwam). Was het account eerder lid van een huishouden op dit toestel, dan eerst het scherm "Je hoort niet meer bij …" (§4.16):
 1. Keuzescherm: **Nieuw huishouden starten** · "Heb je een uitnodiging? Open de link uit het bericht dat je kreeg."
 2. **Naam van het huishouden** (voorbeeld "Familie Jansen") → Volgende.
 3. **Kies je taken:** lijst standaardtaken met vinkjes; per aangevinkte taak direct het ritme als keuzelijst met een zinnige standaard (Vaatwasser uitruimen: elke dag; Afval: elke week op <dag>; Badkamer: elke week). Deze stap voegt stap 3 en 4 uit UC-10 samen: kiezen en frequentie zie je in één lijst. → **Taken toevoegen (6)**. "Overslaan" mag.
@@ -428,6 +442,8 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 | 19 | `19-inloggen.html` | `wf-19-inloggen-390x844.png` | Inloggen |
 | 20 | `20-overzicht.html` | `wf-20-overzicht-390x844.png` | Overzicht huishouden |
 | 21 | `21-meldingen-instellen.html` | `wf-21-meldingen-instellen-390x844.png` | Meldingen instellen |
+| 22 | `22-niet-meer-in-huishouden.html` | `wf-22-niet-meer-in-huishouden-390x844.png` | Verwijderd uit huishouden / huishouden verwijderd (§4.16) |
+| 23 | `23-reeksdetail.html` | `wf-23-reeksdetail-390x844.png` | Reeksdetail vanuit Taken › Terugkerend |
 
 `wf-01-vandaag-volledig-390x844.png` is een mislukte opname (onderbalk midden in de pagina) en hoort niet bij de set.
 
@@ -441,7 +457,8 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 
 ## 12. Open vragen en aannames
 
-**Vragen voor Jurgen:** geen open vragen.
+**Vragen voor Jurgen**
+- **V-37** (gesteld door de plan-critic; wacht op Jurgen) — Mag "naam of details van een taak wijzigen" 4 à 5 tikken kosten, in afwijking van het overgenomen besluit "wijzigen in maximaal twee tikken"? Verplaatsen, bezig en afvinken blijven twee tikken. Voorstel: akkoord. Gemarkeerd in §0 en §4.5.
 
 **Beantwoord (2026-09-28, letterlijk in `docs/PROGRESS.md`):**
 - **V-28** — "Volg voorstel": Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag. Verwerkt in §3, §5.1, §5.6.
@@ -449,10 +466,12 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 - **V-29** — "Volg voorstel": uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles. Verwerkt in §4.15, §7, §9 en wireframe 16.
 
 **Aannames (raken geen rechten, gegevens, privacy of scope)**
-- `[AANNAME]` De deadline van een verplaatste taak schuift mee met dezelfde afstand; te bevestigen door de architect als uitvoeringskeuze.
+- Geen. (De eerdere aanname "de deadline schuift mee bij verplaatsen" is een uitvoeringskeuze van de architect geworden: TECHNICAL_DESIGN §6.1, `moveTaskAction`.)
 
 **Voor de solution-architect (geen vraag voor Jurgen)**
 - Eigen URL per sheet (taakdetail, reeks, bewerken) voor terugnavigatie en meldingslinks.
-- Welke acties offline in de wachtrij kunnen (minimaal: afvinken, terugzetten, bezig, boodschappen; wenselijk: nieuwe taak, verplaatsen).
+- Offline-acties: vastgelegd in TECHNICAL_DESIGN §9.3; §7 volgt dat.
+- Herkennen dat een account eerder lid was, voor het scherm "Niet meer in een huishouden" (§4.16), in plaats van door te sturen naar `/onboarding` (TD §4.6).
+- Reeks wijzigen vanuit het reeksdetail zonder open keer (§5.2, plan-critic punt 10).
 - Laden per periode in de kalender (S-02); "meer laden" bij meldingen (S-03).
 - Taakrij: rondje en rij als twee losse knoppen naast elkaar, niet genest (A-01).

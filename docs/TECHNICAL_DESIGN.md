@@ -78,7 +78,7 @@ Alle tabellen hebben RLS. `(id, household_id)`-FK's blijven de isolatiegrens (BR
 | `task_recurrences` ✱ | id (✱ mag door de client worden gegenereerd), rule, window, starts/ends, paused_from/until, reminder_minutes_before, is_active, generated_until, **created_by_member_id** (maker, niet getoond; V-25). ✖ `assignment_strategy`, `fixed_member_id`, `rotation_member_ids`, `points` | ongewijzigd | `created_by_member_id on delete set null` → daarna beheren alleen beheerders (PRODUCT_SPEC §6) |
 | `tasks` ✱ | … `status` (todo/in_progress/done/skipped), `is_exception`, `completed_at`, `created_by_member_id`, `deleted_at`. ✖ `assigned_member_id`, `assignment_reason`, `completed_by_member_id`, `points` | `unique (recurrence_id, occurrence_date)` blijft. ✖ `tasks_assigned_idx`. ✚ `tasks_open_sched_idx (scheduled_date) where status in ('todo','in_progress') and deleted_at is null` (tick over alle huishoudens) | soft delete voor reekstaken (`deleted_at`) zodat de planner ze niet opnieuw aanmaakt; losse taak zonder historie hard delete |
 | `task_completions` ✱ | id, household_id, task_id, recurrence_id, title, category, completed_at, scheduled_date, due_at, was_late, minutes_late, duration_minutes, note, client_mutation_id. **✖ `member_id`**, ✖ `points` | `client_mutation_id unique` blijft. ✚ **`unique (task_id)`** (BR-11 als constraint: er is per taak hooguit één registratie tegelijk; terugdraaien verwijdert hem) | `task_id on delete set null`: historie blijft (BR-12); na 2 jaar weg (BR-45) |
-| `task_comments` ✱ | id, household_id, task_id, member_id (schrijver), body, created_at, ✚ `author_name text not null` (momentopname van de naam bij plaatsen; V-34) | — | cascade met de taak. `member_id` wordt `null` als het lid of account verdwijnt; `author_name` blijft en wordt getoond (besluit V-34). De UI toont `author_name` en gebruikt `member_id` alleen voor het verwijderrecht |
+| `task_comments` ✱ | id, household_id, task_id, member_id (schrijver), body, created_at, ✚ `author_name text not null` = **de laatst bekende naam van de schrijver** (V-34) | — | cascade met de taak. `member_id` wordt `null` als het lid of account verdwijnt; `author_name` blijft staan en wordt getoond (besluit V-34). **De UI toont altijd `author_name`**; `member_id` dient alleen voor het verwijderrecht. Regels: zie hieronder |
 | `notifications` ✱ | ongewijzigd, behalve ✱ `type` (enum zonder `task_assigned`, `swap_request`, `swap_accepted`) en ✱ `url` check | ✱ `check (url is null or url ~ '^/([^/\\]|$)')` (geen `//host` of `/\host`: B-03) | cascade met het lid; na 90 dagen weg |
 | `push_subscriptions` | ongewijzigd | — | weg bij 404/410, bij uitloggen op dat toestel, en met het account (cascade) |
 | `user_preferences` ✱ | ✖ `notify_task_assigned`, `notify_swap_requests`. Standaardwaarden per rol (V-23), zie §3.3 | — | cascade met het lid |
@@ -86,6 +86,18 @@ Alle tabellen hebben RLS. `(id, household_id)`-FK's blijven de isolatiegrens (BR
 | `shopping_items` ✱ | ✖ `added_by_member_id`, `bought_by_member_id` (V-25) | ongewijzigd | cascade met de lijst |
 | ✖ `task_assignments`, `task_swap_requests`, `member_absences` | vervallen (V-21, V-24) | — | gewist na back-up en bevestiging (§12.4) |
 | ✖ enums `assignment_strategy`, `absence_strategy` | vervallen | — | — |
+
+**`task_comments.author_name` — regels** (plan-critic punt 5, AC-143, V-34):
+- **Gezet door de database, nooit door de client.** De trigger `private.set_comment_author()` (before insert) zet `author_name` op de `display_name` van `new.member_id` en negeert elke meegestuurde waarde. De trigger `private.guard_comment_changes()` (before update) weigert elke wijziging van `author_name`, `member_id`, `body`, `task_id` en `household_id` door een gebruiker. Er is ook geen update-policy.
+- **Naamswijziging:** de trigger `private.sync_comment_author()` (after update of `display_name` on `household_members`) zet `author_name` van alle notities met die `member_id` op de nieuwe naam. Een paar rijen per lid.
+- **Keuze: "laatst bekende naam" in plaats van "momentopname bij plaatsen" of "actuele naam, anders momentopname".**
+  - AC-143 vraagt dat huisgenoten de nieuwe naam zien. Een momentopname zou de oude naam blijven tonen.
+  - V-34 vraagt dat de naam blijft staan als het lid verdwijnt. De laatst bekende naam blijft dan gewoon in de kolom.
+  - Eén veld dat altijd getoond wordt, is eenvoudiger dan een UI-regel die tussen twee bronnen kiest. Die regel zou ook falen bij notities die niet in de snapshot staan.
+- **DB-tests:**
+  - insert met een vervalste `author_name` → de naam van het lid wordt opgeslagen;
+  - naamswijziging → de notities tonen de nieuwe naam;
+  - lid verwijderd → `member_id` wordt null en `author_name` blijft.
 
 **Afgeleid, niet opgeslagen:** "verlopen" (BR-17, `src/domain/status.ts`), "te laat" wordt bij afvinken vastgelegd als historisch feit (dat is geen afleiding achteraf), tellingen voor Overzicht en het dag- en avondoverzicht.
 
@@ -99,7 +111,7 @@ Alle migraties staan in `supabase/migrations/` en draaien in `supabase/tests/run
 | --- | --- | --- | --- |
 | `…_100_rechten_actief_lid.sql` | WP1 | niet-destructief | `private.is_member`/`is_admin`/`my_member_id` eisen `is_active` (V-29); nieuwe helpers (§5.2); policies herschreven; `household_members`: eigen rij altijd leesbaar; `guard_member_changes` uitgebreid (minstens één **actieve** beheerder, jezelf niet uitzetten of verwijderen via ledenbeheer, `created_by`/`household_id` onveranderlijk); `guard_task_changes` uitgebreid (maker, `household_id`, `recurrence_id`, `occurrence_date`, `deleted_at` alleen via RPC of door wie mag verwijderen); **policy `notifications: huisgenoten informeren` vervalt** (B-03); `url`-check; `revoke execute` op triggerfuncties en niet-policyfuncties in `private` voor `authenticated` (B-04) |
 | `…_110_reeks_rpcs.sql` | WP1 | niet-destructief | RPC's `stop_series`, `pause_series`, `resume_series`, `clear_series_occurrences`, `delete_task` (§6), elk met eigen rechtencheck en in één transactie |
-| `…_200_scope_expand.sql` | WP2 | niet-destructief, compatibel met de oude code | nieuwe signatuur `complete_task(p_task_id, p_mutation_id, p_note, p_completed_at)` (de oude functie blijft tijdelijk bestaan, maar negeert `p_completed_by` en schrijft geen persoon meer); `undo_complete_task`: ieder actief lid (V-22); `author_name` toevoegen, vullen uit `household_members.display_name` (bestaande notities) en bij nieuwe notities zetten via een trigger (V-34); standaardvoorkeuren per rol via trigger; `archive_shopping_list`/`unarchive_shopping_list`; `accept_invitation`/`create_household` met BR-44-check; `delete_household`, `delete_my_account` (§6); partiële unieke index actieve boodschappenlijst |
+| `…_200_scope_expand.sql` | WP2 | niet-destructief, compatibel met de oude code | nieuwe signatuur `complete_task(p_task_id, p_mutation_id, p_note, p_completed_at)` (de oude functie blijft tijdelijk bestaan, maar negeert `p_completed_by` en schrijft geen persoon meer); `undo_complete_task`: ieder actief lid (V-22); `author_name` toevoegen, vullen uit `household_members.display_name` (bestaande notities; notities zonder lid krijgen "Gezinslid"), plus de triggers `set_comment_author`, `guard_comment_changes` en `sync_comment_author` (§3.1, V-34); standaardvoorkeuren per rol via trigger; `archive_shopping_list`/`unarchive_shopping_list`; `accept_invitation`/`create_household` met BR-44-check; `delete_household`, `delete_my_account` (§6); partiële unieke index actieve boodschappenlijst |
 | `…_210_scope_contract.sql` | WP2 | **DESTRUCTIEF** — alleen na back-up, restore-test en **bevestiging van Jurgen** (§12.4) | gegevens wissen volgens BR-46, daarna de kolommen, tabellen en enumwaarden uit §3.1 droppen, `household_members.user_id not null` en `unique (user_id)`, `unique (task_id)` op `task_completions`, oude `complete_task`-signatuur droppen, realtime-publicatie bijwerken (zonder `task_swap_requests`) |
 | `…_300_retentie.sql` | WP3 | niet-destructief (de functie zelf wist pas als hij wordt aangeroepen) | `private.purge_expired_data()` + `public.run_purge()` (alleen `service_role`) (§3.4) |
 | `supabase/ops/planner.sql` (geen migratie) | WP3 | ops-script, eenmalig op live | pg_cron en pg_net aanzetten, geheim in Vault, `cron.schedule` elke 15 minuten (V-32). Geen migratie: de lokale test-PG heeft geen pg_cron, en de URL verschilt per omgeving. Vervangt `supabase/cron/schedule-tick.sql` |
@@ -184,7 +196,7 @@ Supabase Auth blijft de enige identiteitsbron. De app slaat nooit wachtwoorden o
 - **`deleteAccountAction({ password })`:**
   1. `requireUser()`.
   2. Controle met een aparte, niet-persistente supabase-client: `signInWithPassword(user.email, password)`. Mislukt dit, dan "Wachtwoord klopt niet".
-  3. RPC `delete_my_account()`. Die weigert als je de enige actieve beheerder bent (BR-24). Anders verwijdert hij de eigen `household_members`-rij (via de RPC-vlag); voorkeuren en meldingen gaan mee door cascade.
+  3. RPC `delete_my_account()`. Hij zoekt de eigen rij met `user_id = auth.uid()` en **niet** met `private.my_member_id()`: die geeft voor een uitgezet lid `null`, en een uitgezet lid mag zijn account wel verwijderen (plan-critic 17). Hij weigert als je de enige actieve beheerder bent (BR-24): hij telt de actieve beheerders behalve jezelf. Anders verwijdert hij de eigen `household_members`-rij (via de RPC-vlag); voorkeuren en meldingen gaan mee door cascade. Zonder lidmaatschap (bijvoorbeeld na een verwijderd huishouden) is hij een no-op, zodat stap 4 kan volgen.
   4. `system/account.ts → deleteAuthUser(user.id)`, via `auth.admin.deleteUser`. De id komt uit de sessie, nooit uit invoer.
   5. Client: `clearLocalData()` → `/login?melding=account-verwijderd`.
 - **Volgorde:** eerst de RPC, dan de auth-verwijdering. Andersom zou tijdelijk een lid zonder account ontstaan. Faalt stap 4, dan heeft het account geen lidmaatschap meer en kan de gebruiker het opnieuw proberen. De fout wordt gelogd met alleen een code.
@@ -192,7 +204,13 @@ Supabase Auth blijft de enige identiteitsbron. De app slaat nooit wachtwoorden o
 ### 4.6 Huishouden verwijderen (UC-12, V-15)
 - `deleteHouseholdAction({ confirmName })` → `requireAdmin()` → RPC `delete_household(p_confirm_name)`.
 - De RPC controleert dat de gebruiker een actieve beheerder is en dat de naam exact overeenkomt. Daarna volgt `delete from households`, met cascade over alles.
-- De accounts van de andere leden blijven bestaan. Bij hun volgende verzoek hebben ze geen lidmaatschap meer en komen ze in `/onboarding`, dat `clearLocalData()` aanroept.
+- De accounts van de andere leden blijven bestaan. Bij hun volgende verzoek hebben ze geen lidmaatschap meer.
+
+**"Je hoort niet meer bij dit huishouden"** (plan-critic 12). Dit geldt voor een lid dat is verwijderd en voor de leden van een verwijderd huishouden. Het scherm en de tekst legt de UX-spec vast; technisch werkt het zo:
+- **Server:** `requirePageContext()` zonder lidmaatschap → `/onboarding`, zoals nu.
+- **Client, vóór `clearLocalData()`:** `/onboarding` leest eerst de IDB-cache. Staat daar een snapshot van **deze** gebruiker (`userId`-sleutel, §4.4), dan was hij lid op dit toestel. `/onboarding` toont dan eerst het scherm "niet meer lid" met de naam uit de cache, en pas daarna de keuze voor een nieuw huishouden. Daarna volgt `clearLocalData()`.
+- **Grens, bewust geaccepteerd:** er is geen tombstone in de database (dat zou een persoonsgegeven na verwijdering bewaren). Op een toestel zonder cache ziet de gebruiker direct de onboarding.
+- **Test:** E2E "Ellen verwijdert Kai → Kai opent de app → het scherm met de naam van het huishouden → daarna de onboarding; IDB leeg".
 - De beheerder zelf: `clearLocalData()` → uitloggen → `/login?melding=huishouden-verwijderd`.
 
 ## 5. Autorisatie — het vaste patroon en de helpers bij naam
@@ -247,7 +265,7 @@ Afwijken van dit patroon geldt vanaf nu als securitybevinding.
 | Lezen taken, reeksen, historie, boodschappen, leden | ja | ja | nee | select-policies `is_member()` |
 | Eigen meldingen, voorkeuren, push | eigen | eigen | nee (voorkeuren en meldingen: nee, `is_member` in `with check`; push: alleen verwijderen) | policies `is_my_member()` + `is_member()` |
 | BR-20 taak of reeks aanmaken, standaardtaken activeren | ja | als toegestaan | nee | insert-policy `can_create_tasks()` op `tasks` en `task_recurrences`. **Er is geen enkele aanmaakroute met de service role** (B-02 vervalt met autoAssign) |
-| BR-23 losse taak of uitvoering wijzigen, verplaatsen, bezig, overslaan | ja | ja | nee | update-policy `is_member()`; `guard_task_changes`: maker, `household_id`, `recurrence_id`, `occurrence_date` onveranderlijk; `status → done` en `completed_at` alleen via `complete_task`; `deleted_at` alleen via `delete_task` |
+| BR-23 losse taak of uitvoering wijzigen, verplaatsen, bezig, overslaan | ja | ja | nee | update-policy `is_member()`; `guard_task_changes`: maker en `household_id` onveranderlijk; `status → done` en `completed_at` alleen via `complete_task`; `deleted_at` alleen via `delete_task`; `recurrence_id` en `occurrence_date` volgens de regel **"Reekskoppeling"** hieronder |
 | BR-23 taak verwijderen | ja | alleen zelf gemaakt | nee | delete-policy `can_delete_task`; RPC `delete_task` controleert hetzelfde |
 | BR-22 reeks wijzigen, pauzeren, stoppen, verwijderen | ja | alleen eigen reeks | nee | update/delete-policy `can_manage_series`; RPC's `stop_series`, `pause_series`, `resume_series` en `clear_series_occurrences` controleren **eerst** `can_manage_series` en raken **niets** bij een weigering (42501). Lost B-01 op |
 | BR-11/BR-13 afvinken en terugdraaien | ja | ja | nee | `complete_task` / `undo_complete_task` (security definer, `my_member_id()` verplicht); `unique (task_id)` op completions; directe insert op `task_completions` heeft geen policy |
@@ -261,6 +279,17 @@ Afwijken van dit patroon geldt vanaf nu als securitybevinding.
 | BR-25 meldingen alleen door het systeem | — | — | — | **geen insert-policy voor `authenticated`**; alleen `service_role` via de dispatcher; `url`-check; de SW accepteert alleen dezelfde origin |
 | Huishouden verwijderen | ja | nee | nee | RPC `delete_household` (+ delete-policy `is_admin()`) |
 | Account verwijderen | ja, niet als enige actieve beheerder | ja | ja (het eigen account) | RPC `delete_my_account` + `system/account.ts` |
+
+**Reekskoppeling in `guard_task_changes`** (plan-critic punt 4). Dit is de enige uitzondering op "onveranderlijk" voor gebruikers; systeem en RPC's (`auth.uid() is null` of de RPC-vlag) volgen de bestaande regel.
+- **`recurrence_id` van `null` naar een waarde:** alleen als `private.can_create_tasks(new.household_id)` en `private.can_manage_series(new.recurrence_id)` waar zijn. De samengestelde FK garandeert hetzelfde huishouden. Dit is de route "losse taak wordt terugkerend": de gebruiker heeft de reeks net zelf aangemaakt, dus hij is maker.
+- **`recurrence_id` van een waarde naar een andere waarde:** altijd geweigerd (42501).
+- **`recurrence_id` van een waarde naar `null`:** alleen als de reeks niet meer bestaat. Dat is de FK-actie `on delete set null`, die als update door deze trigger loopt.
+- **`occurrence_date` wijzigen:** alleen als `private.can_manage_series(coalesce(new.recurrence_id, old.recurrence_id))`. Dit is nodig voor "losse taak wordt terugkerend" en voor "deze en volgende" met een nieuw ritme (§6.1).
+- **DB-tests (`20_rechten_br.sql`):**
+  - een gezinslid zonder aanmaakrecht koppelt een taak aan een eigen reeks → geweigerd;
+  - een gezinslid koppelt aan andermans reeks → geweigerd;
+  - een beheerder of maker ontkoppelt een reeks, of wisselt naar een andere reeks → geweigerd;
+  - de reeks wordt verwijderd → de FK zet `null` zonder fout.
 
 **B-04 afgehandeld:**
 - De maker is onveranderlijk (guard).
@@ -300,15 +329,16 @@ Gemeenschappelijk:
 | Actie | Invoer (zod) | Autorisatie | Transactie | Idempotentie | Resultaat | Offline |
 | --- | --- | --- | --- | --- | --- | --- |
 | `createTaskAction` | `taskInput` zonder `assignedMemberId`/`autoAssign`/`points`; verplicht `id` (client-uuid); optioneel `recurrence` met verplicht `recurrenceId` (client-uuid) | `requireMember`; RLS `can_create_tasks` | losse taak: één upsert. Reeks: insert van de reeks met de user-client (RLS), daarna `planner.topUp` (alleen invoegen) | upsert op `id` met `ignoreDuplicates`; reeks idem op `recurrenceId` | `TaskRow[]` (nieuw of bestaand) | **losse taak: ja** (optimistisch, in de wachtrij). **Reeks: nee** ("Hiervoor heb je internet nodig") |
-| `completeTaskAction` | `{ taskId, mutationId, completedAt, note? }` | `requireMember`; RPC `complete_task` (lidmaatschap, `for update` op de taak) | RPC (één transactie): completion + status. Daarna `planner.topUp([recurrence])` en `notify(task_completed)` (fouten daarin worden gelogd; de actie slaagt) | `client_mutation_id unique` + `unique (task_id)` + "al done → bestaande terug" | `{ completionId, taskId, wasLate }` | ja |
+| `completeTaskAction` | `{ taskId, mutationId, completedAt, note? }` | `requireMember`; RPC `complete_task` (lidmaatschap, `for update` op de taak) | RPC (één transactie): completion + status. Daarna `planner.topUp([recurrence])` en `notify(task_completed)`; de ontvangers volgen het antwoord op V-38 `[OPEN: V-38]` (fouten daarin worden gelogd; de actie slaagt) | `client_mutation_id unique` + `unique (task_id)` + "al done → bestaande terug" | `{ completionId, taskId, wasLate }` | ja |
 | `undoCompleteAction` | `{ taskId }` | `requireMember`; RPC `undo_complete_task` (ieder actief lid, V-22) | RPC | niet `done` → no-op | `TaskRow` | ja (haalt een nog niet verstuurde afvinking uit de wachtrij, bestaand) |
 | `setTaskStatusAction` | `{ taskId, status: 'todo'\|'in_progress'\|'skipped' }` | `loadOwnTask`; RLS update | één update met `expectRows`; bij `skipped` in een reeks daarna `planner.topUp` | gelijke status → no-op | `TaskRow` | ja |
 | `moveTaskAction` | `{ taskId, date }` | `loadOwnTask`; RLS | één update: `scheduled_date`; `available_from` en `due_at` schuiven met hetzelfde aantal dagen (`shiftInstant`, **bevestigt de UX-aanname** §4.6); `is_exception = true` in een reeks | zelfde datum → no-op | `TaskRow` | ja |
 | `updateTaskAction` scope `this` | `taskUpdateInput` (zonder persoon/punten) | `loadOwnTask`; RLS | één update met `expectRows`; `is_exception = true` in een reeks | laatste schrijver wint (§7) | `TaskRow` | nee |
 | `updateTaskAction` scope `future` | idem + `recurrence?` | `loadOwnSeries` + **RLS `can_manage_series`** bij het bijwerken van de reeks (`expectRows`; 0 rijen = `FORBIDDEN`, en er gebeurt verder **niets**) → RPC `clear_series_occurrences(r, from, null, false)` (controleert opnieuw, zet `generated_until = from - 1`) → `planner.topUp(from)` | 3 stappen; volgorde zo gekozen dat een fout halverwege door de volgende tick of een herhaalde poging **zelf herstelt**: de reeks is al nieuw, `generated_until` is teruggezet, de planner vult aan | herhalen = hetzelfde resultaat | `TaskRow` | nee |
-| `updateTaskAction` "losse taak wordt terugkerend" | idem met `recurrence` + `recurrenceId` | `loadOwnTask` + RLS `can_create_tasks` (insert reeks) | insert reeks → update taak (`recurrence_id`, `occurrence_date`) → topUp | upsert reeks op id | `TaskRow` | nee |
+| `updateTaskAction` "losse taak wordt terugkerend" | idem met `recurrence` + `recurrenceId` | `loadOwnTask` + RLS `can_create_tasks` (insert reeks) | insert reeks (user-client, RLS) → update taak `recurrence_id` + `occurrence_date = scheduled_date` (user-client + `expectRows`; toegestaan door de regel "Reekskoppeling", §5.2) → `planner.topUp` | upsert reeks op id; taak al aan deze reeks gekoppeld → no-op | `TaskRow` | nee |
 | `deleteTaskAction` | `{ taskId, scope }` | `requireMember`; RPC `delete_task(p_task_id, p_scope)`: `can_delete_task`, en voor `future` ook `can_manage_series` | RPC: losse taak zonder historie → delete; met historie of in een reeks → `deleted_at`; `future` → reeks `is_active = false` + open uitvoeringen vanaf die datum weg (inclusief uitzonderingen) | al verwijderd → no-op | `true` | nee |
 | `pauseSeriesAction` / `resumeSeriesAction` | `{ recurrenceId, from, until }` / `{ recurrenceId }` | RPC `pause_series` / `resume_series` (`can_manage_series`) | RPC: pauzevelden + open, niet-aangepaste uitvoeringen in de periode weg (BR-09); daarna `planner.topUp` | zelfde periode → zelfde resultaat | `RecurrenceRow` | nee |
+| `updateSeriesAction` ✚ (reeksdetail › Wijzigen, UX §5.2; plan-critic punt 10) | `{ recurrenceId, changes }` (`seriesUpdateInput`: titel, omschrijving, categorie, prioriteit, duur, tijd, deadline-venster, herinneringen, `rule`, `endsOn`) | `loadOwnSeries` + **RLS `can_manage_series`** (`expectRows`; 0 rijen = `FORBIDDEN`, verder **niets**) → RPC `clear_series_occurrences(r, from = vandaag in de tijdzone van het huishouden, null, false)` → `planner.topUp(from)` | dezelfde volgorde en hetzelfde zelfherstel als `updateTaskAction` scope `future`. Uitzonderingen (`is_exception`) en gedane taken blijven. Een pauze blijft staan (pauzevelden zitten niet in `changes`). Werkt ook als de reeks geen open uitvoering heeft of gepauzeerd is | herhalen = hetzelfde resultaat | `RecurrenceRow` | nee |
 | `stopSeriesAction` | `{ recurrenceId }` | RPC `stop_series` (`can_manage_series`) | RPC: `is_active = false` + alle open uitvoeringen weg (historie blijft) | al gestopt → no-op | `true` | nee |
 | `addCommentAction` | `{ id, taskId, body ≤1000 }` | `loadOwnTask`; RLS `is_my_member(member_id)` | upsert | op `id` | `true` | nee |
 | `deleteCommentAction` | `{ commentId }` | RLS (eigen of beheerder) + `expectRows` | delete | al weg → `NOT_FOUND` wordt in de UI stil genegeerd | `true` | nee |
@@ -320,7 +350,7 @@ Gemeenschappelijk:
 | Actie | Autorisatie | Uitvoering | Idempotentie |
 | --- | --- | --- | --- |
 | `createHouseholdAction` | `requireUser`; RPC weigert als al lid (BR-44) | RPC `create_household` | het tweede verzoek weigert "al lid" → de UI stuurt door naar `/` |
-| `updateHouseholdAction` (naam, tijdzone, `membersCanCreateTasks`) | `requireAdmin` | update + `expectRows` | natuurlijk idempotent |
+| `updateHouseholdAction` (naam, tijdzone, `membersCanCreateTasks`) | `requireAdmin` | update + `expectRows`. **Tijdzone wijzigen** (plan-critic 19): bestaande taken houden hun opgeslagen momenten (`available_from`, `due_at` als tijdstip). Daarna plant de action met de systeemplanner alle actieve reeksen opnieuw vanaf morgen (`clear_series_occurrences(r, morgen, null, false)` per reeks + `topUp`), zodat nieuwe uitvoeringen de nieuwe tijdzone volgen. Uitzonderingen en gedane taken blijven. De gedragsbeschrijving staat hier; of het veld in de UI zichtbaar blijft, is een productkeuze (UC-12) | natuurlijk idempotent |
 | `completeOnboardingAction` | `requireAdmin` | update | idem |
 | `updateMemberAction` (profiel: naam, kleur, emoji / beheerder: rol, `isActive`) | `requireMember`; eigen rij of `requireAdmin`; guard (BR-24, V-29) | update + `expectRows` | idem |
 | `removeMemberAction` | `requireAdmin`; niet jezelf; guard | delete + `expectRows` | al weg → `NOT_FOUND` |
@@ -446,22 +476,66 @@ src/app/
 | Fout met cache | store-veld `refreshError` + `loadedAt` → balk "Kon niet bijwerken · stand van 08:12 · Opnieuw" |
 | Offline | `online` + `pending` uit de store (bestaand): balk; rij "wacht op verbinding" (per entry-`taskId` in de outbox); acties die online moeten zijn uitgeschakeld via `useOnlineOnly()` met de reden |
 | Nooit bezochte pagina offline | SW-fallback **alleen** `/offline` (niet meer `/`): lost S-04 op. De pagecache-sleutel is het pad zonder query, zodat `/?taak=` de gecachte `/` gebruikt |
-| Outbox-fout na online komen | `FORBIDDEN`/`NOT_FOUND` → entry verwijderen + melding "1 offline wijziging kon niet worden verwerkt: <taak>"; `UNKNOWN` → maximaal 3 pogingen (`attempts`), daarna dezelfde melding |
+| Outbox-fout na online komen | zie §9.3.1: **nooit stil weggooien** |
 
-**Welke acties offline in de wachtrij kunnen:**
-- afvinken, terugzetten, bezig/niet bezig, overslaan, verplaatsen;
+**Welke acties offline in de wachtrij kunnen (bindend, ook voor UX §7):**
+- afvinken, terugzetten, bezig/niet bezig, **overslaan**, **verplaatsen** (Naar morgen, Andere dag…, slepen in de kalender);
 - **nieuwe losse taak** (nieuw toegestaan, UX §12 "wenselijk");
 - boodschap toevoegen, afvinken, wijzigen en verwijderen;
 - meldingen als gelezen markeren.
 
 Al het andere is online-only. **Waarom nieuwe losse taak wel en reeks niet:** een losse taak is één idempotente upsert. Een reeks vraagt planning op de server.
 
+**Taakdetail offline** (plan-critic 13; UX §7 wordt hierop gelijkgetrokken):
+
+| Werkt (via de wachtrij) | Uitgeschakeld, met "Hiervoor heb je internet nodig" |
+| --- | --- |
+| Afvinken / Terugzetten, Ik ben ermee bezig / Niet meer bezig, **Deze keer overslaan**, **Naar morgen**, **Andere dag…** | Bewerken, notitie plaatsen of verwijderen, "Op boodschappenlijst" vanuit een notitie, Reeks pauzeren/hervatten/stoppen, Verwijderen |
+
+De notities en "Vorige keren" tonen offline de laatst geladen stand, als die er is.
+
+#### 9.3.1 Wachtrij over deploys heen (plan-critic 9)
+
+Het probleem: server-action-id's veranderen per build. Een open PWA met een oude bundel, of oude entries in IndexedDB, raken na een deploy hun doel kwijt. De huidige flush gooit ze dan weg (`store.tsx:119-124`). Oplossing:
+
+1. **Eén stabiel endpoint voor de wachtrij in plaats van server actions:**
+   - `POST /api/outbox` (route handler, `src/app/api/outbox/route.ts`) met `{ v: number, id, kind, payload }`.
+   - Zod per `kind`, daarna dezelfde services en dezelfde autorisatie als de server actions (`requireMember()` uit de cookies).
+   - **CSRF:** `Origin` moet gelijk zijn aan `NEXT_PUBLIC_SITE_URL`, en `Content-Type: application/json` is verplicht (een cross-origin-aanroep vraagt dan een preflight, die niet wordt toegestaan).
+   - Directe (online) snelle acties gaan via **hetzelfde endpoint**. Zo is er één pad; formulieren blijven server actions.
+2. **Versie per entry:** `OUTBOX_VERSION` (begint op 1; entries zonder `v` zijn versie 0 van de huidige app).
+   - De server heeft `migrateOutboxEntry(v, kind, payload)` (puur, `src/domain/outbox/migrate.ts`). Die zet oude vormen om. Voorbeeld: v0 `complete` met `completedBy` → het veld vervalt; v0 `shoppingAdd` zonder `id` → er wordt een id gegenereerd.
+   - Soorten die niet meer bestaan (v0 `assign`) worden **niet stil** verwijderd. Ze krijgen de uitkomst `DISCARDED_OBSOLETE`, met een zichtbare melding: "1 offline wijziging hoort bij een functie die niet meer bestaat (toewijzen) en is niet uitgevoerd."
+3. **Uitkomst per entry, en wat de client doet:**
+
+   | Uitkomst | Client |
+   | --- | --- |
+   | `ok` | verwijderen |
+   | netwerkfout, 5xx, 408, 429 | laten staan, later opnieuw (backoff) |
+   | 401 | laten staan, melding "Log opnieuw in om 2 wijzigingen te versturen" |
+   | `FORBIDDEN` / `NOT_FOUND` / `VALIDATION` / `DISCARDED_OBSOLETE` | verwijderen **met** een zichtbare melding per taak (UX §7) |
+   | onbekend antwoord (bijvoorbeeld een HTML-foutpagina tijdens een deploy) | laten staan, maximaal 5 pogingen, daarna **laten staan** met de balk "2 wijzigingen konden niet worden verstuurd · Opnieuw" |
+
+   Er wordt dus nooit een entry verwijderd zonder dat de gebruiker het ziet.
+4. **Buildwissel:**
+   - De SW-versie is de build-id (`VERSION` in `sw.js`, bij de build ingevuld).
+   - Een nieuwe SW activeert pas na `skipWaiting` op een moment dat de outbox leeg is of net geflusht, en laadt dan de pagina opnieuw.
+   - Het endpoint accepteert oude versies, dus ook een oude bundel kan zijn wachtrij kwijt.
+5. **Eenmalig restrisico, bewust:** de allereerste deploy (WP1) vervangt code die zelf nog server actions gebruikt en weggooit. Entries die op dat moment in een oude, open PWA wachten, kunnen nog één keer verloren gaan. **Beperking:** WP1 's avonds laat deployen en de gezinsleden vooraf vragen de app te openen terwijl ze online zijn. De bouwer meldt dit aan Jurgen bij de eerste deploy.
+6. **Tests:**
+   - unit `migrateOutboxEntry` (alle v0-soorten);
+   - integratie `POST /api/outbox` (auth, CSRF-weigering, dubbele entry = één registratie);
+   - E2E "offline afgevinkt vóór een deploy (entry v0 in IDB geïnjecteerd) → online na de deploy → precies één registratie". De product-analyst neemt dit op als AC.
+
+**Versimpeltoets:** één stabiel route-endpoint is eenvoudiger dan server-action-id's per build bijhouden of Vercel skew protection. Of die op het huidige plan beschikbaar is, is niet gecontroleerd; bovendien helpt ze niet voor entries die al in IndexedDB staan.
+
 ### 9.4 Logging
 
 - `runAction` logt `[action:<naam>] <ErrorName> <pgcode>`, zoals nu. **Nooit** invoer, titels, e-mailadressen, namen, tokens of `user_id`.
 - De tick en de dispatcher loggen alleen tellingen en statuscodes (bestaand in `web-push.ts`).
 - **Nieuw:** `console.error` in de client alleen met een foutcode. Geen externe errortracking (geen extra verwerker; PRODUCT_SPEC §8).
-- Vercel-logs zijn de enige logbron.
+- De eigen logs van de app zijn de enige logbron die de app beheert (Vercel-functielogs).
+- **Eerlijke grens (plan-critic 3):** de app slaat nergens op wie afvinkte, ook niet in de eigen logs. De **toegangslogs van de platforms** (Supabase API-logs, Vercel-requestlogs) leggen wel per verzoek vast welke gebruiker (JWT) welk endpoint aanriep, bijvoorbeeld `rpc/complete_task` of `POST /api/outbox`, en wanneer. Die logs beheert de app niet. Ze worden door de platforms kort bewaard, afhankelijk van het plan. De exacte termijn is niet gecontroleerd; dat hoort bij WP3 in het dashboard. De product-analyst formuleert BR-12 en §8 hierop. Er is geen extra techniek nodig.
 
 ## 10. Externe diensten
 
