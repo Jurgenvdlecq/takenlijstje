@@ -40,7 +40,11 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 
 - **"Maker"** is het lid dat een taak of reeks aanmaakte. Hij wordt nooit getoond (V-25).
 - **"Er verandert niets"** betekent: het aantal rijen en de waarden van de betrokken reeks, taken en historie zijn na de actie gelijk aan ervoor.
-- **Besluiten van Jurgen.** Er zijn geen open punten meer. De criteria die van V-30 t/m V-35 afhingen, volgen nu die antwoorden.
+- **Besluiten van Jurgen.** De criteria die van V-30 t/m V-35 afhingen, volgen die antwoorden. Na de plan-critic (ronde 1) staan er drie vragen open:
+  - **`[OPEN: V-36]` — uitrol.** Of een work package direct live gaat of samen met andere, bepaalt wanneer de toetsen "Live" en "Proces" per WP worden uitgevoerd. Het gaat om AC-054 en om de rooktests. Wat de criteria eisen, verandert niet.
+  - **`[OPEN: V-37]` — wijzigen in meer dan twee tikken.** Er is bewust geen criterium dat het aantal tikken voor "naam of details wijzigen" vastlegt, tot Jurgen beslist. AC-121 (verplaatsen in 2 tikken) staat daar los van.
+  - **`[OPEN: V-38]` — ontvangers van "taak gedaan".** Zie AC-073.
+- **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-177 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
 - **Regressie.** Elke bevinding uit een review krijgt een extra AC en een test. Die criteria worden na de freeze toegevoegd, via de bouwer in `docs/DECISIONS.md` en een testverwijzing.
 
 ---
@@ -380,7 +384,7 @@ DAN staan de genoemde soorten uit voor leden met rol gezinslid, ook als het lid 
 
 ### AC-054 — Na de expand-stap schrijft de app geen persoon meer (WP2; BR-46; draaiboek M1)
 GEGEVEN `…_200` en de WP2-code staan op live
-WANNEER er na het moment van deployen wordt afgevinkt
+WANNEER er na het moment van deployen wordt afgevinkt (het moment van deployen hangt af van `[OPEN: V-36]`)
 DAN is het aantal taken met `completed_by_member_id is not null` en `completed_at > <deploymoment>` gelijk aan 0
 **Toets:** Live + Proces
 
@@ -1122,6 +1126,32 @@ WANNEER hij Uitloggen kiest, of de link Account verwijderen
 DAN logt hij uit, of komt hij in de flow van AC-134. Het verwijderen van zijn account slaagt, ook al is hij uitgezet: de RPC herkent hem aan zijn eigen account, niet aan een actief lidmaatschap
 **Toets:** E2E + DB (uitgezet lid roept `delete_my_account` aan → geslaagd)
 
+### AC-175 — Eigen standaardtaken beheren: alleen een beheerder (WP7; PRODUCT_SPEC §7; plan-critic punt 11)
+GEGEVEN het huishouden Familie met een eigen standaardtaak "Kippen voeren"
+WANNEER Lynn (gezinslid) een eigen standaardtaak probeert toe te voegen, te wijzigen of te verwijderen, via de interface of met een direct verzoek (`saveTemplateAction`, `deleteTemplateAction`, of rechtstreeks op de tabel)
+DAN:
+- ziet ze in Instellingen geen Standaardtaken;
+- wordt elke poging geweigerd, en is de bibliotheek ongewijzigd;
+- kan Jurgen (beheerder) dezelfde handelingen wel uitvoeren;
+- kan niemand de globale bibliotheek wijzigen.
+**Toets:** DB (positief en negatief) + Int + E2E
+
+### AC-176 — Huishoudinstellingen: alleen een beheerder (WP7; BR-20; PRODUCT_SPEC §7; plan-critic punt 11)
+GEGEVEN "Gezinsleden mogen taken maken" staat uit
+WANNEER Lynn (gezinslid) met een direct verzoek (`updateHouseholdAction`, of rechtstreeks op `households`) die instelling aanzet, of de naam of tijdzone van het huishouden wijzigt
+DAN:
+- wordt elke poging geweigerd, en zijn alle instellingen ongewijzigd;
+- kan Lynn daarna nog steeds geen taak aanmaken (AC-010);
+- ziet ze Huishouden niet in Instellingen;
+- kan Jurgen dezelfde wijzigingen wel doen.
+**Toets:** DB (positief en negatief) + Int
+
+### AC-177 — Uit het huishouden verwijderd, of het huishouden is verwijderd (WP7; UC-12; plan-critic punt 12)
+GEGEVEN Kai is door een beheerder uit Familie verwijderd, of Jurgen heeft Familie verwijderd terwijl Ellen ingelogd blijft
+WANNEER Kai of Ellen de app daarna opent
+DAN ziet die persoon **eerst een uitleg** dat hij niet meer bij "Familie" hoort, met de weg naar een nieuwe uitnodiging en Uitloggen, **vóór** de keuze "Nieuw huishouden starten". De lokale gegevens van het oude huishouden zijn gewist. De precieze tekst en het scherm volgen UX_SPEC §4.15/§8, zodra die zijn aangevuld
+**Toets:** E2E
+
 ---
 
 ## WP8 — Kalender, Boodschappen, Meldingen en Overzicht
@@ -1367,4 +1397,25 @@ DAN:
 - AC-091: V-30 en V-31.
 - AC-130: V-35.
 
-Er zijn geen open punten meer.
+**Aanvullingen na de plan-critic, ronde 1:**
+
+| Punt van de plan-critic | AC's |
+| --- | --- |
+| 1 (oude meldingen met namen) | AC-035 (schema en inhoud), AC-058, AC-059 |
+| 2 (ontvangers "taak gedaan") | AC-073, `[OPEN: V-38]` |
+| 5 (naam bij notities) | AC-143 |
+| 7 (uitgezette leden op live) | AC-055, AC-170 |
+| 9 (wachtrij over een deploy heen) | AC-172 |
+| 10 (reeks wijzigen vanuit het reeksdetail) | AC-173 |
+| 11 (rechten standaardtaken en huishoudinstellingen) | AC-175, AC-176 |
+| 12 (verwijderd uit het huishouden) | AC-177 |
+| 16 (aantallen opnieuw tellen) | AC-058 |
+| 17 (uitgezet lid verwijdert eigen account) | AC-148 |
+| 18 (succescriterium 1 meetbaar) | AC-168 |
+| 20 (voorkeuren van gezinsleden) | AC-053 |
+| 22 ("Wijzigingen weggooien?" en de teller "nog N te doen") | AC-174, AC-171 |
+
+**Open bij Jurgen:**
+- V-36: AC-054 en de momenten van de Live-toetsen.
+- V-37: bewust geen criterium voor het aantal tikken bij wijzigen.
+- V-38: AC-073.

@@ -50,6 +50,7 @@ Volgende stap: antwoorden V-36/V-37/V-38 vastleggen; herstelpunten uit docs/revi
 - V-36: Uitrol: beveiliging, gegevensomzetting en herinneringen meteen live, en de nieuwe schermen pas samen aan het eind (voorstel) — of elk onderdeel meteen live? — gesteld 2026-09-28 (plan-critic ronde 1, punt 8) — blokkeert: TD §12.3.
 - V-37: Mag de naam of details van een taak wijzigen 4–5 tikken kosten, terwijl afvinken, verplaatsen en bezig 2 tikken blijven? Voorstel: akkoord — gesteld 2026-09-28 (punt 14) — blokkeert: UX-besluit twee-tikken-regel.
 - V-38: Melding "taak gedaan": (a) ook naar wie afvinkte sturen (voorstel), (b) helemaal schrappen, (c) zo laten — gesteld 2026-09-28 (punt 2) — blokkeert: BR-31/AC-073.
+- V-39: Mag de tijdzone van het huishouden gewijzigd worden? Voorstel: vast op Europe/Amsterdam, alleen zichtbaar. Alternatief: wijzigbaar, open taken houden dezelfde kloktijd — gesteld 2026-09-28 (plan-critic aanbeveling 19) — blokkeert: UC-12.
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
