@@ -21,10 +21,10 @@ export function adminDb(): SupabaseClient<Database> {
   return client;
 }
 
-function must<T>(result: { data: T | null; error: unknown }, label: string): T {
+function must<T>(result: { data: T; error: unknown }, label: string): NonNullable<T> {
   if (result.error) throw new Error(`${label}: ${JSON.stringify(result.error)}`);
-  if (result.data === null) throw new Error(`${label}: geen data`);
-  return result.data;
+  if (result.data === null || result.data === undefined) throw new Error(`${label}: geen data`);
+  return result.data as NonNullable<T>;
 }
 
 export async function familie() {

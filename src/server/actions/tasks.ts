@@ -266,7 +266,7 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
       // Niet meer herhalen: reeks eindigt met deze taak
       expectRows(
         await supabase.from("task_recurrences").update({ ends_on: from }).eq("id", series.id).select("id"),
-        "Alleen een beheerder of wie de reeks maakte, mag de reeks aanpassen.",
+        "Dit mag je niet (meer) wijzigen. Er is niets veranderd.",
       );
     } else if (series) {
       const seriesPatch: Partial<RecurrenceRow> = {
@@ -297,7 +297,7 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
       }
       expectRows(
         await supabase.from("task_recurrences").update(seriesPatch).eq("id", series.id).select("id"),
-        "Alleen een beheerder of wie de reeks maakte, mag de reeks aanpassen.",
+        "Dit mag je niet (meer) wijzigen. Er is niets veranderd.",
       );
       // Deze taak blijft staan (zelfde id) en hoort weer gewoon bij de reeks
       patch.is_exception = false;

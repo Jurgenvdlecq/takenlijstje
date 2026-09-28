@@ -82,3 +82,4 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - Code-review N2: bij "geen huishouden meer zichtbaar" herlaadt de pagina maximaal één keer per sessie (vlag in `sessionStorage`, gewist na een geslaagde verversing). Zo ontstaat er geen herlaadlus.
   - Code-review N4: netwerkfouten terwijl de browser online is, krijgen een eigen backoff-teller (2 s, 4 s, 8 s … tot 60 s). Ze tellen niet mee voor de vijf pogingen.
   - Code-review N5: bij push aanzetten wordt eerst de voorkeur bijgewerkt, daarna het abonnement.
+- **D-033: de foutmelding bij "deze en toekomstige" zonder recht volgt nu letterlijk AC-004:** "Dit mag je niet (meer) wijzigen. Er is niets veranderd." (test-writer r3, GEMIDDELD). Het label voor vervallen wachtrij-soorten (`OBSOLETE_LABELS`) wordt ingevuld in WP2a, zodra er soorten vervallen.

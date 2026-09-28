@@ -170,7 +170,8 @@ test("AC-004/AC-009: Lynn wijzigt 'deze en toekomstige' van Jurgens reeks → ge
   await form.getByRole("button", { name: "Opslaan" }).click();
   await page.getByRole("button", { name: "Deze en toekomstige taken" }).click();
 
-  await expectToast(page, /Alleen een beheerder of wie de reeks maakte/);
+  // AC-004: letterlijke tekst uit de acceptatiecriteria
+  await expectToast(page, "Dit mag je niet (meer) wijzigen. Er is niets veranderd.");
   // Er is niets veranderd: reeks en alle uitvoeringen gelijk aan ervoor
   await page.waitForTimeout(500);
   expect(await reeksStand(series!.id)).toBe(voor);
@@ -221,6 +222,28 @@ test.describe("uitgezet lid (V-29)", () => {
   });
 });
 
+test("AC-024: een uitgezet lid krijgt geen melding als iemand afvinkt; een actief lid wel", async ({ page }) => {
+  const db = adminDb();
+  const { householdId, lid } = await familie();
+  const lynn = lid("Lynn").id;
+  const ellen = lid("Ellen").id;
+  // Beiden willen "taak gedaan" horen; alleen Lynn is uitgezet
+  await db.from("user_preferences").update({ notify_task_completed: true }).in("member_id", [lynn, ellen]);
+  await setActive(lynn, false);
+  try {
+    const task = await createLooseTask(householdId, lid("Jurgen").id, `E2E melding ${Date.now()}`, todayAmsterdam(5));
+    await login(page, "jurgen@example.com");
+    const res = await postOutbox(page.request, { v: 1, kind: "complete", payload: { taskId: task.id, mutationId: randomUUID() } });
+    expect((await res.json()).ok).toBe(true);
+    const meldingen = async (memberId: string) =>
+      (await db.from("notifications").select("id", { count: "exact", head: true }).eq("member_id", memberId).eq("task_id", task.id)).count;
+    await expect.poll(() => meldingen(ellen), { timeout: 10_000 }).toBe(1);
+    expect(await meldingen(lynn)).toBe(0);
+  } finally {
+    await setActive(lynn, true);
+  }
+});
+
 test("AC-032: geweigerde offline afvinking → melding met de taaknaam, niet eindeloos herhaald", async ({ page, context }) => {
   const { householdId, lid } = await familie();
   const title = `E2E verdwijnt ${Date.now() % 100000}`;
@@ -245,8 +268,13 @@ test("AC-032: geweigerde offline afvinking → melding met de taaknaam, niet ein
 // =============================================================================
 // AC-031: uitloggen wist alles lokaal
 // =============================================================================
-async function pageCaches(page: Page): Promise<string[]> {
-  return page.evaluate(async () => ("caches" in self ? await caches.keys() : []));
+/** Paden in de paginacache van de service worker (opgeslagen pagina's met gegevens) */
+async function cachedPages(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    if (!("caches" in self) || !(await caches.has("pages-v2"))) return [];
+    const cache = await caches.open("pages-v2");
+    return (await cache.keys()).map((r) => new URL(r.url).pathname).sort();
+  });
 }
 
 test("AC-031: uitloggen wist de IndexedDB-cache, de wachtrij en de paginacache", async ({ page }) => {
@@ -254,6 +282,10 @@ test("AC-031: uitloggen wist de IndexedDB-cache, de wachtrij en de paginacache",
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Jurgen");
   await expect.poll(async () => (await readAppIdb(page)).cache, { timeout: 10_000 }).toBeGreaterThan(0);
+  await page.goto("/instellingen");
+  await page.goto("/taken");
+  // Voorwaarde: de service worker heeft pagina's met gegevens opgeslagen
+  await expect.poll(() => cachedPages(page), { timeout: 10_000 }).toEqual(expect.arrayContaining(["/", "/taken"]));
 
   await page.goto("/instellingen");
   await page.getByRole("button", { name: "Uitloggen" }).click();
@@ -261,7 +293,8 @@ test("AC-031: uitloggen wist de IndexedDB-cache, de wachtrij en de paginacache",
   const idb = await readAppIdb(page);
   expect(idb.cache).toBe(0);
   expect(idb.outbox).toEqual([]);
-  expect(await pageCaches(page)).not.toContain("pages-v2");
+  // Alleen de (gegevensloze) inlogpagina mag na het uitloggen opnieuw in de cache staan
+  expect((await cachedPages(page)).filter((p) => p !== "/login")).toEqual([]);
 
   // Ellen logt daarna in op hetzelfde toestel en krijgt haar eigen sessie
   await login(page, "ellen@example.com");
