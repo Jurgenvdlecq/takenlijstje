@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie ronde 1 geschreven, wacht op antwoorden V-05 t/m V-20
-Volgende stap: product-analyst werkt `docs/PRODUCT_SPEC.md` bij met de antwoorden V-05 t/m V-22 (grote scopevereenvoudiging: geen toewijzing/verdeling/ruilen/punten); daarna product-designer (UX_SPEC + wireframes). V-04 en V-20 blijven open tot Jurgen Supabase nakijkt.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie ronde 2 (nieuwe scope) geschreven, wacht op V-23 t/m V-27
+Volgende stap: Antwoorden V-23 t/m V-27 vastleggen en laten verwerken door product-analyst; zodra V-23 en V-24 beantwoord zijn start de product-designer (UX_SPEC + wireframes). V-04 en V-20 open tot Jurgen Supabase nakijkt.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -43,6 +43,11 @@ Volgende stap: product-analyst werkt `docs/PRODUCT_SPEC.md` bij met de antwoorde
 
 ## Open vragen
 - V-04 (uitleg gegeven op 2026-09-28, wacht op controle door Jurgen): Staat pg_cron (elke 15 minuten) aan in het Supabase-productieproject? Zo niet, dan draait de achtergrondtaak maar één keer per dag (INVENTARIS R-01). — gesteld op 2026-09-27 — blokkeert: niets direct; relevant voor het technisch ontwerp.
+- V-23: Wie krijgt herinneringen, deadline/verlopen-meldingen en dag-/avondoverzicht nu niemand eigenaar is? Voorstel: iedereen met account volgens eigen instellingen; standaard aan voor Ellen en Jurgen, uit voor Lynn en Kai — gesteld 2026-09-28 — blokkeert: UX-ontwerp.
+- V-24: Mag afwezigheid (vakantie) helemaal weg? Voorstel: ja; bij gezinsvakantie reeksen pauzeren — gesteld 2026-09-28 — blokkeert: UX-ontwerp.
+- V-25: Welke "wie"-gegevens blijven? Voorstel: maker bewaren maar niet tonen; schrijver van notitie tonen; "toegevoegd/gekocht door" bij boodschappen weg; duur blijft als informatie — gesteld 2026-09-28 — blokkeert: technisch ontwerp.
+- V-26: Overgang live database. Voorstel: eerst back-up; daarna wissen van toewijzingen, wie afvinkte, punten, ruilverzoeken, afwezigheid, vervallen meldingssoorten en leden zonder account; afvinkhistorie blijft zonder personen — gesteld 2026-09-28 — blokkeert: technisch ontwerp.
+- V-27: Kloppen de nieuwe succescriteria (PRODUCT_SPEC §11)? — gesteld 2026-09-28 — blokkeert: niets direct.
 - V-20: Staat het Supabase-productieproject in een EU-regio? — Jurgen kijkt na in Project Settings — blokkeert: technisch ontwerp.
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
