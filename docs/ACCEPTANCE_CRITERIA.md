@@ -569,13 +569,15 @@ DAN krijgt de ontvanger:
 Bij 0 open taken komt er geen overzicht. Er staat nergens "voor jou"
 **Toets:** Unit + Int
 
-### AC-073 — "Taak gedaan" zonder naam, en niet af te leiden wie het deed (WP3; BR-31; V-21; `[OPEN: V-38]`)
-GEGEVEN Ellen en Jurgen hebben "taak gedaan" aan staan
-WANNEER Ellen "Vaatwasser uitruimen" afvinkt
-DAN is de tekst "Vaatwasser uitruimen is gedaan", zonder naam. Uit de opgeslagen meldingen (tekst **en** de ontvangers) is niet af te leiden dat Ellen het deed
-- Wie de melding precies krijgt, hangt af van V-38. Dit criterium wordt na het antwoord concreet gemaakt.
-- De eerdere versie ("Ellen krijgt niets") is vervallen, omdat die het lek juist afdwong (plan-critic ronde 1, punt 2).
-**Toets:** Int
+### AC-073 — "Taak gedaan" naar iedereen die hem aan heeft, ook de afvinker (WP3; BR-31; V-21, V-38)
+GEGEVEN Ellen en Jurgen hebben "taak gedaan" aan staan, Lynn heeft hem uit, en Kai is uitgezet
+WANNEER Ellen "Vaatwasser uitruimen" afvinkt, en in een tweede geval Jurgen dezelfde soort taak afvinkt
+DAN:
+- krijgen **zowel Ellen als Jurgen** in beide gevallen precies één melding "Vaatwasser uitruimen is gedaan", zonder naam;
+- krijgen Lynn en Kai niets;
+- is de set ontvangers in beide gevallen gelijk, zodat uit tekst en ontvangers niet af te leiden is wie afvinkte (V-38, optie a);
+- wordt ook bij dubbel afvinken maar één melding per ontvanger opgeslagen.
+**Toets:** Int + Unit (`recipientsFor` gebruikt de afvinker niet)
 
 ### AC-074 — Meldingsteksten bevatten geen namen van leden (WP3; V-21; UX §4.9)
 GEGEVEN alle meldingsbuilders
@@ -1440,7 +1442,7 @@ DAN:
 | Punt van de plan-critic | AC's |
 | --- | --- |
 | 1 (oude meldingen met namen) | AC-035 (schema en inhoud), AC-058, AC-059 |
-| 2 (ontvangers "taak gedaan") | AC-073, `[OPEN: V-38]` |
+| 2 (ontvangers "taak gedaan") | AC-073 (V-38) |
 | 5 (naam bij notities) | AC-062, AC-143, AC-178, AC-179 |
 | 7 (uitgezette leden op live) | AC-055, AC-170 |
 | 9 (wachtrij over een deploy heen) | AC-172 |
@@ -1454,6 +1456,8 @@ DAN:
 | 22 ("Wijzigingen weggooien?" en de teller "nog N te doen") | AC-174, AC-171 |
 
 **Open bij Jurgen:**
-- V-36: AC-054 en de momenten van de Live-toetsen.
-- V-37: bewust geen criterium voor het aantal tikken bij wijzigen.
-- V-38: AC-073.
+Geen. Verwerkt:
+- V-36: AC-054, AC-180;
+- V-37: AC-181;
+- V-38: AC-073;
+- V-39: AC-182.
