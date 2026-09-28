@@ -83,3 +83,16 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - Code-review N4: netwerkfouten terwijl de browser online is, krijgen een eigen backoff-teller (4 s, 8 s, 16 s … tot 60 s). Ze tellen niet mee voor de vijf pogingen.
   - Code-review N5: bij push aanzetten wordt eerst de voorkeur bijgewerkt, daarna het abonnement.
 - **D-033: de foutmelding bij "deze en toekomstige" zonder recht volgt nu letterlijk AC-004:** "Dit mag je niet (meer) wijzigen. Er is niets veranderd." (test-writer r3, GEMIDDELD). Het label voor vervallen wachtrij-soorten (`OBSOLETE_LABELS`) wordt ingevuld in WP2a, zodra er soorten vervallen.
+- **D-034: uitvoeringskeuzes WP2a.**
+  - **Contract-migratie apart gezet.** `…_210_scope_contract.sql` staat in `supabase/ops/wp2b/` en nog niet in `supabase/migrations/`. Zo kan hij nooit per ongeluk meedraaien (lokaal, in tests of in een uitrol) vóór M5 ("ja, wissen"). In WP2b, na M6 op live, verhuist hij naar `supabase/migrations/`.
+  - **Oude `complete_task`-signatuur.** Die staat tijdelijk in `…_200` als `complete_task(p_task_id, p_mutation_id, p_completed_by, p_note, p_completed_at)`, met `p_completed_by` verplicht op de derde plek. Een aanroep met namen zonder `p_completed_by` kiest zo altijd de nieuwe functie (geen dubbelzinnigheid in PostgREST). De oude code, die `p_completed_by` altijd meestuurt, blijft werken tot M6. De persoon wordt genegeerd.
+  - **`complete_task`/`undo_complete_task` v2:** eerst lidmaatschap zonder lock. "Vreemd" en "onbekend" geven allebei P0002 "Taak niet gevonden" (security-review WP1, N2).
+  - **Wachtrijversie 2.** `OUTBOX_VERSION = 2`; `assign` vervalt (label "toewijzen"), en bij `complete` uit v0/v1 valt `completedBy` weg. Een server van vóór WP2a antwoordt op v2-entries met "future", zodat ze blijven staan.
+  - **Meldingen.** `notify()` bepaalt de ontvangers zelf met `recipientsFor` (actief, met account, voorkeur aan). Zonder `memberIds` gaat een melding naar het hele huishouden. De tick stuurt herinneringen, "deadline nadert" en "verlopen" naar ieder lid met die voorkeur aan (er is geen toegewezen persoon meer), met teksten zonder naam. De set-gebaseerde tick volgt in WP3.
+  - **Oude meldingen van vervallen soorten** (tot WP2b) krijgen op de meldingenpagina een neutrale stijl in plaats van een fout.
+  - **Leden zonder account** worden in de app al niet meer getoond (snapshot filtert op `user_id`). De rijen verdwijnen in WP2b.
+  - **Seed:** Kai heeft een account (`kai@example.com`), omdat leden zonder account niet meer bestaan.
+  - **Door de client gegenereerde id's** voor taak, reeks, uitnodiging en standaardtaken; dubbel versturen geeft één rij (R-03).
+  - **Terugzetten (`restore_v2.sql`).** "Bijgewerkt op"-tijden blijven gelijk: het wissen en het terugzetten zetten de `updated_at`-triggers tijdelijk uit. Zo is het resultaat na terugzetten exact gelijk aan de back-up (M0).
+  - **Back-up.** Enumkolommen worden als tekst bewaard, zodat de back-up geldig blijft nadat `…_210` enumtypen verwijdert.
+  - **Scripts met `__BACKUP__`.** Die tekst vervang je door de naam van het back-upschema. `precheck_v2.sql` deel g gebruikt `__DEPLOY_MOMENT__` op dezelfde manier.

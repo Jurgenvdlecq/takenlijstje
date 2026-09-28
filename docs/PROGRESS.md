@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bouwen — WP1 (rechtenmodel en securityfixes op live)
-Volgende stap: wijzigingsverzoek W-03 (afvalkalender) uitwerken met Jurgen; daarna WP2a.
+Fase: Bouwen — WP2a (scope uit de code + expand)
+Volgende stap: WP2a afronden — test-writer (tests bijwerken + WP2a-AC's), daarna code-, security- en performance-review, herstel, branch v2-ui + previews uit, dan live M1 (voorcontroles) en M2 (expand + deploy). W-03 (afvalkalender) wacht op antwoorden van Jurgen (V-41…V-44).
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -79,6 +79,7 @@ Volgende stap: wijzigingsverzoek W-03 (afvalkalender) uitwerken met Jurgen; daar
 Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 
 ## Bevindingen per work package
+- WP2a M0 (sandbox, 2026-09-28): `supabase/ops/m0/run.sh` → voorcontroles, back-up (alle tabellen gelijk), restore-test (17/17 identiek), contract (privacykolommen 0, meldingen met naam 0, historie 3 = 3, leden zonder account 0, notities zonder schrijver 0), terugzetten → **identiek aan de back-up (17/17)**. Niet getest in M0: de oude app-code tegen het teruggezette schema (alleen schema + gegevens).
 - WP1 eindstand tests (commit 0911e3f): typecheck en lint groen; vitest 183/183; databasetests 276 controles groen, mutatiecontrole 20/20; E2E 43/43 op de lokale stack (TD §12.3.1).
 - WP1 livegang (2026-09-28): stap 0 opnieuw geteld → 0 uitgezette leden met account, 0 afwijkende urls. Migraties `rechten_actief_lid` (_100) en `reeks_rpcs` (_110) toegepast via de koppeling, beide geslaagd. Code: `main` → 0911e3f (fast-forward). Supabase-beveiligingsadvies: alleen de bewust aanroepbare RPC's (elk met eigen rechtencheck) en `get_invitation` voor anon (uitnodigingspagina vóór inloggen, bewust); geen `private`-functie aanroepbaar. Wel: "Leaked password protection" staat uit (Auth-instelling, zie Open vragen). Rooktest op live: niet door mij uit te voeren, het netwerkbeleid van de sandbox weigert takenlijstje.vercel.app.
 - Planreview: `docs/reviews/plan-critic.md` — ronde 1 (2026-09-28) NEE: 0 blokkerend, 14 moet, 8 aanbevelingen, alle 14 opgelost; ronde 2 NEE: 2 moet-punten (door herstel ontstaan), opgelost; ronde 3 NEE: 1 moet-punt, opgelost; ronde 4 (2026-09-28) **JA**, 1 aanbeveling (AC-055 herkenregel).
