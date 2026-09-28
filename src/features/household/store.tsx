@@ -75,6 +75,8 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   const lastRefresh = React.useRef(0);
   const flushing = React.useRef(false);
   const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Backoff bij netwerkfouten terwijl de browser online is (telt niet mee voor MAX_ATTEMPTS)
+  const networkRetries = React.useRef(0);
 
   const ctx = React.useCallback(() => ({ meId, now: new Date().toISOString() }), [meId]);
 
@@ -93,12 +95,25 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
     try {
       const fresh = await loadSnapshot(getBrowserClient(), householdId, meId);
       setSnapshot(reapplyPending(fresh));
+      try {
+        sessionStorage.removeItem("tl-reload-geen-huishouden");
+      } catch {
+        // negeren
+      }
     } catch (error) {
       if (isNetworkError(error)) return;
       // Geen huishouden meer zichtbaar (uitgezet of verwijderd): de server beslist
       // waarheen (TECHNICAL_DESIGN §4.3); /geen-toegang wist de lokale gegevens
       if ((error as { code?: string })?.code === "PGRST116") {
-        window.location.reload();
+        // Eén keer herladen; toont de server de pagina toch weer, dan geen lus
+        let reloaded = false;
+        try {
+          reloaded = sessionStorage.getItem("tl-reload-geen-huishouden") === "1";
+          sessionStorage.setItem("tl-reload-geen-huishouden", "1");
+        } catch {
+          // Geen sessionStorage: toch één keer herladen
+        }
+        if (!reloaded) window.location.reload();
         return;
       }
       console.error("[store] verversen mislukt");
@@ -155,6 +170,7 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
         const outcome = await sendMutation(entry.kind, entry.payload, entry.v ?? 0);
 
         if (outcome.type === "ok" || outcome.type === "rejected") {
+          networkRetries.current = 0;
           if (outcome.type === "rejected") toast.error(rejectedMessage(entry, outcome.error), { duration: 10_000 });
           outbox.current = outbox.current.slice(1);
           await writeOutbox(outbox.current);
@@ -171,7 +187,8 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
         // Tijdelijk probleem: laten staan en later opnieuw. Offline wacht de
         // wachtrij op het "online"-signaal; online proberen we het met backoff.
         if (outcome.reason === "network" && typeof navigator !== "undefined" && !navigator.onLine) break;
-        if (outcome.reason !== "network") {
+        if (outcome.reason === "network") networkRetries.current += 1;
+        else {
           outbox.current = [{ ...entry, attempts: entry.attempts + 1 }, ...outbox.current.slice(1)];
           await writeOutbox(outbox.current);
           if (entry.attempts + 1 >= MAX_ATTEMPTS) {
@@ -191,7 +208,7 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
       flushing.current = false;
       scheduleRefresh(200);
       if (retryLater) {
-        const attempts = outbox.current[0]?.attempts ?? 1;
+        const attempts = Math.max(outbox.current[0]?.attempts ?? 0, networkRetries.current, 1);
         scheduleFlush(Math.min(60_000, 2_000 * 2 ** attempts));
       }
     }

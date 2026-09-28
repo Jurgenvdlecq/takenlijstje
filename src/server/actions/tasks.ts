@@ -247,6 +247,12 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
           { onConflict: "id", ignoreDuplicates: true },
         ),
       );
+      // Bestond er al een reeks met deze id (door iemand anders vooraf
+      // aangemaakt), dan koppelen we de taak daar niet stilletjes aan
+      const ownSeries = await loadOwnSeries(ctx, task.id);
+      if (ownSeries.created_by_member_id !== member.id) {
+        throw new UserError("Deze taak is net door iemand anders aangepast. Vernieuw en probeer het opnieuw.", "CONFLICT");
+      }
       patch.recurrence_id = task.id;
       patch.occurrence_date = scheduledDate;
     }

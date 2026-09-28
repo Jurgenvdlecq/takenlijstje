@@ -32,6 +32,14 @@ const eslintConfig = defineConfig([
           selector: "MemberExpression[property.name='SUPABASE_SERVICE_ROLE_KEY']",
           message: "De systeemsleutel wordt alleen in src/server/system/admin-client.ts gelezen (TECHNICAL_DESIGN §5.3).",
         },
+        {
+          selector: "MemberExpression[property.value='SUPABASE_SERVICE_ROLE_KEY']",
+          message: "De systeemsleutel wordt alleen in src/server/system/admin-client.ts gelezen (TECHNICAL_DESIGN §5.3).",
+        },
+        {
+          selector: "ObjectPattern > Property[key.name='SUPABASE_SERVICE_ROLE_KEY']",
+          message: "De systeemsleutel wordt alleen in src/server/system/admin-client.ts gelezen (TECHNICAL_DESIGN §5.3).",
+        },
       ],
     },
   },

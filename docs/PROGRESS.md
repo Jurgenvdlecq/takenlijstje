@@ -89,7 +89,11 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - (geen)
 
 ## Uitgestelde punten (LAAG/POLISH)
-- (geen)
+- WP1, code-review N3: wie offline uitlogt, wist de lokale gegevens terwijl het uitloggen zelf pas lukt met verbinding. Het ontwerp (UX §4.15, statustabel) wil dat uitloggen ook offline werkt, dus niet blokkeren. Mogelijke verbetering later: de schrijfblokkade opheffen als de navigatie niet doorgaat.
+- WP1, code-review N6: archiveren van de boodschappenlijst kan bij gelijktijdigheid half lukken. Dit wordt in WP2a vervangen door de RPC `archive_shopping_list`.
+- WP1, code-review 16: losse subquery in de push-policies, functioneel correct.
+- WP1, security N2: `complete_task`/`undo_complete_task` geven verschillende foutcodes voor "vreemd" en "onbekend". Gelijktrekken in WP2a bij de nieuwe versies.
+- WP1, security N3: TD §4.1 noemt WP8 voor de script-CSP met nonce; D-018 en TD §15 zeggen WP9. WP9 geldt, niet verder uitstellen.
 
 ## Technische schuld
 - WP1: nonce-CSP voor scripts (WP9); guards op `current_user` i.p.v. GUC (WP9); push-endpoint-allowlist (WP3); `userId`-sleutel in de IDB-cache (WP4); link Account verwijderen op /geen-toegang (WP7); `updateTaskAction` splitsen (WP6).

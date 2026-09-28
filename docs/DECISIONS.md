@@ -76,3 +76,9 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
 - **D-029: de link "Account verwijderen" op `/geen-toegang` (deel van AC-023) komt in WP7.** Dan bestaat account verwijderen.
 - **D-030: een wachtrij-item met een nieuwere versie dan de server kent, krijgt HTTP 503 `UNSUPPORTED_VERSION`.** De client laat het staan en probeert later opnieuw (code-review 3).
 - **D-031: na het wissen van de lokale gegevens schrijven de cache en de wachtrij niets meer terug, tot de pagina opnieuw laadt (code-review 11).**
+- **D-032: herstel na de herreviews (wp1-code-reviewer-r2, wp1-security-reviewer-r2), alle LAAG.**
+  - Security N1: na de upsert van "losse taak wordt terugkerend" leest de actie de reeks terug. Is die door iemand anders aangemaakt, dan volgt CONFLICT en wordt de taak niet gekoppeld.
+  - Security N4: ESLint blokkeert ook `process.env["SUPABASE_SERVICE_ROLE_KEY"]` en destructuring van die naam (getest via `eslint --stdin`).
+  - Code-review N2: bij "geen huishouden meer zichtbaar" herlaadt de pagina maximaal één keer per sessie (vlag in `sessionStorage`, gewist na een geslaagde verversing). Zo ontstaat er geen herlaadlus.
+  - Code-review N4: netwerkfouten terwijl de browser online is, krijgen een eigen backoff-teller (2 s, 4 s, 8 s … tot 60 s). Ze tellen niet mee voor de vijf pogingen.
+  - Code-review N5: bij push aanzetten wordt eerst de voorkeur bijgewerkt, daarna het abonnement.

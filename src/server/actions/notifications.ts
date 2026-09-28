@@ -54,14 +54,15 @@ export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscri
     const { supabase, user, household, member } = await requireMember();
     if (!isWebPushConfigured()) throw new UserError("Pushmeldingen zijn op deze server nog niet ingesteld (VAPID-sleutels).");
     const sub = parse(pushSubscriptionInput, raw);
+    // Eerst de voorkeur: ontbreekt die rij, dan ontstaat er ook geen los abonnement
+    expectRows(
+      await supabase.from("user_preferences").update({ push_enabled: true }).eq("member_id", member.id).eq("household_id", household.id).select("member_id"),
+    );
     check(
       await supabase.from("push_subscriptions").upsert(
         { user_id: user.id, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
         { onConflict: "endpoint" },
       ),
-    );
-    expectRows(
-      await supabase.from("user_preferences").update({ push_enabled: true }).eq("member_id", member.id).eq("household_id", household.id).select("member_id"),
     );
     return true as const;
   });
