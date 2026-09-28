@@ -140,7 +140,7 @@ DAN slagen beide. De verplaatste uitvoering is een uitzondering (`is_exception`)
 ### AC-014 — Onveranderlijke velden (WP1; BR-23; B-04)
 GEGEVEN een taak
 WANNEER iemand de maker, het huishouden, de reeks of de oorspronkelijke datum in de reeks (`occurrence_date`) probeert te veranderen met een directe update. Voor de maker geldt dit ook als het een beheerder is
-DAN wordt de update geweigerd en blijven die velden gelijk
+DAN wordt de update geweigerd en blijven die velden gelijk. Uitzondering volgens TECHNICAL_DESIGN §5.2 ("Reekskoppeling"): een beheerder of de maker van de reeks mag `occurrence_date` wijzigen, en een losse taak mag aan een eigen, nieuwe reeks worden gekoppeld (nodig voor "deze en volgende" en "losse taak wordt terugkerend"). Wisselen van reeks blijft altijd geweigerd (W-01, akkoord Jurgen 2026-09-28)
 **Toets:** DB
 
 ### AC-015 — Afvinken alleen via de afvinkfunctie (WP1; BR-11, BR-12)

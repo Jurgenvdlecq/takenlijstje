@@ -150,7 +150,7 @@ De functie geeft tellingen per tabel terug. De tick logt alleen die tellingen.
 Supabase Auth blijft de enige identiteitsbron. De app slaat nooit wachtwoorden op. Hashing (bcrypt), tokens en rate limits op inloggen, OTP en herstel liggen bij Supabase Auth.
 
 ### 4.1 Sessies
-- **Cookies** via `@supabase/ssr`: `Secure` in productie en `SameSite=Lax`, gezet door de bibliotheek.
+- **Cookies** via `@supabase/ssr`: `Secure` in productie en `SameSite=Lax`. De bibliotheek zet `Secure` niet zelf; de app geeft dit mee via `cookieOptions` in de server-, browser- en proxyclient (W-02, akkoord Jurgen 2026-09-28; D-019).
 - **Afwijking van de standaardeis "HttpOnly", bewust.** De browser-client van `@supabase/ssr` moet het token lezen voor Realtime en voor lezen onder RLS in de browser. Beperkt door:
   - geen HTML uit gebruikersinvoer;
   - een CSP met nonce in `proxy.ts` (WP8);
