@@ -118,3 +118,6 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - **Security 3.** `delete_my_account` is niet aanroepbaar (`revoke … from authenticated`) tot WP7, waar "Account verwijderen" met wachtwoordcheck komt. Dit is geen nieuwe productkeuze: het houdt de app gelijk aan de spec, waarin "huishouden verlaten zonder account te verwijderen" niet voorkomt.
   - **Security 5.** `activateTemplatesAction` plant alleen in wat de upsert werkelijk heeft aangemaakt.
 - **D-038: herstel na de test-writer van WP2a.** De policy "households: beheerder verwijdert" vervalt in `…_200`. Een huishouden verwijderen kan dan alleen nog via de RPC `delete_household`, met naambevestiging (TD §3.1). Geen oude of nieuwe code verwijdert een huishouden rechtstreeks, dus terugrollen blijft werken. De uitnodigingspagina belooft geen "verdelen" meer (V-21).
+- **D-039: herstel na de code-herreview van WP2a (GO).**
+  - N1: de uitvoerroute voor M6 staat in `…_210`. Het bestand gaat ongewijzigd via de SQL-uitvoering (execute_sql of psql), niet via apply_migration.
+  - N2: `activateTemplatesAction` plant voor alle reeksen die nu in het eigen huishouden bestaan (teruggelezen met de gebruikersclient). Een herhaald verzoek vult zo een eerder mislukte planning aan, en een id van een ander huishouden plant niets (security 5 blijft gedekt).

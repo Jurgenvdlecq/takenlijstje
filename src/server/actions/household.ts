@@ -199,12 +199,14 @@ export async function activateTemplatesAction(raw: z.input<typeof templateActiva
 
     // Met de gebruikersclient (RLS can_create_tasks); dubbel activeren met
     // dezelfde id's geeft geen extra reeksen (R-03)
-    const inserted = check(
-      await supabase.from("task_recurrences").upsert(rows, { onConflict: "id", ignoreDuplicates: true }).select("id"),
+    check(await supabase.from("task_recurrences").upsert(rows, { onConflict: "id", ignoreDuplicates: true }));
+    // Inplannen voor de reeksen die nu in het EIGEN huishouden bestaan (teruggelezen
+    // met de gebruikersclient, TD §5.3). Een herhaald verzoek vult zo ook een eerder
+    // mislukte planning aan; een id van een ander huishouden plant niets.
+    const own = check(
+      await supabase.from("task_recurrences").select("id").eq("household_id", household.id).in("id", rows.map((r) => r.id)),
     ) as { id: string }[];
-    // Alleen inplannen wat deze aanroep echt heeft aangemaakt (TD §5.3); bij een
-    // tweede verzoek is dat niets, en staat de planning er al
-    if (inserted.length) await topUp(household.id, inserted.map((r) => r.id));
+    if (own.length) await topUp(household.id, own.map((r) => r.id));
     return rows.length;
   });
 }

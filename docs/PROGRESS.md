@@ -116,5 +116,7 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 
 ## Technische schuld
 - WP1: nonce-CSP voor scripts (WP9); guards op `current_user` i.p.v. GUC (WP9); push-endpoint-allowlist (WP3); `userId`-sleutel in de IDB-cache (WP4); link Account verwijderen op /geen-toegang (WP7); `updateTaskAction` splitsen (WP6).
+- WP7: `grant execute on function public.delete_my_account() to authenticated` toevoegen samen met "Account verwijderen" (revoke in `…_200`, D-037).
+- WP2b: `…_210` na M6 verplaatsen naar `supabase/migrations/` en de bijbehorende tests bijwerken.
 - Bestaande documentatie: `docs/ARCHITECTUUR.md` (van vóór dit systeem) wijkt op vier punten af van de code (INVENTARIS §7).
 - eslint 9 wordt niet meer ondersteund.

@@ -10,9 +10,10 @@
 -- heen (en draait lokaal mee) in WP2b, na M6 op live.
 --
 -- Terugrollen: supabase/ops/restore_v2.sql (getest in M0).
--- Het script staat in één transactie (begin … commit). Via een hulpmiddel dat
--- zelf al een transactie opent (bijv. MCP apply_migration), laat je begin/commit
--- weg; met psql gebruik je het bestand zoals het is.
+-- Het script staat in één transactie (begin … commit). Uitvoerroute voor M6:
+-- het bestand ONGEWIJZIGD via de SQL-uitvoering (MCP execute_sql of psql),
+-- niet via apply_migration (dat opent zelf al een transactie). Na afloop wordt
+-- het als migratie geregistreerd in WP2b.
 -- =============================================================================
 
 begin;
