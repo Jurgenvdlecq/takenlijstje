@@ -404,7 +404,9 @@ GEGEVEN de voorcontroles op live, alleen lezend, uitgevoerd vóór de eerste mig
 - leden met een account en `is_active = false`.
 WANNEER een van die tellingen niet 0 is
 DAN stopt het draaiboek, wordt er niets gewist of gewijzigd, en legt de bouwer de opties voor aan Jurgen. Hij verzint zelf geen ontdubbelregel
-- **Uitgezette leden met een account:** stoppen bij **1 of meer**. De bouwer toont Jurgen de namen, en Jurgen kiest **per naam** wat er gebeurt: weer aanzetten, uitgezet laten, of verwijderen.
+- **Uitgezette leden met een account (controle M1(d)):**
+  - Er wordt alleen gestopt voor namen die Jurgen **nog niet eerder** beoordeelde, bij de telling vóór WP1 (AC-170). Voor die namen toont de bouwer ze aan Jurgen, en kiest Jurgen per naam uit twee mogelijkheden: **weer aanzetten** of **uitgezet laten**. Verwijderen kan hij daarna zelf via Gezinsleden.
+  - Namen die Jurgen eerder al beoordeelde, en leden die na WP1 bewust via de app zijn uitgezet, worden **alleen gemeld**, zonder te stoppen.
 - Pas daarna gaat de betreffende stap verder (zie ook AC-170 voor de telling vóór WP1).
 **Toets:** Proces
 
@@ -507,8 +509,10 @@ DAN:
 
 **Vanaf de livegang van WP2a** sluit geen enkele nieuw opgeslagen melding "taak gedaan" de afvinker nog uit, en bevat geen enkele nieuwe melding een naam.
 - Daarmee wordt het lek niet pas in WP3 gedicht. Zonder deze eis zou er tussen WP2a en WP3 op live opnieuw vastgelegd worden wie afvinkte, ná het wissen in WP2b.
-- **Controle op live**, na de WP2a-deploy: voor elke afvinking na het deploymoment is de set ontvangers van "taak gedaan" gelijk aan de set leden met deze voorkeur aan.
-**Toets:** Int + Unit (`recipientsFor` gebruikt de afvinker niet) + Live (controle na de WP2a-deploy)
+- **Controle op live, vóór M5** (vóór de vraag "ja, wissen" aan Jurgen):
+  - Voor alle meldingen "taak gedaan" sinds de WP2a-deploy vergelijkt de bouwer per `dedupe_key` (één afvinking) de set ontvangers met de leden die de voorkeur "taak gedaan" op dat moment aan hadden staan.
+  - Is er een verschil, dan zoekt hij dat eerst uit. Het kan komen door een voorkeur die intussen is gewijzigd. Pas als vaststaat dat het geen uitsluiting van de afvinker is, gaat M5 verder.
+**Toets:** Int + Unit (`recipientsFor` gebruikt de afvinker niet) + Live/Proces (controle vóór M5)
 
 ---
 
