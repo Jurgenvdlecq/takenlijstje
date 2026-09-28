@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 1 inventarisatie afgerond (2026-09-28)
-Volgende stap: §15 stap 3 — product-analyst schrijft `docs/PRODUCT_SPEC.md` op basis van `docs/INVENTARIS.md` (§2 overgenomen besluiten, §7 bekende gaten); V-04 (pg_cron) verwerken zodra Jurgen het antwoord heeft.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie ronde 1 geschreven, wacht op antwoorden V-05 t/m V-20
+Volgende stap: Antwoorden van Jurgen op V-04 t/m V-20 letterlijk vastleggen, product-analyst opnieuw aanroepen om `docs/PRODUCT_SPEC.md` bij te werken; daarna product-designer (UX_SPEC + wireframes).
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -23,9 +23,16 @@ Volgende stap: §15 stap 3 — product-analyst schrijft `docs/PRODUCT_SPEC.md` o
 
 ## Open vragen
 - V-04 (uitleg gegeven op 2026-09-28, wacht op controle door Jurgen): Staat pg_cron (elke 15 minuten) aan in het Supabase-productieproject? Zo niet, dan draait de achtergrondtaak maar één keer per dag (INVENTARIS R-01). — gesteld op 2026-09-27 — blokkeert: niets direct; relevant voor het technisch ontwerp.
+- V-05 … V-20 (gesteld 2026-09-28, uit `docs/PRODUCT_SPEC.md` ronde 1; details en voorstellen daar bij de `[OPEN: V-nr]`-markeringen):
+  - Doelgroep en gebruik: V-05 alleen eigen gezin of open registratie · V-06 gezinssamenstelling en leeftijden · V-07 apparaten/viewports · V-08 meerdere huishoudens per persoon
+  - Rechten: V-09 wie mag reeksen wijzigen/stoppen · V-10 afvinken namens een ander · V-11 afvinking later terugdraaien · V-12 automatische verdeling door gezinslid · V-13 losse taak wijzigen/verwijderen
+  - Accounts en privacy: V-14 wachtwoord vergeten / Google-Apple-tekst · V-15 account/huishouden verwijderen · V-18 bewaartermijnen · V-20 Supabase-regio (EU?)
+  - Meldingen en planning: V-16 meldingen voor taken van een kind zonder account · V-17 afwezigheid verwijderen na verwerking
+  - Succes: V-19 belangrijkste probleem en succescriteria
+  — blokkeert: UX-ontwerp (kern: V-05, V-06, V-07, V-09, V-12, V-13) en technisch ontwerp (V-15, V-18, V-20, V-04).
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
-- (geen)
+- De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
 
 ## Work packages
 | WP | Omschrijving | Acceptatiecriteria | Checkpoint | Status |
