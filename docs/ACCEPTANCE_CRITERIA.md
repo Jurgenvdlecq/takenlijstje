@@ -40,10 +40,14 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 
 - **"Maker"** is het lid dat een taak of reeks aanmaakte. Hij wordt nooit getoond (V-25).
 - **"Er verandert niets"** betekent: het aantal rijen en de waarden van de betrokken reeks, taken en historie zijn na de actie gelijk aan ervoor.
-- **Besluiten van Jurgen.** De criteria die van V-30 t/m V-35 afhingen, volgen die antwoorden. Na de plan-critic (ronde 1) staan er drie vragen open:
-  - **`[OPEN: V-36]` — uitrol.** Of een work package direct live gaat of samen met andere, bepaalt wanneer de toetsen "Live" en "Proces" per WP worden uitgevoerd. Het gaat om AC-054 en om de rooktests. Wat de criteria eisen, verandert niet.
-  - **`[OPEN: V-37]` — wijzigen in meer dan twee tikken.** Er is bewust geen criterium dat het aantal tikken voor "naam of details wijzigen" vastlegt, tot Jurgen beslist. AC-121 (verplaatsen in 2 tikken) staat daar los van.
-  - **`[OPEN: V-38]` — ontvangers van "taak gedaan".** Zie AC-073.
+- **Besluiten van Jurgen.** Alle criteria volgen de antwoorden tot en met V-39. Er zijn geen open punten meer.
+  - **V-36 — uitrol:**
+    - WP1 t/m WP3 gaan meteen live. Hun toetsen "Live" en "Proces" gebeuren per WP, direct na de deploy.
+    - WP4 t/m WP8 gaan samen live na WP9. Hun toetsen "Live" gebeuren bij die gezamenlijke release; tot dan wordt lokaal getoetst.
+    - Zie AC-180.
+  - **V-37 — tikken:** afvinken, verplaatsen en "bezig" kosten maximaal twee tikken. Naam of details wijzigen mag vier à vijf tikken kosten (AC-181).
+  - **V-38 — "taak gedaan":** gaat ook naar wie afvinkte (AC-073).
+  - **V-39 — tijdzone:** vast op Europe/Amsterdam, alleen zichtbaar (AC-182).
 - **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-179 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
 - **WP2 = WP2a + WP2b.** TECHNICAL_DESIGN splitst WP2 in WP2a (code en expand) en WP2b (draaiboek M2–M8).
   - Hier staat "WP2" voor beide.
@@ -388,7 +392,7 @@ DAN staan de genoemde soorten uit voor leden met rol gezinslid, ook als het lid 
 
 ### AC-054 — Na de expand-stap schrijft de app geen persoon meer (WP2; BR-46; draaiboek M1)
 GEGEVEN `…_200` en de WP2-code staan op live
-WANNEER er na het moment van deployen wordt afgevinkt (het moment van deployen hangt af van `[OPEN: V-36]`)
+WANNEER er na het moment van deployen wordt afgevinkt. WP2a gaat direct live, met de huidige schermen (V-36)
 DAN is het aantal taken met `completed_by_member_id is not null` en `completed_at > <deploymoment>` gelijk aan 0
 **Toets:** Live + Proces
 

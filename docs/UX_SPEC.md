@@ -1,10 +1,10 @@
 # UX-specificatie — Takenlijstje
 
-Versie: ronde 5 (2026-09-28, plan-critic ronde 1 punten 10, 12, 13 en 21 verwerkt; V-37 open) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
+Versie: ronde 6 (2026-09-28, plan-critic ronde 1 punten 10, 12, 13 en 21 verwerkt; V-37, V-38 en V-39 beantwoord) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
 Basis: `docs/PRODUCT_SPEC.md` (ronde 3), de besluiten en antwoorden in `docs/PROGRESS.md`, `docs/INVENTARIS.md` en de huidige schermen in `docs/screenshots/bestaand/`.
 Dit document beschrijft **hoe de gebruiker zijn doel bereikt**: structuur, flows, schermen en states. Kleur, typografie en vorm zijn werk voor de visual-designer; de wireframes zijn bewust grijs.
 
-Open plekken zijn gemarkeerd met `[OPEN: V-nr]` (zie §12). Nu open: V-37.
+Er zijn geen open plekken (zie §12).
 
 ---
 
@@ -13,7 +13,7 @@ Open plekken zijn gemarkeerd met `[OPEN: V-nr]` (zie §12). Nu open: V-37.
 1. **Eén oogopslag.** Bij het openen zie je zonder te scrollen wat verlopen is en wat vandaag moet, elk met **vóór wanneer** (PRODUCT_SPEC §11.6).
 2. **Eén tik om af te vinken**, overal hetzelfde rondje links in de rij. Ongedaan maken kan altijd: direct via de melding onderin, later door het gevulde rondje opnieuw aan te tikken of via het taakdetail.
 3. **Geen personen bij taken.** Geen avatars, geen "Wie?", geen "Mijn taken / Iedereen", geen "gedaan door" (V-21, V-22, V-25). Namen verschijnen alleen bij notities ("Ellen: …"), in de ledenlijst en in het profiel.
-4. **Maximaal twee tikken** voor afvinken, toevoegen, wijzigen en verplaatsen (overgenomen besluit, INVENTARIS §2; typen telt niet als tik, een keuze uit een datumkiezer wel). "Toewijzen" vervalt. Afvinken, toevoegen, verplaatsen ("Naar morgen") en bezig halen dit. Naam of details wijzigen kost 4 à 5 tikken (§4.5): `[OPEN: V-37]` of Jurgen die afwijking accepteert.
+4. **Maximaal twee tikken** voor afvinken, toevoegen, wijzigen en verplaatsen (overgenomen besluit, INVENTARIS §2; typen telt niet als tik, een keuze uit een datumkiezer wel). "Toewijzen" vervalt. Afvinken, toevoegen, verplaatsen ("Naar morgen") en bezig halen dit. Naam of details wijzigen kost 4 à 5 tikken (§4.5); die afwijking heeft Jurgen geaccepteerd (V-37).
 5. **Minder op het scherm.** Wat niet nodig is voor de taak van dat moment, zit achter één tik (progressive disclosure): gedane taken, meer instellingen, historie.
 6. **Verbergen versus uitschakelen.** Wat een rol *nooit* mag, wordt verborgen. Wat *nu even* niet kan (offline, lege naam, laatste beheerder), wordt uitgeschakeld met een zin uitleg.
 
@@ -33,7 +33,7 @@ Gevolgen voor het ontwerp:
 **Objecten en relaties**
 
 ```
-Huishouden (naam, tijdzone, "gezinsleden mogen taken maken")
+Huishouden (naam, tijdzone vast Europe/Amsterdam, "gezinsleden mogen taken maken")
 ├── Leden (naam, kleur, emoji, rol: beheerder | gezinslid, actief)
 ├── Uitnodigingen (rol, optioneel e-mail, geldig 14 dagen)
 ├── Reeksen = terugkerende taken (ritme, deadline-venster, pauze, einddatum; maker onzichtbaar)
@@ -115,7 +115,7 @@ Vanuit Nieuwe taak (wireframe 09):
 3. Bij een taak uit een reeks **en** je mag de reeks wijzigen (beheerder of maker): sheet **"Wat wil je wijzigen?"** met twee grote keuzes en een zin per keuze wat er gebeurt (wireframe 11): "Alleen deze keer" / "Deze en alle volgende keren". (5)
 4. Gezinslid dat de reeks niet instelde: de keuze verschijnt niet; boven Opslaan staat "Dit verandert alleen deze keer. De hele reeks aanpassen kan een beheerder." Er wordt nooit iets aan de reeks gedaan (BR-22).
 
-`[OPEN: V-37]` Wijzigen is hiermee meer dan twee tikken (4 à 5), in afwijking van het overgenomen besluit; wacht op Jurgen. het snelle wijzigen dat vaak voorkomt (verplaatsen, bezig, afvinken) staat daarom direct in het detail (4.6). Titel wijzigen = detail → Bewerken → typen → Opslaan.
+Wijzigen van naam of details kost hiermee 4 à 5 tikken; Jurgen heeft die afwijking van de twee-tikken-regel geaccepteerd (V-37). Het snelle wijzigen dat vaak voorkomt (verplaatsen, bezig, afvinken) staat daarom direct in het detail (4.6). Titel wijzigen = detail → Bewerken → typen → Opslaan.
 - Foutpad: server weigert (rechten gewijzigd, reeks gestopt) → sheet blijft open met de invoer, melding "Dit mag je niet (meer) wijzigen. Er is niets veranderd."
 - Wijziging aan een taak die intussen is afgevinkt: de wijziging wordt opgeslagen, de taak blijft gedaan (PRODUCT_SPEC §6).
 
@@ -146,7 +146,7 @@ Alleen zichtbaar voor wie het mag (beheerder, of maker van de reeks/taak). Ander
 ### 4.9 Meldingen bekijken (UC-08)
 - Via het belletje (badge = aantal ongelezen) of een pushmelding. Een pushmelding opent direct de taak (detail-URL) of Vandaag (dag-/avondoverzicht).
 - Lijst gegroepeerd: Vandaag / Eerder. Ongelezen vet met stip. Tik = gelezen + naar de taak. **Alles gelezen** rechtsboven. Na 30 meldingen **Oudere meldingen laden** (S-03).
-- Soorten en tekst zonder namen: "Deadline nadert — Tandartsafspraak Kai maken, vóór 12:00", "Vandaag staan er 5 taken", "Er staan nog 3 taken open", "Vaatwasser uitruimen is gedaan", "Fietsband plakken is verlopen", "Herinnering: Boodschappen doen om 10:00". Ruilverzoeken en "Nieuwe taak voor jou" vervallen.
+- Soorten en tekst zonder namen: "Deadline nadert — Tandartsafspraak Kai maken, vóór 12:00", "Vandaag staan er 5 taken", "Er staan nog 3 taken open", "Vaatwasser uitruimen is gedaan" (gaat naar iedereen die deze soort aan heeft, ook naar wie afvinkte, zodat de ontvangers niet verraden wie het deed; V-38), "Fietsband plakken is verlopen", "Herinnering: Boodschappen doen om 10:00". Ruilverzoeken en "Nieuwe taak voor jou" vervallen.
 - Staat push op dit toestel uit: bovenaan een kaart "Meldingen op je telefoon staan uit · Aanzetten · Niet nu". "Niet nu" verbergt de kaart 14 dagen.
 
 ### 4.10 Meldingen instellen en push aanzetten
@@ -154,7 +154,7 @@ Instellingen › Meldingen (wireframe 21):
 1. Kaart "Op deze telefoon": **Meldingen aanzetten** (1) → systeemvraag van de browser (2) → "Aan op deze telefoon".
 2. iPhone zonder beginscherm-installatie: de knop is vervangen door een korte stappenuitleg met afbeeldingen: "Tik op Deel → Zet op beginscherm → open Takenlijstje vanaf je beginscherm." De app herkent daarna de installatie.
 3. Browser weigerde eerder: uitleg "Meldingen zijn geblokkeerd in je instellingen" met waar je dat terugzet.
-4. Per soort een schakelaar (herinneringen, deadline nadert met instelbare tijd, verlopen, dagoverzicht met tijd, avondoverzicht met tijd, taak gedaan). Standaardwaarden volgens BR-31 (beheerders aan, gezinsleden uit, "taak gedaan" voor iedereen uit). Opslaan direct per schakelaar, met een korte bevestiging "Opgeslagen".
+4. Per soort een schakelaar (herinneringen, deadline nadert met instelbare tijd, verlopen, dagoverzicht met tijd, avondoverzicht met tijd, taak gedaan, met de uitleg "Ook als je hem zelf afvinkt"). Standaardwaarden volgens BR-31 (beheerders aan, gezinsleden uit, "taak gedaan" voor iedereen uit). Opslaan direct per schakelaar, met een korte bevestiging "Opgeslagen".
 
 ### 4.11 Uitnodigen (UC-09) — beheerder
 1. Instellingen › Gezinsleden (2) → **Iemand uitnodigen** (3) → sheet: Rol (**Gezinslid** standaard / Beheerder), E-mailadres (optioneel, met uitleg "Alleen dit adres kan de link dan gebruiken") → **Link maken** (4).
@@ -284,7 +284,7 @@ Van één pagina van ~8700 px naar **een korte lijst met subpagina's**, elk met 
 | Jij | Meldingen | push op dit toestel + soorten (§4.10) | iedereen |
 | Huishouden | Gezinsleden | leden, uitnodigen, open uitnodigingen, "gezinsleden mogen taken toevoegen" | beheerder: beheren · gezinslid: alleen de lijst bekijken |
 | Huishouden | Standaardtaken | bibliotheek, activeren, eigen standaardtaken beheren | beheerder |
-| Huishouden | Huishouden | naam, tijdzone, Huishouden verwijderen… | beheerder |
+| Huishouden | Huishouden | naam; tijdzone alleen zichtbaar ("Europe/Amsterdam", niet te wijzigen, V-39); Huishouden verwijderen… | beheerder |
 | Account | Ingelogd als <e-mail> | — (alleen informatie) | iedereen |
 | Account | Uitloggen | bevestiging (§4.12) | iedereen |
 | Account | Account verwijderen | §4.13 | iedereen |
@@ -457,10 +457,12 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 
 ## 12. Open vragen en aannames
 
-**Vragen voor Jurgen**
-- **V-37** (gesteld door de plan-critic; wacht op Jurgen) — Mag "naam of details van een taak wijzigen" 4 à 5 tikken kosten, in afwijking van het overgenomen besluit "wijzigen in maximaal twee tikken"? Verplaatsen, bezig en afvinken blijven twee tikken. Voorstel: akkoord. Gemarkeerd in §0 en §4.5.
+**Vragen voor Jurgen:** geen open vragen.
 
 **Beantwoord (2026-09-28, letterlijk in `docs/PROGRESS.md`):**
+- **V-37** — "Volg voorstellen": naam of details wijzigen mag 4 à 5 tikken; afvinken, verplaatsen en bezig blijven 2 tikken. Verwerkt in §0 en §4.5.
+- **V-38** — (a): de melding "taak gedaan" gaat ook naar wie afvinkte. Verwerkt in §4.9 en §4.10 (en wireframe 21).
+- **V-39** — tijdzone vast op Europe/Amsterdam, alleen zichtbaar, niet te wijzigen. Verwerkt in §2 en §5.8.
 - **V-28** — "Volg voorstel": Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag. Verwerkt in §3, §5.1, §5.6.
 - **V-34** — besluit van Jurgen: de naam van de schrijver blijft bij notities staan, ook na account verwijderen of verwijderen uit het huishouden. Verwerkt in §4.13 en §4.15.
 - **V-29** — "Volg voorstel": uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles. Verwerkt in §4.15, §7, §9 en wireframe 16.

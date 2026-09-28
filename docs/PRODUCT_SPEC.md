@@ -1,7 +1,7 @@
 # Productspecificatie — Takenlijstje
 
 Versie: ronde 3 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15, stap 3 (bestaand project).
-Status: ronde 4 (na plan-critic ronde 1). Er staan nog vier vragen open bij Jurgen: V-36, V-37 en V-38 van de plan-critic, en V-39 over de tijdzone (zie §13). Nog niet bevroren.
+Status: ronde 5 (na plan-critic ronde 1). Alle vragen zijn beantwoord, tot en met V-39. Nog niet bevroren.
 
 **Bronnen**
 - De besluiten en antwoorden van Jurgen in `docs/PROGRESS.md` (V-04, en V-05 t/m V-27). Die zijn leidend.
@@ -235,7 +235,8 @@ Jurgen heeft per gegeven besloten (V-25):
 ### UC-12 — Instellingen en beheer
 - **Iedereen:** eigen profiel (naam, kleur, emoji), meldingen en push, uitloggen, account verwijderen.
 - **Beheerder daarnaast:**
-  - huishouden: naam, tijdzone, "gezinsleden mogen taken maken". Wat er met de deadlines van open taken gebeurt als de tijdzone verandert, of dat de tijdzone vast blijft: `[OPEN: V-39]`;
+  - huishouden: naam en "gezinsleden mogen taken maken";
+  - de **tijdzone staat vast op Europe/Amsterdam**. Hij is alleen zichtbaar en door niemand te wijzigen, ook niet door een beheerder (V-39). Daardoor verschuiven deadlines en herinneringen nooit door een andere tijdzone;
   - gezinsleden: (de)activeren, rol wijzigen en verwijderen. Voorkeur: deactiveren in plaats van verwijderen (V-15);
   - uitnodigingen;
   - terugkerende taken en standaardtaken;
@@ -314,8 +315,8 @@ Jurgen heeft per gegeven besloten (V-25):
   - **Dagoverzicht** (standaard 07:30): "Vandaag staan er N taken", alleen als N > 0.
   - **Avondoverzicht** (standaard 20:00): "Er staan nog N taken open (vandaag en verlopen)", alleen als N > 0.
   - **Taak gedaan:** "'Vaatwasser uitruimen' is gedaan", **zonder naam**. Standaard uit.
-    - **Wie hem krijgt, is nog open `[OPEN: V-38]`.** Volgens de eerdere tekst ging de melding niet naar degene die afvinkte. Maar dan is in de opgeslagen meldingen 90 dagen lang af te leiden wie het was, en dat botst met V-21 (plan-critic ronde 1, punt 2).
-    - Tot het antwoord er is, geldt geen van de opties als besloten.
+    - **Ontvangers (V-38, optie a):** ieder actief lid met een account dat "taak gedaan" aan heeft staan, **ook degene die afvinkte**. Wie de melding krijgt, hangt dus alleen af van de voorkeuren, niet van wie afvinkte. Zo is uit de opgeslagen meldingen niet af te leiden wie het deed (V-21).
+    - De app gebruikt bij het versturen niet wie afvinkte.
   - **Nooit dubbel:** dezelfde melding komt per ontvanger nooit twee keer.
   - **Voorkeuren:** gelden per persoon.
   - **Ontvangers (V-23):**
@@ -325,7 +326,7 @@ Jurgen heeft per gegeven besloten (V-25):
   - **Gevolg van V-21:** er zijn geen meldingen meer die afhangen van een eigenaar, zoals "Nieuwe taak voor jou" of meldingen over ruilen.
 
 ### Overig
-- **BR-40 — Tijd:** alle datums worden bepaald in de tijdzone van het huishouden (standaard Europe/Amsterdam).
+- **BR-40 — Tijd:** alle datums worden bepaald in de tijdzone van het huishouden. Die staat vast op Europe/Amsterdam en is niet te wijzigen (V-39).
 - **BR-41 — Uitnodiging:**
   - is 14 dagen geldig en werkt één keer;
   - is optioneel gebonden aan een e-mailadres;
@@ -373,7 +374,10 @@ Jurgen heeft per gegeven besloten (V-25):
      Dit sluit aan op TECHNICAL_DESIGN §12.4.
   5. **Meldingsvoorkeuren van bestaande gezinsleden** (nu Lynn en Kai, als ze een account hebben) worden bij de overgang op de nieuwe standaard gezet: alle soorten **uit**. Dat geldt ook als ze die meldingen zelf hadden aangezet. De voorkeuren van beheerders blijven ongewijzigd. Dit volgt uit V-23. De bouwer noemt het expliciet in het totaalvoorstel aan Jurgen, zodat Lynn en Kai niet ongemerkt geen herinneringen meer krijgen. Ze kunnen het daarna zelf weer aanzetten.
 
-  **Hoe de nieuwe versie live gaat tijdens het bouwen** (per onderdeel, of alles samen): `[OPEN: V-36]`.
+  **Hoe de nieuwe versie live gaat tijdens het bouwen (V-36):**
+  - Beveiliging, de omzetting van de gegevens en de herinneringen elke 15 minuten (WP1 t/m WP3) gaan live zodra ze klaar zijn.
+  - De nieuwe schermen (WP4 t/m WP8) gaan samen live, na de afronding in WP9.
+  - Tot dan gebruikt het gezin de huidige schermen, zonder "Wie?", punten en ruilen.
 
   — waarom: het wissen is onomkeerbaar en raakt gegevens van het gezin.
 
@@ -515,7 +519,7 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
    - herinneringen komen binnen 15 minuten na het geplande moment (R-01 opgelost).
 6. **Snel:**
    - afvinken is één tik, toevoegen minimaal *Naam · Wanneer?*;
-   - of wijzigen (naam of andere details) meer dan twee tikken mag kosten, tegenover het overgenomen besluit "maximaal twee tikken": `[OPEN: V-37]`;
+   - afvinken, verplaatsen en "bezig" kosten maximaal twee tikken. Naam of andere details wijzigen mag vier à vijf tikken kosten (V-37; dit vervangt voor dat deel het overgenomen besluit "maximaal twee tikken");
    - op 390×844 zijn de verlopen taken en die van vandaag zichtbaar zonder te scrollen, bij een normale dag (tot ongeveer 6 taken).
 7. **Privacy klopt:** de database bevat geen gegevens over wie een taak afvinkte. Geen kolom, en ook geen meldingstekst of ontvangerspatroon waaruit het af te leiden is (V-38). Dat is te controleren in het schema, op de inhoud van de meldingen en met een test. De toegangslogs van de platforms vallen erbuiten (BR-12).
 
@@ -547,17 +551,15 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
 | V-25 | Maker bewaren maar niet tonen; schrijver van een notitie tonen; "toegevoegd door" en "gekocht door" bij boodschappen weg; duur blijft als informatie | §0, §8 |
 | V-26 | Eerst een back-up, dan wissen zoals voorgesteld (de afvinkhistorie blijft, zonder personen); vlak vóór het wissen nogmaals bevestiging van Jurgen | BR-46, §8, §9 |
 | V-27 | Succescriteria akkoord | §11 |
+| V-28 t/m V-35 | Navigatie, uitgezet lid, huisstijl, planner, back-up, notitienaam, inloginstellingen (zie PROGRESS) | UX_SPEC, TECHNICAL_DESIGN; hier §8 en BR-46 |
+| V-36 | WP1 t/m WP3 meteen live; de nieuwe schermen (WP4 t/m WP8) samen live na WP9 | BR-46 |
+| V-37 | Naam of details wijzigen mag 4 à 5 tikken; afvinken, verplaatsen en bezig blijven maximaal 2 | §11.6 |
+| V-38 | "Taak gedaan" gaat naar iedereen die hem aan heeft, ook naar wie afvinkte (optie a) | BR-31 |
+| V-39 | Tijdzone vast op Europe/Amsterdam, alleen zichtbaar | UC-12 |
 
 ## 13. Aannames en open vragen
 
 **Aannames** (zonder invloed op rechten, gegevens, privacy, scope of gebruikerservaring):
 - `[AANNAME]` De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (ook vastgelegd in PROGRESS).
 
-**Open vragen:**
-
-| Vraag | Onderwerp | Waar in dit document |
-| --- | --- | --- |
-| V-36 | Hoe de nieuwe versie live gaat tijdens het bouwen (plan-critic) | BR-46 |
-| V-37 | Mag wijzigen meer dan twee tikken kosten (plan-critic) | §11.6 |
-| V-38 | Wie krijgt de melding "taak gedaan" zonder dat af te leiden is wie afvinkte (plan-critic) | BR-31 |
-| V-39 | Tijdzone van het huishouden: alleen-lezen, of wijzigbaar met vastgelegd gedrag voor open deadlines | UC-12 |
+**Open vragen:** geen.
