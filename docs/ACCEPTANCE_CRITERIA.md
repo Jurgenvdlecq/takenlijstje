@@ -801,6 +801,18 @@ WANNEER het detail open is
 DAN staat er "Notities konden niet worden geladen · Opnieuw", en werkt de rest van het detail gewoon
 **Toets:** E2E (gemockt)
 
+### AC-171 — Teller "nog N te doen" in de kop (WP5; UX §5.1)
+GEGEVEN 1 verlopen taak, 4 open taken voor vandaag en 2 gedane taken
+WANNEER Vandaag opent, en daarna een taak van vandaag wordt afgevinkt
+DAN staat in de kop eerst "nog 5 te doen" (open vandaag + verlopen) en na het afvinken "nog 4 te doen". Na "Ongedaan maken" staat er weer 5
+**Toets:** E2E + Unit
+
+### AC-172 — Offline afgevinkt vóór een deploy, online ná de deploy (WP4/WP5; BR-10, BR-11; plan-critic punt 9)
+GEGEVEN een telefoon met de app open, en een afvinking die offline in de wachtrij staat
+WANNEER er intussen een nieuwe versie van de app wordt uitgerold en de telefoon daarna weer verbinding krijgt
+DAN bestaat er na verwerking **precies één** registratie van die afvinking. De actie wordt niet weggegooid omdat de oude versie van de app de actie anders verstuurde, en wordt ook niet dubbel verwerkt. Kan een actie in de nieuwe versie niet meer bestaan (bijvoorbeeld een vervallen soort, zoals toewijzen), dan krijgt de gebruiker de melding uit AC-032 en gaat er geen afvinking verloren
+**Toets:** E2E (build wisselen tussen offline en online) + Int
+
 ---
 
 ## WP6 — Taak maken en wijzigen, reeksen, het scherm Taken
@@ -926,6 +938,25 @@ GEGEVEN de lijst met standaardtaken
 WANNEER Jurgen 3 taken aanvinkt, met een ritme per taak, en "Toevoegen (3)" twee keer verstuurt
 DAN bestaan er 3 reeksen, elk één keer, met hun uitvoeringen. Lynn kan dit alleen als de instelling aan staat
 **Toets:** Int + E2E
+
+### AC-173 — Een reeks wijzigen vanuit het reeksdetail (WP6; BR-08, BR-22; plan-critic punt 10)
+GEGEVEN (a) een gepauzeerde reeks van Jurgen zonder open uitvoering, (b) een actieve reeks van Jurgen
+WANNEER Jurgen vanuit Taken › Terugkerend › reeksdetail "Wijzigen" kiest en het ritme of de titel aanpast, en Lynn (gezinslid, niet de maker) hetzelfde probeert, ook met een direct verzoek
+DAN:
+- slaagt de wijziging bij Jurgen in beide gevallen, zonder dat een open uitvoering nodig is;
+- worden de toekomstige, niet-aangepaste uitvoeringen volgens de nieuwe regel ingepland (bij (a) na de pauze);
+- ziet Lynn geen knop "Wijzigen";
+- weigert de server haar directe verzoek met `FORBIDDEN`, zonder dat er iets verandert.
+**Toets:** Int + E2E
+
+### AC-174 — "Wijzigingen weggooien?" bij sluiten (WP6; UX §3, §4.3)
+GEGEVEN de sheet Nieuwe taak of Bewerken, met een ingevulde of gewijzigde naam
+WANNEER de gebruiker ✕ tikt of de sheet omlaag veegt
+DAN vraagt de app "Wijzigingen weggooien?".
+- "Weggooien" sluit de sheet zonder op te slaan.
+- Annuleren laat alles staan.
+- Zonder ingevulde of gewijzigde gegevens sluit de sheet direct, zonder vraag.
+**Toets:** E2E
 
 ---
 

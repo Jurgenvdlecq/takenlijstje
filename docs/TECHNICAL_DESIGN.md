@@ -619,6 +619,10 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 - **Nooit geheimen in de repository, in migraties of in `docs/`.**
 
 ### 12.3 Volgorde per WP met een databasewijziging
+
+**Welke WP's direct live gaan en welke samen: `[OPEN: V-36]`.** Voorstel van de plan-critic: WP1, WP2a, WP2b en WP3 direct; WP4–WP9 samen in één release. Tot het antwoord er is, geldt onderstaande volgorde voor elke WP die live gaat.
+
+0. **Alleen bij WP1, vóór `…_100` (plan-critic 7):** alleen-lezen-telling op live: `select count(*) from household_members where user_id is not null and is_active = false`. Is die groter dan 0, dan **stoppen**. De bouwer legt Jurgen per persoon (naam) voor dat die na de update geen toegang meer heeft (V-29), met de keuze: eerst weer aanzetten, of zo laten. Er wordt niets aangepast zonder zijn antwoord. Leden zonder account (`user_id is null`) tellen niet mee: zij loggen niet in en vervallen in WP2b.
 1. De migratie lokaal groen (`test:db`, E2E).
 2. **Niet-destructieve migratie** eerst op live, via de Supabase-koppeling (MCP `apply_migration`) of de SQL-editor. De huidige productiecode blijft ermee werken ("expand").
 3. Code deployen (push naar de productiebranch; Vercel bouwt).
@@ -633,7 +637,7 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 - huishouden, leden **met account**, reeksen en taken (zonder persoonsvelden);
 - afvinkhistorie (wat, wanneer, geplande dag, deadline, te laat en hoeveel, notitie; zonder persoon en punten);
 - notities met schrijver (V-25), boodschappen (zonder door-wie);
-- meldingen van soorten die blijven;
+- meldingen van de soorten herinnering, deadline nadert en verlopen (hun tekst bevat geen persoon);
 - voorkeuren (zonder de vervallen velden), pushabonnementen, uitnodigingen (zonder `member_id`), eigen standaardtaken (zonder punten).
 - Makers van taken en reeksen blijven (V-25).
 
@@ -644,6 +648,7 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 - reeksen: `assignment_strategy`, `fixed_member_id`, `rotation_member_ids`, `points`;
 - `households.members_can_assign_others`, `points_*`;
 - `notifications` van het type `task_assigned`, `swap_request` en `swap_accepted`;
+- **bestaande `notifications` van het type `task_completed`, `daily_summary` en `evening_summary`** (plan-critic 1). Hun opgeslagen tekst noemt wie afvinkte ("… is gedaan door <naam>") of is afgeleid van toewijzing ("waarvan N voor jou", "van jou nog open"). Dat botst met V-21 en succescriterium 7. Filteren op tekst is foutgevoelig; deze soorten zijn kortlevend (90 dagen) en hebben geen historische waarde, dus de hele soort vóór M6 gaat weg. Nieuwe meldingen van deze soorten krijgen teksten zonder naam (WP3). **De product-analyst neemt dit op in BR-46.3.** Jurgen ziet het aantal bij M5;
 - `shopping_items.added_by_member_id`, `bought_by_member_id`; `shopping_lists.created_by_member_id`;
 - `household_members` zonder `user_id` (leden zonder account), plus de technisch vervallen kolommen `email` en `avatar_url`;
 - `user_preferences.notify_task_assigned`, `notify_swap_requests`;
