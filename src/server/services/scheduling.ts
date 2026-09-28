@@ -2,12 +2,13 @@ import "server-only";
 
 /**
  * Inplannen van terugkerende taken en verwerken van afwezigheid.
- * Draait met de service-role client: het is een systeemhandeling die ook
- * mag toewijzen aan anderen (rotatie), ongeacht de rechten van wie hem
- * aanleidde. Iedere query filtert expliciet op household_id.
+ * topUpSeries en skipSupersededTasks draaien als systeemhandeling via
+ * src/server/system (planner en tick; alleen invoegen en overslaan).
+ * applyAbsence draait met de gebruikersclient (RLS beslist; vervalt in WP2a).
+ * Iedere query filtert expliciet op household_id.
  */
 import { addDays, todayIn, type ISODate } from "@/domain/dates";
-import { absenceOn, postponeTarget } from "@/domain/assignment/absence";
+import { postponeTarget } from "@/domain/assignment/absence";
 import { buildLoadMap, taskPoints } from "@/domain/assignment/load";
 import { addLoad, availableMembers, pickFair, type AssignmentContext } from "@/domain/assignment/strategies";
 import { planSeries } from "@/domain/scheduling/plan";
@@ -158,36 +159,6 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
 }
 
 /**
- * Verwijder open, niet-handmatig aangepaste taken van een reeks vanaf een datum
- * (of binnen een periode) en plan opnieuw. Gebruikt bij "deze en toekomstige
- * taken aanpassen", pauzeren en stoppen.
- */
-export async function clearOpenOccurrences(
-  db: DbClient,
-  householdId: string,
-  recurrenceId: string,
-  from: ISODate,
-  until?: ISODate | null,
-  includeExceptions = false,
-): Promise<void> {
-  let query = db
-    .from("tasks")
-    .delete()
-    .eq("household_id", householdId)
-    .eq("recurrence_id", recurrenceId)
-    .eq("status", "todo")
-    .gte("occurrence_date", from);
-  if (until) query = query.lte("occurrence_date", until);
-  if (!includeExceptions) query = query.eq("is_exception", false);
-  check(await query);
-}
-
-export async function replanSeries(db: DbClient, householdId: string, recurrenceId: string, from: ISODate): Promise<TaskRow[]> {
-  await clearOpenOccurrences(db, householdId, recurrenceId, from);
-  return topUpSeries(db, householdId, { recurrenceIds: [recurrenceId], from });
-}
-
-/**
  * Verwerk een (nieuwe) afwezigheid: open taken van die persoon in de periode
  * worden opnieuw verdeeld, doorgeschoven of op "niet toegewezen" gezet.
  * Geeft de taken terug die een nieuwe eigenaar kregen.
@@ -284,9 +255,3 @@ export async function skipSupersededTasks(db: DbClient, householdId: string, now
   if (ids.length) check(await db.from("tasks").update({ status: "skipped" }).in("id", ids));
   return ids.length;
 }
-
-/** Is een gezinslid afwezig op een datum? (voor directe toewijzing) */
-export function absentOn(absences: AbsenceRow[], memberId: string, date: ISODate): boolean {
-  return !!absenceOn(absences.map(toAbsence), memberId, date);
-}
-

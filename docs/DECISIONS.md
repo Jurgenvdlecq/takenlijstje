@@ -42,3 +42,37 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
 - **D-015 (2026-09-28, WP1): pushabonnementen zijn gesplitst in vier policies.**
   - Lezen en verwijderen van je eigen abonnement mag altijd.
   - Aanmelden en bijwerken mag alleen als actief lid. Een uitgezet lid kan zijn apparaat dus alleen nog afmelden (TD §5.2).
+
+### Herstel na code- en securityreview (2026-09-28)
+
+- **D-016: een beheerder voegt alleen leden zonder account toe (security punt 1).**
+  - Een account koppelen kan uitsluitend via `create_household` en `accept_invitation`. Dat wordt afgedwongen door de insert-policy (`user_id is null`) en de guard (`before insert`, alleen jezelf).
+- **D-017: een gedane taak terugzetten kan alleen via `undo_complete_task` (security punt 2).**
+  - Een nieuwe taak met `completed_at` of `completed_by` wordt geweigerd.
+  - Punten blijven tot WP2a door gezinsleden wijzigbaar: dat was al zo, en punten vervallen in WP2a. Dubbel afvinken, waar het misbruik zat, is nu dicht.
+- **D-018: basisbeveiligingsheaders gaan al in WP1 live (security punt 3).**
+  - Het gaat om `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, `object-src 'none'` en `base-uri 'self'`.
+  - De CSP met nonce voor scripts blijft in WP9, volgens de WP-tabel in TD §15.
+  - De app toont geen gebruikerstekst als HTML of als link-URL. Dat blijft zo.
+- **D-019: sessiecookies krijgen `Secure` in productie en `SameSite=Lax` (security punt 4).**
+- **D-020: de GUC-vlag `takenlijstje.via_rpc` blijft voorlopig bestaan (security punt 5, LAAG).**
+  - Via PostgREST is hij niet te zetten.
+  - Guards omzetten naar `current_user`-controle is defense-in-depth voor WP9 (hardening).
+- **D-021: ruilverzoeken kunnen alleen worden ingetrokken (security punt 6).**
+  - De guard staat alleen statuswijzigingen toe. `accepted_by` mag alleen mee veranderen bij `accepted`, en die status zet alleen `accept_swap_request`.
+- **D-022: de reeks-RPC's controleren eerst het lidmaatschap, zonder lock (security punt 7).**
+  - "Bestaat niet" en "ander huishouden" geven dezelfde uitkomst. `delete_task` geeft voor beide `true` (idempotent, geen orakel).
+- **D-023: de systeemsleutel wordt alleen in `src/server/system/admin-client.ts` gelezen (security punt 8).**
+  - ESLint blokkeert ook dynamische imports en `SUPABASE_SERVICE_ROLE_KEY` buiten die map.
+  - `/api/status` gebruikt `hasSystemKey()`.
+- **D-024: geen `expectRows` op twee idempotente acties.** Het gaat om `markNotificationsRead` en `deletePushSubscription`: 0 rijen betekent daar "al gebeurd", niet "geweigerd". Alle andere updates en deletes met de gebruikersclient hebben nu `expectRows`.
+- **D-025: geen aparte `loadOwnMember`, `loadOwnShoppingItem` en `loadOwnInvitation` (code-review 17).**
+  - Deze acties filteren op het huishouden uit de sessie en controleren met `expectRows`. Dat is gelijkwaardig.
+- **D-026: "losse taak wordt terugkerend" maakt de reeks aan met de id van de taak, als upsert (code-review 8).**
+  - Dubbel opslaan levert zo nooit een tweede reeks op, zonder dat de oude UI een extra id hoeft mee te sturen.
+- **D-027: `pause_series` zet `generated_until` terug naar vóór de pauze; `resume_series` zet het op leeg (code-review 7).**
+  - Na hervatten plant de planner dus weer vanaf vandaag in (AC-122).
+- **D-028: de push-endpoint-allowlist komt in WP3 (security punt 11), bij de push-time-out.** Vrije tekst in ruilmeldingen vervalt met ruilen in WP2a.
+- **D-029: de link "Account verwijderen" op `/geen-toegang` (deel van AC-023) komt in WP7.** Dan bestaat account verwijderen.
+- **D-030: een wachtrij-item met een nieuwere versie dan de server kent, krijgt HTTP 503 `UNSUPPORTED_VERSION`.** De client laat het staan en probeert later opnieuw (code-review 3).
+- **D-031: na het wissen van de lokale gegevens schrijven de cache en de wachtrij niets meer terug, tot de pagina opnieuw laadt (code-review 11).**

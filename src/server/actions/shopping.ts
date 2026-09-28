@@ -4,7 +4,7 @@ import { z } from "zod";
 import { shoppingItemInput, uuid } from "@/lib/validation";
 import type { ShoppingItemRow, ShoppingListRow } from "@/types/database";
 import { requireMember } from "../context";
-import { check, runAction, type ActionResult } from "../errors";
+import { check, expectRows, runAction, type ActionResult } from "../errors";
 import { parse } from "../parse";
 import type { DbClient } from "@/lib/supabase/server";
 
@@ -49,7 +49,7 @@ export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInpu
 export async function toggleShoppingItemAction(itemId: string, bought: boolean): Promise<ActionResult<true>> {
   return runAction("toggleShoppingItem", async () => {
     const { supabase, household, member } = await requireMember();
-    check(
+    expectRows(
       await supabase
         .from("shopping_items")
         .update({
@@ -58,7 +58,10 @@ export async function toggleShoppingItemAction(itemId: string, bought: boolean):
           bought_by_member_id: bought ? member.id : null,
         })
         .eq("id", parse(uuid, itemId))
-        .eq("household_id", household.id),
+        .eq("household_id", household.id)
+        .select("id"),
+      "Dit product staat niet meer op de lijst.",
+      "NOT_FOUND",
     );
     return true as const;
   });
@@ -71,7 +74,7 @@ export async function updateShoppingItemAction(
   return runAction("updateShoppingItem", async () => {
     const { supabase, household } = await requireMember();
     const input = parse(shoppingItemInput.partial(), raw);
-    check(
+    expectRows(
       await supabase
         .from("shopping_items")
         .update({
@@ -81,7 +84,10 @@ export async function updateShoppingItemAction(
           ...(input.note !== undefined && { note: input.note }),
         })
         .eq("id", parse(uuid, itemId))
-        .eq("household_id", household.id),
+        .eq("household_id", household.id)
+        .select("id"),
+      "Dit product staat niet meer op de lijst.",
+      "NOT_FOUND",
     );
     return true as const;
   });
@@ -90,7 +96,11 @@ export async function updateShoppingItemAction(
 export async function deleteShoppingItemAction(itemId: string): Promise<ActionResult<true>> {
   return runAction("deleteShoppingItem", async () => {
     const { supabase, household } = await requireMember();
-    check(await supabase.from("shopping_items").delete().eq("id", parse(uuid, itemId)).eq("household_id", household.id));
+    expectRows(
+      await supabase.from("shopping_items").delete().eq("id", parse(uuid, itemId)).eq("household_id", household.id).select("id"),
+      "Dit product staat niet meer op de lijst.",
+      "NOT_FOUND",
+    );
     return true as const;
   });
 }
@@ -111,7 +121,7 @@ export async function archiveShoppingListAction(): Promise<ActionResult<Shopping
         .eq("household_id", household.id)
         .eq("is_bought", false),
     );
-    check(await supabase.from("shopping_lists").update({ archived_at: new Date().toISOString() }).eq("id", current.id));
+    expectRows(await supabase.from("shopping_lists").update({ archived_at: new Date().toISOString() }).eq("id", current.id).select("id"));
     return next;
   });
 }

@@ -94,7 +94,14 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
       const fresh = await loadSnapshot(getBrowserClient(), householdId, meId);
       setSnapshot(reapplyPending(fresh));
     } catch (error) {
-      if (!isNetworkError(error)) console.error("[store] verversen mislukt");
+      if (isNetworkError(error)) return;
+      // Geen huishouden meer zichtbaar (uitgezet of verwijderd): de server beslist
+      // waarheen (TECHNICAL_DESIGN §4.3); /geen-toegang wist de lokale gegevens
+      if ((error as { code?: string })?.code === "PGRST116") {
+        window.location.reload();
+        return;
+      }
+      console.error("[store] verversen mislukt");
     }
   }, [householdId, meId, reapplyPending]);
 
@@ -107,6 +114,31 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   );
 
   const updatePending = React.useCallback(() => setPending(outbox.current.length + inFlight.current.size), []);
+
+  // Nieuwste stand voor meldingen over wachtrij-items (titel van de taak)
+  const snapshotRef = React.useRef(snapshot);
+  React.useEffect(() => {
+    snapshotRef.current = snapshot;
+  }, [snapshot]);
+
+  /** "1 offline wijziging kon niet worden verwerkt: Stofzuigen (reden)" (AC-032) */
+  const rejectedMessage = React.useCallback((entry: OutboxEntry, reason: string) => {
+    const payload = (entry.payload ?? {}) as { taskId?: string; id?: string };
+    const s = snapshotRef.current;
+    const title =
+      (payload.taskId && s.tasks.find((t) => t.id === payload.taskId)?.title) ||
+      (payload.id && s.shoppingItems.find((i) => i.id === payload.id)?.name) ||
+      null;
+    return `1 offline wijziging kon niet worden verwerkt${title ? `: ${title}` : ""} (${reason.replace(/\.$/, "")})`;
+  }, []);
+
+  const flushOutboxRef = React.useRef<() => Promise<void>>(async () => undefined);
+
+  /** Wachtrij later (opnieuw) versturen, met backoff */
+  const scheduleFlush = React.useCallback((delay: number) => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = setTimeout(() => void flushOutboxRef.current(), delay);
+  }, []);
 
   // --- wachtrij versturen ---------------------------------------------------
   // Nooit stil weggooien (TECHNICAL_DESIGN §9.3.1): alleen een verwerkte of een
@@ -123,7 +155,7 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
         const outcome = await sendMutation(entry.kind, entry.payload, entry.v ?? 0);
 
         if (outcome.type === "ok" || outcome.type === "rejected") {
-          if (outcome.type === "rejected") toast.error(outcome.error);
+          if (outcome.type === "rejected") toast.error(rejectedMessage(entry, outcome.error), { duration: 10_000 });
           outbox.current = outbox.current.slice(1);
           await writeOutbox(outbox.current);
           updatePending();
@@ -136,7 +168,9 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
           break;
         }
 
-        // Tijdelijk probleem: laten staan en later opnieuw
+        // Tijdelijk probleem: laten staan en later opnieuw. Offline wacht de
+        // wachtrij op het "online"-signaal; online proberen we het met backoff.
+        if (outcome.reason === "network" && typeof navigator !== "undefined" && !navigator.onLine) break;
         if (outcome.reason !== "network") {
           outbox.current = [{ ...entry, attempts: entry.attempts + 1 }, ...outbox.current.slice(1)];
           await writeOutbox(outbox.current);
@@ -149,8 +183,8 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
             });
             break;
           }
-          retryLater = true;
         }
+        retryLater = true;
         break;
       }
     } finally {
@@ -158,11 +192,10 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
       scheduleRefresh(200);
       if (retryLater) {
         const attempts = outbox.current[0]?.attempts ?? 1;
-        retryTimer.current = setTimeout(() => void flushOutboxRef.current(), Math.min(60_000, 2_000 * 2 ** attempts));
+        scheduleFlush(Math.min(60_000, 2_000 * 2 ** attempts));
       }
     }
-  }, [scheduleRefresh, updatePending]);
-  const flushOutboxRef = React.useRef(flushOutbox);
+  }, [scheduleRefresh, updatePending, rejectedMessage, scheduleFlush]);
   React.useEffect(() => {
     flushOutboxRef.current = flushOutbox;
   }, [flushOutbox]);
@@ -197,11 +230,16 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
       };
       setSnapshot((s) => applyOptimistic(s, kind, payload, ctx()));
 
-      const queue = async () => {
+      const queue = async (reason: "offline" | "retry" = "offline") => {
         outbox.current = [...outbox.current, entry];
         await writeOutbox(outbox.current);
         updatePending();
-        toast("Opgeslagen op dit apparaat", { description: "Wordt verstuurd zodra je weer online bent." });
+        if (reason === "offline") {
+          toast("Opgeslagen op dit apparaat", { description: "Wordt verstuurd zodra je weer online bent." });
+        } else {
+          toast("Opgeslagen op dit apparaat", { description: "Versturen lukte niet meteen; de app probeert het zo opnieuw." });
+          scheduleFlush(2_000);
+        }
         return true;
       };
 
@@ -222,7 +260,9 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
           return false;
         case "auth":
           if (isOfflineCapable(kind)) {
-            await queue();
+            outbox.current = [...outbox.current, entry];
+            await writeOutbox(outbox.current);
+            updatePending();
             toast.error("Je bent niet meer ingelogd. Log opnieuw in om je wijziging te versturen.", { id: "outbox-auth" });
             return true;
           }
@@ -230,13 +270,16 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
           scheduleRefresh(0);
           return false;
         case "retry":
-          if (isOfflineCapable(kind)) return queue();
+          if (isOfflineCapable(kind)) {
+            const offline = outcome.reason === "network" && typeof navigator !== "undefined" && !navigator.onLine;
+            return queue(offline ? "offline" : "retry");
+          }
           toast.error(outcome.reason === "network" ? "Geen verbinding. Probeer het opnieuw." : "Er ging iets mis. Probeer het opnieuw.");
           scheduleRefresh(0);
           return false;
       }
     },
-    [ctx, scheduleRefresh, updatePending],
+    [ctx, scheduleRefresh, updatePending, scheduleFlush],
   );
 
   const run = React.useCallback(

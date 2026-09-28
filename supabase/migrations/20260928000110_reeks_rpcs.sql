@@ -7,6 +7,28 @@
 -- (alleen invoegen) doet daarna de app via de planner.
 -- =============================================================================
 
+-- Eerst lidmaatschap (zonder lock; "bestaat niet" en "ander huishouden" geven
+-- dezelfde uitkomst), dan het recht om de reeks te beheren. Pas daarna locken.
+create or replace function private.assert_can_manage_series(p_recurrence_id uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_household uuid;
+begin
+  select household_id into v_household from public.task_recurrences where id = p_recurrence_id;
+  if v_household is null or not private.is_member(v_household) then
+    raise exception 'Reeks niet gevonden' using errcode = 'P0002';
+  end if;
+  if not private.can_manage_series(p_recurrence_id) then
+    raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
+  end if;
+end;
+$$;
+
 -- Open, nog niet begonnen uitvoeringen van een reeks weghalen (optioneel binnen
 -- een periode). Zonder einddatum wordt generated_until teruggezet, zodat de
 -- planner vanaf p_from opnieuw aanvult.
@@ -25,13 +47,8 @@ declare
   v_series public.task_recurrences%rowtype;
   v_count integer;
 begin
+  perform private.assert_can_manage_series(p_recurrence_id);
   select * into v_series from public.task_recurrences where id = p_recurrence_id for update;
-  if not found then
-    raise exception 'Reeks niet gevonden' using errcode = 'P0002';
-  end if;
-  if not private.can_manage_series(v_series.id) then
-    raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
-  end if;
 
   delete from public.tasks t
   where t.household_id = v_series.household_id
@@ -62,13 +79,8 @@ as $$
 declare
   v_series public.task_recurrences%rowtype;
 begin
+  perform private.assert_can_manage_series(p_recurrence_id);
   select * into v_series from public.task_recurrences where id = p_recurrence_id for update;
-  if not found then
-    raise exception 'Reeks niet gevonden' using errcode = 'P0002';
-  end if;
-  if not private.can_manage_series(v_series.id) then
-    raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
-  end if;
   if p_from is null then
     raise exception 'Kies een startdatum voor de pauze' using errcode = '22023';
   end if;
@@ -76,8 +88,11 @@ begin
     raise exception 'De pauze eindigt vóór hij begint' using errcode = '22023';
   end if;
 
+  -- generated_until terug naar vóór de pauze: na de pauze plant de planner weer aan
   update public.task_recurrences
-  set paused_from = p_from, paused_until = p_until
+  set paused_from = p_from,
+      paused_until = p_until,
+      generated_until = least(coalesce(generated_until, p_from - 1), p_from - 1)
   where id = v_series.id
   returning * into v_series;
 
@@ -103,16 +118,12 @@ as $$
 declare
   v_series public.task_recurrences%rowtype;
 begin
+  perform private.assert_can_manage_series(p_recurrence_id);
   select * into v_series from public.task_recurrences where id = p_recurrence_id for update;
-  if not found then
-    raise exception 'Reeks niet gevonden' using errcode = 'P0002';
-  end if;
-  if not private.can_manage_series(v_series.id) then
-    raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
-  end if;
 
+  -- Opnieuw vanaf vandaag inplannen (bestaande uitvoeringen worden niet verdubbeld)
   update public.task_recurrences
-  set paused_from = null, paused_until = null
+  set paused_from = null, paused_until = null, generated_until = null
   where id = v_series.id
   returning * into v_series;
   return v_series;
@@ -129,13 +140,8 @@ as $$
 declare
   v_series public.task_recurrences%rowtype;
 begin
+  perform private.assert_can_manage_series(p_recurrence_id);
   select * into v_series from public.task_recurrences where id = p_recurrence_id for update;
-  if not found then
-    raise exception 'Reeks niet gevonden' using errcode = 'P0002';
-  end if;
-  if not private.can_manage_series(v_series.id) then
-    raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
-  end if;
 
   update public.task_recurrences set is_active = false where id = v_series.id;
 
@@ -165,12 +171,11 @@ begin
     raise exception 'Onbekende keuze' using errcode = '22023';
   end if;
 
-  select * into v_task from public.tasks where id = p_task_id for update;
-  if not found or v_task.deleted_at is not null then
-    return true; -- al weg: idempotent
-  end if;
-  if not private.is_member(v_task.household_id) then
-    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  -- Eerst lidmaatschap zonder lock: een taak van een ander huishouden gedraagt
+  -- zich als een taak die niet bestaat (idempotent "al weg", geen lock)
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then
+    return true;
   end if;
   if not private.can_delete_task(v_task.household_id, v_task.created_by_member_id) then
     raise exception 'Alleen een beheerder of wie de taak maakte mag hem verwijderen' using errcode = '42501';
@@ -179,6 +184,8 @@ begin
      and not private.can_manage_series(v_task.recurrence_id) then
     raise exception 'Alleen een beheerder of wie de reeks maakte mag dit' using errcode = '42501';
   end if;
+
+  select * into v_task from public.tasks where id = p_task_id for update;
 
   perform set_config('takenlijstje.via_rpc', 'on', true);
 

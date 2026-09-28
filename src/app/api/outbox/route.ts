@@ -74,6 +74,11 @@ export async function POST(request: Request) {
   const entry = (typeof body === "object" && body !== null ? body : {}) as { v?: number; kind?: unknown; payload?: unknown };
 
   const migrated = migrateOutboxEntry(entry.v, entry.kind, entry.payload, randomUUID);
+  if (migrated.status === "future") {
+    // Nieuwer formaat dan deze versie van de app kent (bijv. na een rollback):
+    // de client laat de wijziging staan en probeert het later opnieuw
+    return json({ ok: false, code: "UNSUPPORTED_VERSION", error: "Deze wijziging wordt later verstuurd." }, 503);
+  }
   if (migrated.status === "invalid") {
     return json({ ok: false, code: "VALIDATION", error: "Deze wijziging kon niet worden gelezen." });
   }

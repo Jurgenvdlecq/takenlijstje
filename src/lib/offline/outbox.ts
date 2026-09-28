@@ -19,6 +19,7 @@ export interface OutboxEntry<P = unknown> {
 }
 
 // Eén database per store: idb-keyval ondersteunt geen meerdere stores per database
+let locked = false;
 const store = typeof indexedDB !== "undefined" ? createStore("takenlijstje-outbox", "outbox") : null;
 const KEY = "entries";
 
@@ -32,7 +33,7 @@ export async function readOutbox(): Promise<OutboxEntry[]> {
 }
 
 export async function writeOutbox(entries: OutboxEntry[]): Promise<void> {
-  if (!store) return;
+  if (!store || locked) return;
   try {
     await set(KEY, entries, store);
   } catch {
@@ -48,6 +49,8 @@ export function isNetworkError(error: unknown): boolean {
 
 /** Alles wissen (uitloggen, uitgezet of niet meer lid; BR-43) */
 export async function clearOutbox(): Promise<void> {
+  // Na het wissen (uitloggen) mag een nog lopende timer niets meer terugschrijven
+  locked = true;
   if (!store) return;
   try {
     await clear(store);

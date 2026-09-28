@@ -15,8 +15,9 @@ export async function clearLocalData(): Promise<void> {
 
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   try {
-    navigator.serviceWorker.controller?.postMessage({ type: "CLEAR_PAGES" });
     const registration = await navigator.serviceWorker.getRegistration();
+    // Ook als deze pagina (nog) niet door de service worker wordt gecontroleerd
+    (registration?.active ?? navigator.serviceWorker.controller)?.postMessage({ type: "CLEAR_PAGES" });
     const subscription = await registration?.pushManager?.getSubscription();
     if (subscription) {
       await deletePushSubscriptionAction(subscription.endpoint).catch(() => undefined);

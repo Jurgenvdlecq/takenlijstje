@@ -4,8 +4,9 @@ import { z } from "zod";
 import { preferencesInput, pushSubscriptionInput, uuid } from "@/lib/validation";
 import type { PreferencesRow } from "@/types/database";
 import { requireMember, requireUser } from "../context";
-import { check, runAction, UserError, type ActionResult } from "../errors";
+import { check, expectRows, runAction, UserError, type ActionResult } from "../errors";
 import { isWebPushConfigured } from "../system/channels/web-push";
+import { hasSystemKey } from "../system/config";
 import { notify } from "../system/dispatcher";
 import { parse } from "../parse";
 
@@ -59,7 +60,9 @@ export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscri
         { onConflict: "endpoint" },
       ),
     );
-    check(await supabase.from("user_preferences").update({ push_enabled: true }).eq("member_id", member.id).eq("household_id", household.id));
+    expectRows(
+      await supabase.from("user_preferences").update({ push_enabled: true }).eq("member_id", member.id).eq("household_id", household.id).select("member_id"),
+    );
     return true as const;
   });
 }
@@ -76,6 +79,10 @@ export async function deletePushSubscriptionAction(endpoint: string): Promise<Ac
 export async function sendTestNotificationAction(): Promise<ActionResult<true>> {
   return runAction("sendTestNotification", async () => {
     const { household, member } = await requireMember();
+    // Geen stil "gelukt" als meldingen versturen niet is ingesteld
+    if (!hasSystemKey() || !isWebPushConfigured()) {
+      throw new UserError("Meldingen versturen is op dit moment niet ingesteld.", "UNKNOWN");
+    }
     await notify({
       householdId: household.id,
       memberIds: [member.id],

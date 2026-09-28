@@ -8,8 +8,24 @@ import { readOutbox } from "@/lib/offline/outbox";
 
 /**
  * Uitloggen: waarschuwt als er nog offline wijzigingen wachten, wist daarna
- * de gegevens op dit toestel (BR-43) en logt uit.
+ * de gegevens op dit toestel (BR-43) en verstuurt het uitlogformulier.
+ * Geeft false terug als de gebruiker annuleert.
  */
+export async function signOutSafely(submit: () => void): Promise<boolean> {
+  const waiting = (await readOutbox()).length;
+  if (
+    waiting > 0 &&
+    !window.confirm(
+      `Er ${waiting === 1 ? "staat nog 1 wijziging" : `staan nog ${waiting} wijzigingen`} op dit toestel die nog niet zijn verstuurd. Als je nu uitlogt, gaan die verloren. Toch uitloggen?`,
+    )
+  ) {
+    return false;
+  }
+  await clearLocalData();
+  submit();
+  return true;
+}
+
 export function SignOutButton({
   variant = "outline",
   className,
@@ -23,18 +39,9 @@ export function SignOutButton({
   const [busy, setBusy] = React.useState(false);
 
   async function signOut() {
-    const waiting = (await readOutbox()).length;
-    if (
-      waiting > 0 &&
-      !window.confirm(
-        `Er ${waiting === 1 ? "staat nog 1 wijziging" : `staan nog ${waiting} wijzigingen`} op dit toestel die nog niet zijn verstuurd. Als je nu uitlogt, gaan die verloren. Toch uitloggen?`,
-      )
-    ) {
-      return;
-    }
     setBusy(true);
-    await clearLocalData();
-    formRef.current?.requestSubmit();
+    const done = await signOutSafely(() => formRef.current?.requestSubmit());
+    if (!done) setBusy(false);
   }
 
   return (

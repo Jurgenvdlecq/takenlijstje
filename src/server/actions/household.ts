@@ -15,7 +15,7 @@ import {
 } from "@/lib/validation";
 import type { AbsenceRow, HouseholdRow, MemberRow, TemplateRow } from "@/types/database";
 import { getUser, HOUSEHOLD_COOKIE, requireAdmin, requireMember } from "../context";
-import { check, runAction, UserError, type ActionResult } from "../errors";
+import { check, expectRows, runAction, UserError, type ActionResult } from "../errors";
 import { parse } from "../parse";
 import { applyAbsence } from "../services/scheduling";
 import { notifyAssigned } from "../services/tasks";
@@ -102,7 +102,7 @@ export async function updateHouseholdAction(raw: z.input<typeof householdSetting
 export async function completeOnboardingAction(): Promise<ActionResult<true>> {
   return runAction("completeOnboarding", async () => {
     const { supabase, household } = await requireAdmin();
-    check(await supabase.from("households").update({ onboarding_completed: true }).eq("id", household.id));
+    expectRows(await supabase.from("households").update({ onboarding_completed: true }).eq("id", household.id).select("id"));
     return true as const;
   });
 }
@@ -167,7 +167,11 @@ export async function removeMemberAction(memberId: string): Promise<ActionResult
     const { supabase, household, member } = await requireAdmin();
     const id = parse(uuid, memberId);
     if (id === member.id) throw new UserError("Je kunt jezelf niet verwijderen.");
-    check(await supabase.from("household_members").delete().eq("id", id).eq("household_id", household.id));
+    expectRows(
+      await supabase.from("household_members").delete().eq("id", id).eq("household_id", household.id).select("id"),
+      "Dit gezinslid bestaat niet (meer).",
+      "NOT_FOUND",
+    );
     return true as const;
   });
 }
@@ -290,6 +294,11 @@ export async function createAbsenceAction(raw: z.input<typeof absenceInput>): Pr
     const { supabase, household, member, isAdmin } = await requireMember();
     const input = parse(absenceInput, raw);
     if (!isAdmin && input.memberId !== member.id) throw new UserError("Je kunt alleen je eigen afwezigheid invoeren.");
+    // Vooraf controleren wat de database straks zou weigeren, zodat er geen
+    // halve actie ontstaat (afwezigheid wel, herverdeling niet)
+    if (input.strategy === "reassign" && !isAdmin && !household.members_can_assign_others) {
+      throw new UserError("Opnieuw verdelen mag alleen een beheerder. Kies ‘Doorschuiven tot ik terug ben’ of ‘Op niet toegewezen zetten’.", "FORBIDDEN");
+    }
     const absence = check(
       await supabase
         .from("member_absences")
@@ -315,7 +324,10 @@ export async function createAbsenceAction(raw: z.input<typeof absenceInput>): Pr
 export async function deleteAbsenceAction(absenceId: string): Promise<ActionResult<true>> {
   return runAction("deleteAbsence", async () => {
     const { supabase, household } = await requireMember();
-    check(await supabase.from("member_absences").delete().eq("id", parse(uuid, absenceId)).eq("household_id", household.id));
+    expectRows(
+      await supabase.from("member_absences").delete().eq("id", parse(uuid, absenceId)).eq("household_id", household.id).select("id"),
+      "Je kunt alleen je eigen afwezigheid verwijderen, of deze bestaat niet meer.",
+    );
     return true as const;
   });
 }

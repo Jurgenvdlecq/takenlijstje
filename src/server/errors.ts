@@ -85,9 +85,10 @@ export function check<R extends { data: unknown; error: unknown }>(result: R): N
 export function expectRows<R extends { data: unknown; error: unknown }>(
   result: R,
   message = "Dit mag je niet wijzigen, of het bestaat niet meer.",
+  code: "FORBIDDEN" | "NOT_FOUND" = "FORBIDDEN",
 ): NonNullable<R["data"]> {
   const data = check(result);
   const rows = Array.isArray(data) ? data : data ? [data] : [];
-  if (rows.length === 0) throw new UserError(message, "FORBIDDEN");
+  if (rows.length === 0) throw new UserError(message, code);
   return data;
 }

@@ -8,11 +8,15 @@ import type { Database } from "@/types/database";
 
 export type DbClient = SupabaseClient<Database>;
 
+/** Sessiecookies alleen via HTTPS in productie (security-review WP1, punt 4) */
+export const sessionCookieOptions = { secure: process.env.NODE_ENV === "production", sameSite: "lax" as const };
+
 /** Supabase-client met de sessie van de ingelogde gebruiker (RLS actief). */
 export async function createClient(): Promise<DbClient> {
   assertSupabaseConfigured();
   const cookieStore = await cookies();
   return createServerClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+    cookieOptions: sessionCookieOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();

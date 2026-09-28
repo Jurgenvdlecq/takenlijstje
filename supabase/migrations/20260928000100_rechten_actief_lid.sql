@@ -134,7 +134,15 @@ create policy "members: beheerder of zichzelf wijzigen" on public.household_memb
   using (private.is_admin(household_id) or (user_id = (select auth.uid()) and private.is_member(household_id)))
   with check (private.is_admin(household_id) or (user_id = (select auth.uid()) and private.is_member(household_id)));
 
--- Guard (BR-24, V-29):
+-- Een beheerder voegt alleen leden ZONDER account toe; een account koppelen gaat
+-- uitsluitend via create_household() en accept_invitation() (BR-26, BR-41).
+drop policy if exists "members: beheerder voegt toe" on public.household_members;
+create policy "members: beheerder voegt toe" on public.household_members
+  for insert to authenticated
+  with check (private.is_admin(household_id) and user_id is null);
+
+-- Guard (BR-24, BR-26, V-29):
+--  * een gebruiker kan geen account aan een huishouden koppelen (alleen via RPC)
 --  * huishouden en accountkoppeling zijn onveranderlijk voor gebruikers
 --  * alleen een beheerder wijzigt rol en status
 --  * jezelf uitzetten of verwijderen kan niet via ledenbeheer
@@ -152,8 +160,20 @@ declare
   v_loses_admin boolean;
   v_active_admins integer;
 begin
+  -- FK-acties (bijv. cascade bij het verwijderen van een huishouden) mogen door
+  if pg_trigger_depth() > 1 then
+    return coalesce(new, old);
+  end if;
+
   if v_uid is not null and not v_via_rpc then
-    if tg_op = 'UPDATE' then
+    if tg_op = 'INSERT' then
+      -- Alleen jezelf (create_household / accept_invitation); de insert-policy
+      -- staat via de API bovendien alleen leden zonder account toe
+      if new.user_id is not null and new.user_id <> v_uid then
+        raise exception 'Een account koppel je alleen via een uitnodiging' using errcode = '42501';
+      end if;
+      return new;
+    elsif tg_op = 'UPDATE' then
       if new.household_id is distinct from old.household_id then
         raise exception 'Een gezinslid kan niet naar een ander huishouden' using errcode = '42501';
       end if;
@@ -173,7 +193,7 @@ begin
   end if;
 
   -- Minstens één actieve beheerder, ook voor RPC's (niet voor het systeem)
-  if v_uid is not null then
+  if v_uid is not null and tg_op <> 'INSERT' then
     v_loses_admin := old.role = 'admin' and old.is_active and (
       tg_op = 'DELETE' or new.role <> 'admin' or not new.is_active
     );
@@ -190,6 +210,11 @@ begin
   return coalesce(new, old);
 end;
 $$;
+
+drop trigger if exists household_members_guard on public.household_members;
+create trigger household_members_guard
+  before insert or update or delete on public.household_members
+  for each row execute function private.guard_member_changes();
 
 -- -----------------------------------------------------------------------------
 -- households: alleen actieve leden lezen (helpers zijn aangepast)
@@ -281,6 +306,9 @@ begin
     if new.deleted_at is not null and not v_via_rpc then
       raise exception 'Nieuwe taak kan niet al verwijderd zijn' using errcode = '42501';
     end if;
+    if (new.completed_at is not null or new.completed_by_member_id is not null) and not v_via_rpc then
+      raise exception 'Gebruik complete_task() om een taak af te vinken' using errcode = '42501';
+    end if;
     if new.created_by_member_id is not null and not private.is_my_member(new.created_by_member_id) then
       raise exception 'Een taak maak je als jezelf aan' using errcode = '42501';
     end if;
@@ -299,6 +327,11 @@ begin
         or (new.status = 'done' and old.status <> 'done'))
        and not v_via_rpc then
       raise exception 'Gebruik complete_task() om een taak af te vinken' using errcode = '42501';
+    end if;
+    -- Een gedane taak terugzetten kan alleen via undo_complete_task(): anders
+    -- blijft de historie staan en kan dezelfde taak nog eens worden afgevinkt
+    if old.status = 'done' and new.status is distinct from 'done' and not v_via_rpc then
+      raise exception 'Gebruik undo_complete_task() om afvinken ongedaan te maken' using errcode = '42501';
     end if;
     if new.deleted_at is distinct from old.deleted_at and not v_via_rpc then
       raise exception 'Gebruik delete_task() om een taak te verwijderen' using errcode = '42501';
@@ -343,7 +376,39 @@ drop policy if exists "swaps: eigen verzoek intrekken" on public.task_swap_reque
 create policy "swaps: eigen verzoek intrekken" on public.task_swap_requests
   for update to authenticated
   using ((private.is_member(household_id) and private.is_my_member(requested_by_member_id)) or private.is_admin(household_id))
-  with check (status in ('open', 'cancelled'));
+  with check (
+    status in ('open', 'cancelled')
+    and ((private.is_member(household_id) and private.is_my_member(requested_by_member_id)) or private.is_admin(household_id))
+  );
+
+-- Alleen de status van een ruilverzoek mag via deze policy veranderen
+create or replace function private.guard_swap_changes()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (select auth.uid()) is null or pg_trigger_depth() > 1
+     or coalesce(current_setting('takenlijstje.via_rpc', true), '') = 'on' then
+    return new;
+  end if;
+  -- accepted_by mag alleen mee veranderen bij "accepted"; die status kan via de
+  -- API niet worden gezet (policy), alleen door accept_swap_request()
+  if new.task_id is distinct from old.task_id
+     or new.requested_by_member_id is distinct from old.requested_by_member_id
+     or new.household_id is distinct from old.household_id
+     or (new.accepted_by_member_id is distinct from old.accepted_by_member_id and new.status <> 'accepted') then
+    raise exception 'Een ruilverzoek kan alleen worden ingetrokken' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists task_swap_requests_guard on public.task_swap_requests;
+create trigger task_swap_requests_guard
+  before update on public.task_swap_requests
+  for each row execute function private.guard_swap_changes();
 
 drop policy if exists "comments: eigen of beheerder verwijdert" on public.task_comments;
 create policy "comments: eigen of beheerder verwijdert" on public.task_comments

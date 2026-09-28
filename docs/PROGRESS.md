@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP1 (rechtenmodel en securityfixes op live)
-Volgende stap: WP1 stap 0 — telling op live (alleen lezen) van uitgezette leden met account (AC-170); daarna WP1 bouwen volgens TECHNICAL_DESIGN §15.
+Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test-writer op supabase/tests/** en het su -c-gat in de poort, (2) Jurgen: controle mogelijke sleutel in commit b8a10a0, (3) test-writer werkt DB-tests bij (leden met account alleen via RPC; delete_task zonder orakel) en plaatst ze, (4) herreview code + security, (5) live: migraties _100/_110 via de koppeling, push naar main ('s avonds), rooktest.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -48,7 +48,7 @@ Volgende stap: WP1 stap 0 — telling op live (alleen lezen) van uitgezette lede
 - V-30 t/m V-35 (2026-09-28): "Volg je voorstellen" → V-30 accentkleur diep blauw #2B4C9B, app-icoon in dezelfde tint · V-31 lettertype Figtree, zelf gehost · V-32 planner elke 15 min via Supabase Cron (pg_cron + pg_net) in het eigen project, geheim in Vault, gratis · V-33 back-up als kopie binnen het eigen Supabase-project (Frankfurt), 30 dagen bewaren, geen los exportbestand · V-34 naam van de schrijver blijft bij notities staan · V-35 bouwer past de Supabase-inloginstellingen aan via de koppeling (Nederlandse mail wachtwoord vergeten, min. 8 tekens); lukt dat niet, dan stappenlijst voor Jurgen.
 - V-36 t/m V-39 (2026-09-28): "Volg voorstellen" → V-36 beveiliging, gegevensomzetting en herinneringen meteen live; de nieuwe schermen pas samen live als ze allemaal klaar zijn · V-37 wijzigen van naam/details van een taak mag 4–5 tikken kosten; afvinken, verplaatsen en bezig blijven 2 tikken · V-38 (a) melding "taak gedaan" gaat ook naar wie afvinkte · V-39 tijdzone vast op Europe/Amsterdam, alleen zichtbaar, niet wijzigbaar.
 - Totaalvoorstel en toestemmingen (2026-09-28): "Dat is allemaal akkoord .  /design-go" → akkoord met het totaalvoorstel én toestemming voor: pushen naar `main` (live-deploys WP1–WP3) en naar een nieuwe branch `v2-ui`, en wijzigingen aan de live Supabase-database via de koppeling (planner, migraties, inloginstellingen). Let op: `/design-go` stond midden in de zin en is daardoor niet door de poort geregistreerd; Jurgen is gevraagd het als los bericht te typen.
-- Stap 0 WP1 — uitgezette leden (2026-09-28): telling op live (alleen lezen) → 0 leden met account op `is_active = false`. Geen keuze nodig. Context live: 1 huishouden, 2 leden (1 met account), 69 taken, 1 afvinking.
+- Stap 0 WP1 — uitgezette leden (2026-09-28): telling op live (alleen lezen) → 0 leden met account op `is_active = false`. Controle url-check (code-review 19): 0 van 5 meldingen op live hebben een afwijkende url. Geen keuze nodig. Context live: 1 huishouden, 2 leden (1 met account), 69 taken, 1 afvinking.
 
 ## Open vragen
 - (geen)
@@ -77,7 +77,8 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - Inventarisatie (2026-09-27): zie `docs/INVENTARIS.md` §7. Open BLOKKEREND: B-01 (gezinslid kan open taken van andermans reeks laten verwijderen). GEMIDDELD: B-02, B-03, R-01, R-02, S-01, S-02, A-01, A-02, P-01. Worden na de Design Freeze als eerste work packages behandeld (werkwijze §15 stap 6); geen code gewijzigd.
 
 ## Wijzigingsverzoeken (op bevroren documenten)
-- (geen)
+- W-01 (2026-09-28): AC-014 noemt `occurrence_date` onveranderlijk; TD §5.2 ("Reekskoppeling") staat het toe voor beheerder/maker van de reeks (nodig voor "deze en volgende"). Voorstel: AC-014 formeel gelijktrekken met TD §5.2 (gebouwd volgens TD, D-013). Gevolg: geen functionele wijziging. — status: voor te leggen
+- W-02 (2026-09-28): TD §4.1 zegt dat `@supabase/ssr` Secure zelf zet; dat klopt niet. De app zet het nu zelf (D-019). Voorstel: tekst in TD corrigeren. Gevolg: geen. — status: voor te leggen
 
 ## Bewust geaccepteerde open punten (alleen met besluit van Jurgen)
 - (geen)
@@ -86,5 +87,6 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - (geen)
 
 ## Technische schuld
+- WP1: nonce-CSP voor scripts (WP9); guards op `current_user` i.p.v. GUC (WP9); push-endpoint-allowlist (WP3); `userId`-sleutel in de IDB-cache (WP4); link Account verwijderen op /geen-toegang (WP7); `updateTaskAction` splitsen (WP6).
 - Bestaande documentatie: `docs/ARCHITECTUUR.md` (van vóór dit systeem) wijkt op vier punten af van de code (INVENTARIS §7).
 - eslint 9 wordt niet meer ondersteund.

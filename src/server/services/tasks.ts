@@ -4,7 +4,7 @@ import "server-only";
  * Bedrijfslogica rond taken, los van de server actions zodat ook de cron en
  * de voorbeelddata het kunnen gebruiken.
  */
-import { diffDays, todayIn, type ISODate } from "@/domain/dates";
+import { diffDays, type ISODate } from "@/domain/dates";
 import { buildLoadMap } from "@/domain/assignment/load";
 import { pickAssignee } from "@/domain/assignment/strategies";
 import { computeWindow } from "@/domain/recurrence/window";
@@ -179,8 +179,3 @@ export async function createTask(
   }
   return [task];
 }
-
-export function householdToday(household: HouseholdRow): ISODate {
-  return todayIn(household.timezone);
-}
-

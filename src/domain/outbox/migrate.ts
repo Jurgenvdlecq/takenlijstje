@@ -32,6 +32,8 @@ const OBSOLETE_LABELS: Record<string, string> = {};
 
 export type MigrationResult =
   | { status: "ok"; kind: OutboxKind; payload: Record<string, unknown> }
+  /** Nieuwer dan deze server kent (bijv. na een rollback): laten staan, later opnieuw */
+  | { status: "future" }
   | { status: "obsolete"; kind: string; label: string }
   | { status: "invalid"; reason: string };
 
@@ -54,9 +56,8 @@ export function migrateOutboxEntry(
   generateId: () => string,
 ): MigrationResult {
   const version = v ?? 0;
-  if (!Number.isInteger(version) || version < 0 || version > OUTBOX_VERSION) {
-    return { status: "invalid", reason: "onbekende versie" };
-  }
+  if (!Number.isInteger(version) || version < 0) return { status: "invalid", reason: "onbekende versie" };
+  if (version > OUTBOX_VERSION) return { status: "future" };
   if (typeof kind !== "string" || !kind) return { status: "invalid", reason: "geen soort" };
   if (!isRecord(payload)) return { status: "invalid", reason: "geen gegevens" };
 

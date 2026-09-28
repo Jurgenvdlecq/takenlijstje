@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasCronSecret } from "@/server/cron-auth";
+import { hasSystemKey } from "@/server/system/config";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 
@@ -24,7 +25,7 @@ export function GET(request: Request) {
     versie: (process.env.VERCEL_GIT_COMMIT_SHA ?? "lokaal").slice(0, 7),
     supabaseUrl: supabaseHost ?? "ONTBREEKT",
     supabaseAnonKey: publicEnv.supabaseAnonKey ? `aanwezig (${publicEnv.supabaseAnonKey.length} tekens)` : "ONTBREEKT",
-    supabaseServiceRoleKey: serverEnv.serviceRoleKey ? "aanwezig" : "ONTBREEKT",
+    supabaseServiceRoleKey: hasSystemKey() ? "aanwezig" : "ONTBREEKT",
     siteUrl: publicEnv.siteUrl,
     pushmeldingen: publicEnv.vapidPublicKey && serverEnv.vapidPrivateKey ? "aanwezig" : "ONTBREEKT",
     cronSecret: serverEnv.cronSecret ? "aanwezig" : "ONTBREEKT",

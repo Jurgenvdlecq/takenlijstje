@@ -117,7 +117,8 @@ export const pauseInput = z
   })
   .refine((p) => !p.pausedFrom || !p.pausedUntil || p.pausedUntil >= p.pausedFrom, {
     message: "De einddatum ligt vóór de begindatum",
-  });
+  })
+  .refine((p) => p.pausedFrom || !p.pausedUntil, { message: "Kies ook vanaf wanneer de pauze begint" });
 
 export const commentInput = z.object({
   id: uuid.optional(),

@@ -215,10 +215,12 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
 
     // --- losse taak wordt terugkerend -------------------------------------
     if (!task.recurrence_id && changes.recurrence) {
-      const series = check(
-        await supabase
-          .from("task_recurrences")
-          .insert({
+      // De reeks krijgt de id van de taak: dubbel opslaan levert zo nooit een
+      // tweede reeks op (upsert, idempotent; TECHNICAL_DESIGN §6.1)
+      check(
+        await supabase.from("task_recurrences").upsert(
+          {
+            id: task.id,
             household_id: household.id,
             title: patch.title ?? task.title,
             description: patch.description ?? task.description,
@@ -241,11 +243,11 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
             reminder_minutes_before: patch.reminder_minutes_before ?? task.reminder_minutes_before,
             generated_until: scheduledDate,
             created_by_member_id: member.id,
-          })
-          .select("*")
-          .single(),
-      ) as RecurrenceRow;
-      patch.recurrence_id = series.id;
+          },
+          { onConflict: "id", ignoreDuplicates: true },
+        ),
+      );
+      patch.recurrence_id = task.id;
       patch.occurrence_date = scheduledDate;
     }
 
@@ -480,13 +482,16 @@ export async function acceptSwapAction(requestId: string): Promise<ActionResult<
 export async function cancelSwapAction(requestId: string): Promise<ActionResult<true>> {
   return runAction("cancelSwap", async () => {
     const { supabase, household } = await requireMember();
-    check(
+    expectRows(
       await supabase
         .from("task_swap_requests")
         .update({ status: "cancelled", resolved_at: new Date().toISOString() })
         .eq("id", parse(uuid, requestId))
         .eq("household_id", household.id)
-        .eq("status", "open"),
+        .eq("status", "open")
+        .select("id"),
+      "Dit ruilverzoek is niet meer open.",
+      "NOT_FOUND",
     );
     return true as const;
   });

@@ -16,10 +16,21 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/server/system/admin-client", "**/system/admin-client", "./admin-client"],
+              group: ["@/server/system/admin-client", "**/system/admin-client", "./admin-client", "**/admin-client.*"],
               message: "De service role mag alleen binnen src/server/system/** worden gebruikt (TECHNICAL_DESIGN §5.3).",
             },
           ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/admin-client/]",
+          message: "De service role mag alleen binnen src/server/system/** worden gebruikt (TECHNICAL_DESIGN §5.3).",
+        },
+        {
+          selector: "MemberExpression[property.name='SUPABASE_SERVICE_ROLE_KEY']",
+          message: "De systeemsleutel wordt alleen in src/server/system/admin-client.ts gelezen (TECHNICAL_DESIGN §5.3).",
         },
       ],
     },

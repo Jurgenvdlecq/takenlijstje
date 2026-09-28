@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
-import { clearLocalData } from "@/lib/offline/clear";
+import { signOutSafely } from "@/features/auth/sign-out-button";
 import { acceptInvitationAction } from "@/server/actions/household";
 
 interface InvitationInfo {
@@ -128,10 +128,11 @@ export function InviteView({
                     Je bent ingelogd als {userEmail}. Niet jij?{" "}
                     <button
                       type="button"
-                      onClick={async () => {
-                        await clearLocalData();
-                        (document.getElementById("uitloggen") as HTMLFormElement | null)?.requestSubmit();
-                      }}
+                      onClick={() =>
+                        void signOutSafely(() =>
+                          (document.getElementById("uitloggen") as HTMLFormElement | null)?.requestSubmit(),
+                        )
+                      }
                       className="font-medium text-primary underline-offset-4 hover:underline"
                     >
                       Uitloggen

@@ -9,6 +9,9 @@ let browserClient: SupabaseClient<Database> | null = null;
 
 /** Eén gedeelde client in de browser (voor lezen + realtime; RLS beschermt). */
 export function getBrowserClient(): SupabaseClient<Database> {
-  browserClient ??= createBrowserClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey);
+  browserClient ??= createBrowserClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey, {
+    // Gelijk aan de server (src/lib/supabase/server.ts): Secure in productie
+    cookieOptions: { secure: process.env.NODE_ENV === "production", sameSite: "lax" },
+  });
   return browserClient;
 }
