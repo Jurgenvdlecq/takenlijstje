@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — visueel ontwerp ronde 1 klaar (besluit: visuele laag opnieuw, techniek behouden); technische architectuur gestart
-Volgende stap: antwoorden V-30/V-31 vastleggen; solution-architect levert TECHNICAL_DESIGN.md met work packages; daarna acceptatiecriteria (product-analyst), vergelijking Behouden/Herwerken/Vervangen in INVENTARIS §8, en plan-critic.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — technisch ontwerp ronde 1 klaar (9 work packages); acceptatiecriteria gestart
+Volgende stap: antwoorden V-30 t/m V-35 vastleggen en laten verwerken; product-analyst schrijft ACCEPTANCE_CRITERIA.md; daarna plan-critic tot "DESIGN FREEZE MOGELIJK: JA"; dan totaalvoorstel aan Jurgen.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -48,6 +48,10 @@ Volgende stap: antwoorden V-30/V-31 vastleggen; solution-architect levert TECHNI
 ## Open vragen
 - V-30: Accentkleur en app-icoon: rustig diep blauw #2B4C9B in plaats van het felle indigo, icoon in dezelfde tint? Voorstel: ja. Alternatief: huidig indigo en icoon houden — gesteld 2026-09-28 — blokkeert: niets (alleen tokenwaarden).
 - V-31: Eigen lettertype Figtree (door de app zelf gehost, 20 KB, geen verbinding met Google)? Voorstel: ja. Alternatief: standaardletter van de telefoon — gesteld 2026-09-28 — blokkeert: niets (alleen tokenwaarden).
+- V-32: Planner elke 15 minuten: (a) Supabase Cron in eigen project, gratis, geheim in Vault; (b) Vercel Pro ca. $20/mnd; (c) externe cron-dienst. Voorstel (a) — gesteld 2026-09-28 — blokkeert: WP3.
+- V-33: Back-up vóór het wissen: (a) kopie binnen eigen Supabase-project (Frankfurt), 30 dagen bewaren; (b) daarnaast los exportbestand bij Jurgen. Voorstel (a), 30 dagen — gesteld 2026-09-28 — blokkeert: WP2.
+- V-34: Naam van schrijver bij notities na verwijderen account/uit huishouden: (a) naam blijft; (b) "Oud-gezinslid". Voorstel (a) — gesteld 2026-09-28 — blokkeert: WP2/WP7.
+- V-35: Supabase-inloginstellingen aanpassen (Nederlandse mail wachtwoord vergeten, min. 8 tekens): bouwer via koppeling, anders stappenlijst voor Jurgen. Voorstel: bouwer — gesteld 2026-09-28 — blokkeert: WP7.
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).

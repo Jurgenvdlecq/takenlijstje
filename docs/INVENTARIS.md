@@ -248,16 +248,7 @@ In `docs/screenshots/bestaand/`, op 390×844 (telefoon) en 1440×900. Lokaal ged
 
 ## 8. Behouden / Herwerken / Vervangen
 
-Volgt in **stap 4** van §15, nadat het nieuwe product-, UX-, visuele en technische ontwerp er is. Voorlopige indruk, **nog geen besluit**:
-
-- **Waarschijnlijk behouden:**
-  - datamodel en RLS-basis;
-  - domeinlogica (`src/domain`, goed getest);
-  - offline-wachtrij en idempotent afvinken;
-  - schermindeling op hoofdlijnen.
-- **Waarschijnlijk herwerken:**
-  - autorisatie rond de systeemsleutel (B-01, B-02, B-03);
-  - schema van de tick (R-01);
-  - globale laad- en foutstates (S-01);
-  - toegankelijkheid van de taakkaart en de kalender.
-- **Visuele laag:** consistent maar generiek. De visual-designer beslist of de stijl blijft en wordt verfijnd, of opnieuw wordt ontworpen. Vandaag en Instellingen vragen in elk geval om herwerk van de indeling (D-02, D-03).
+Uitgewerkt per onderdeel, met reden, in `docs/TECHNICAL_DESIGN.md` §16 (voorstel van de solution-architect, 2026-09-28), op basis van het nieuwe product-, UX- en visuele ontwerp. Kort:
+- **Behouden:** datamodel-basis en RLS-aanpak, pure domeinlogica (`src/domain`, herhalingsregels), offline-wachtrij en idempotent afvinken, Next.js/Supabase/Tailwind 4/Radix, snelle invoer.
+- **Herwerken:** rechten rond de systeemsleutel (B-01…B-03), tick en planner (R-01, R-02), snapshot (P-01), laad/fout/offline-states (S-01…S-04), schermindeling (Vandaag, Instellingen, onderbalk), toegankelijkheid (A-01…A-03).
+- **Vervangen of vervallen:** de visuele laag (nieuw design system), toewijzing/verdeling/ruilen/punten/afwezigheid en leden zonder account (scopewijziging van Jurgen).
