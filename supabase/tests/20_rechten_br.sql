@@ -367,6 +367,28 @@ select pg_temp.als(:'u_lynn');
 select public.complete_task(:'t_ellen', '20000000-1111-0000-0000-0000000000e1');
 select pg_temp.assert((pg_temp.taak(:'t_ellen')).status = 'done', 'AC-015: afvinken via complete_task lukt');
 
+-- Security punt 2 (D-017): een gedane taak alleen terug via undo_complete_task;
+-- anders blijft de historie staan en kan dezelfde taak nog eens worden afgevinkt
+select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'todo' where id = %L$$, :'t_ellen'), '42501',
+  'D-017: lid zet gedane taak direct terug op todo');
+select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'in_progress' where id = %L$$, :'t_ellen'), '42501',
+  'D-017: lid zet gedane taak direct op bezig');
+select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'skipped' where id = %L$$, :'t_ellen'), '42501',
+  'D-017: lid zet gedane taak direct op overgeslagen');
+select pg_temp.als(:'u_jurgen');
+select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'todo', completed_at = null, completed_by_member_id = null where id = %L$$, :'t_ellen'), '42501',
+  'D-017: ook een beheerder zet een gedane taak niet direct terug');
+select pg_temp.als(:'u_lynn');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.tasks (household_id, title, scheduled_date, created_by_member_id, completed_at) values (%L, 'Al gedaan', current_date, %L, now())$$,
+  :'fam', :'lynn'), '42501', 'D-017: taak aanmaken met completed_at');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.tasks (household_id, title, scheduled_date, created_by_member_id, completed_by_member_id) values (%L, 'Al gedaan', current_date, %L, %L)$$,
+  :'fam', :'lynn', :'lynn'), '42501', 'D-017: taak aanmaken met completed_by_member_id');
+select public.complete_task(:'t_ellen', '20000000-1111-0000-0000-0000000000e2');
+select pg_temp.assert((select count(*) = 1 from public.task_completions where task_id = :'t_ellen'),
+  'D-017: na de pogingen levert opnieuw afvinken geen tweede registratie op');
+
 -- =============================================================================
 -- BR-23 verwijderen: alleen maker of beheerder (AC-012)
 -- =============================================================================
@@ -432,6 +454,8 @@ insert into public.tasks (household_id, recurrence_id, occurrence_date, schedule
 values (:'fam', :'r_lynn3', current_date + 21, current_date + 21, 'Planten', :'lynn') returning id as rl3_p21 \gset
 select public.pause_series(:'r_lynn3', current_date + 30, current_date + 40);
 select pg_temp.assert((pg_temp.reeks(:'r_lynn3')).paused_from = current_date + 30, 'BR-22: maker pauzeert eigen reeks');
+select pg_temp.assert((pg_temp.reeks(:'r_lynn3')).generated_until = current_date + 29,
+  'D-027: pauze zonder eerder ingepland zet generated_until op de dag vóór de pauze');
 select public.resume_series(:'r_lynn3');
 select pg_temp.assert((pg_temp.reeks(:'r_lynn3')).paused_from is null, 'BR-22: maker hervat eigen reeks');
 select public.delete_task(:'rl3_p14', 'future');
@@ -451,7 +475,11 @@ insert into public.tasks (household_id, recurrence_id, occurrence_date, schedule
 values (:'fam', :'r_lynn2', current_date + 15, current_date + 15, 'Vaatwasser', :'lynn', true) returning id as rl2_p15 \gset
 
 select pg_temp.als(:'u_ellen');
+select pg_temp.assert((pg_temp.reeks(:'r_lynn2')).generated_until is null, 'setup: r_lynn2 nog niet ingepland');
+update public.task_recurrences set generated_until = current_date + 30 where id = :'r_lynn2';
 select public.pause_series(:'r_lynn2', current_date + 10, current_date + 20);
+select pg_temp.assert((pg_temp.reeks(:'r_lynn2')).generated_until = current_date + 9,
+  'D-027/AC-122: pauzeren zet generated_until terug naar vóór de pauze');
 select pg_temp.assert((select (r).paused_from = current_date + 10 and (r).paused_until = current_date + 20
                        from (select pg_temp.reeks(:'r_lynn2') as r) x), 'AC-007: beheerder pauzeert reeks van een ander');
 select pg_temp.assert((pg_temp.taak(:'rl2_p14')).id is null, 'BR-09: open uitvoering in de pauze vervalt');
@@ -459,6 +487,8 @@ select pg_temp.assert((pg_temp.taak(:'rl2_p15')).id is not null, 'BR-09: aangepa
 select pg_temp.assert((pg_temp.taak(:'rl2_p7')).id is not null, 'BR-09: uitvoering buiten de pauze blijft');
 select public.resume_series(:'r_lynn2');
 select pg_temp.assert((pg_temp.reeks(:'r_lynn2')).paused_from is null, 'AC-007: beheerder hervat');
+select pg_temp.assert((pg_temp.reeks(:'r_lynn2')).generated_until is null,
+  'D-027/AC-122: hervatten zet generated_until leeg (planner plant weer vanaf vandaag)');
 select public.clear_series_occurrences(:'r_lynn2', current_date) as opgeruimd \gset
 select pg_temp.assert(:'opgeruimd'::integer = 1, 'clear_series_occurrences: alleen de niet-aangepaste open uitvoering');
 select pg_temp.assert((pg_temp.reeks(:'r_lynn2')).generated_until = current_date - 1, 'clear_series_occurrences: generated_until teruggezet');
@@ -747,6 +777,63 @@ select pg_temp.assert(pg_temp.rows(format($$delete from public.task_recurrences 
 select pg_temp.assert((select (t).id is not null and (t).recurrence_id is null from (select pg_temp.taak(:'rj2_p3') as t) x),
   'Reekskoppeling (d): FK zet recurrence_id op null');
 
+-- =============================================================================
+-- Security punt 6 (D-021): een ruilverzoek kan alleen worden ingetrokken
+-- =============================================================================
+select pg_temp.als(:'u_lynn');
+insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
+values (:'fam', 'Auto wassen', current_date, :'lynn') returning id as t_swap \gset
+insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
+values (:'fam', 'Auto stofzuigen', current_date, :'lynn') returning id as t_swap2 \gset
+insert into public.task_swap_requests (household_id, task_id, requested_by_member_id)
+values (:'fam', :'t_swap', :'lynn') returning id as swap \gset
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set task_id = %L where id = %L$$, :'t_swap2', :'swap'), '42501',
+  'D-021: lid wijzigt task_id van eigen ruilverzoek');
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set requested_by_member_id = %L where id = %L$$, :'ellen', :'swap'), '42501',
+  'D-021: lid zet eigen ruilverzoek op naam van een ander');
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set status = 'accepted', accepted_by_member_id = %L where id = %L$$, :'lynn', :'swap'), '42501',
+  'D-021: lid zet ruilverzoek direct op geaccepteerd');
+select pg_temp.als(:'u_jurgen');
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set requested_by_member_id = %L where id = %L$$, :'jurgen', :'swap'), '42501',
+  'D-021: ook een beheerder herschrijft de aanvrager niet');
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set household_id = %L where id = %L$$, :'buren', :'swap'), '42501',
+  'D-021: ruilverzoek naar ander huishouden');
+select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set accepted_by_member_id = %L where id = %L$$, :'jurgen', :'swap'), '42501',
+  'D-021: accepted_by zetten zonder accepteren');
+select pg_temp.als(:'u_lynn');
+select pg_temp.assert((select task_id = :'t_swap' and requested_by_member_id = :'lynn' and status = 'open'
+                       from public.task_swap_requests where id = :'swap'), 'D-021: ruilverzoek ongewijzigd');
+select pg_temp.assert(pg_temp.rows(format($$update public.task_swap_requests set status = 'cancelled', resolved_at = now() where id = %L$$, :'swap')) = 1,
+  'D-021: eigen ruilverzoek intrekken mag');
+
+-- =============================================================================
+-- D-015: een uitgezet lid kan zijn pushabonnement alleen nog afmelden
+-- =============================================================================
+select pg_temp.als(:'u_kai');
+insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
+values (:'u_kai', 'https://push.example/kai-1', 'k', 'a');
+select pg_temp.als(:'u_jurgen');
+update public.household_members set is_active = false where id = :'kai';
+select pg_temp.als(:'u_kai');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://push.example/kai-2', 'k', 'a')$$, :'u_kai'), '42501',
+  'D-015: uitgezet lid meldt nieuw apparaat aan');
+select pg_temp.expect_sqlstate($$update public.push_subscriptions set p256dh = 'x' where endpoint = 'https://push.example/kai-1'$$, '42501',
+  'D-015: uitgezet lid werkt abonnement bij');
+select pg_temp.assert(pg_temp.rows($$delete from public.push_subscriptions where endpoint = 'https://push.example/kai-1'$$) = 1,
+  'D-015: uitgezet lid meldt eigen apparaat af');
+select pg_temp.als(:'u_jurgen');
+update public.household_members set is_active = true where id = :'kai';
+select pg_temp.als(:'u_bas');
+select pg_temp.expect_error(format(
+  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://push.example/nep', 'k', 'a')$$, :'u_lynn'),
+  'D-015: abonnement op naam van een ander');
+
+-- =============================================================================
+-- guard_member_changes laat FK-cascades door: huishouden verwijderen werkt
+-- =============================================================================
+select pg_temp.als(:'u_solo');
+select public.create_household('Weg', 'Solo') as weg_h \gset
 -- =============================================================================
 -- Notities: plaatsen als jezelf, verwijderen eigen of beheerder (TD §5.2)
 -- =============================================================================

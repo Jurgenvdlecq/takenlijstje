@@ -1,5 +1,5 @@
 {
-  "laatstVerwerkt": "design-go:a5af13f6-095f-464e-9ee3-ef38ed9e440c",
+  "laatstVerwerkt": "design-go:41320cf3-a4c9-412f-9775-9517a11ec2e5",
   "geschiedenis": [
     {
       "op": "2026-09-27T20:43:36.361Z",
@@ -21,6 +21,12 @@
     {
       "op": "2026-09-28T20:32:17.380Z",
       "actie": "freeze ingetrokken"
+    },
+    {
+      "op": "2026-09-28T20:33:03.614Z",
+      "actie": "design-go",
+      "niveau": 2,
+      "geforceerd": false
     }
   ],
   "niveauJurgen": {
@@ -28,6 +34,21 @@
     "op": "2026-09-27T20:43:36.361Z",
     "reden": "bestaand project, meerdere gebruikers"
   },
-  "freeze": null,
+  "freeze": {
+    "goedgekeurd": true,
+    "op": "2026-09-28T20:33:03.614Z",
+    "niveau": 2,
+    "hashes": {
+      "docs/PRODUCT_SPEC.md": "5286b708f4ea22323aa6c48e9377dd9137f9991b348e3596bd18e8eadbaea2ae",
+      "docs/UX_SPEC.md": "d3b87f15ce1073408b02d54dc3ff686b535670f72a35221356b1e1a766a141c5",
+      "docs/DESIGN_SYSTEM.md": "636ceff8f135c730042959b96ce7db93e4e82671619fdcc6fb30decd27ab627f",
+      "docs/TECHNICAL_DESIGN.md": "20bd14245818accc8d853da64cce983e4c7a31e7ff7f4ab853f86d514c4416e2",
+      "docs/ACCEPTANCE_CRITERIA.md": "1252afc86144445b213758a539236fa1d9ec8f98050a72b1b1f1598724b7111a"
+    },
+    "bron": "UserPromptExpansion",
+    "sessie": "692a0963-bcf7-518f-8e91-2ea8d7ce7c8b",
+    "geforceerd": false,
+    "openPuntenBijGo": []
+  },
   "onderhoudTot": "2026-09-28T20:59:26.351Z"
 }
