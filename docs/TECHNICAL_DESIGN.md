@@ -620,7 +620,52 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 
 ### 12.3 Volgorde per WP met een databasewijziging
 
-**Welke WP's direct live gaan en welke samen: `[OPEN: V-36]`.** Voorstel van de plan-critic: WP1, WP2a, WP2b en WP3 direct; WP4–WP9 samen in één release. Tot het antwoord er is, geldt onderstaande volgorde voor elke WP die live gaat.
+#### 12.3.1 Uitrolstrategie (besluit V-36)
+
+**Twee sporen:**
+
+| Spoor | Branch | Werkpakketten | Live |
+| --- | --- | --- | --- |
+| Backend op de huidige app | `main` (= productie) | WP1, WP2a, WP2b, WP3 + herstel van bevindingen | direct na de review van elk WP, volgens de stappen hieronder |
+| Nieuwe schermen | `v2-ui` (afgetakt van `main` zodra WP2a live is) | WP4–WP8, daarna WP9 | **pas samen** na WP9 en de release gate, via de release-stappen R1–R5 |
+
+**Waarom een branch en geen feature-vlag:** met een vlag staan twee UI's met twee tokensystemen in dezelfde code. DESIGN_SYSTEM §4 verbiedt dat ("in één keer vervangen, niet naast elkaar"). Het zou ook elke review verdubbelen. Een branch houdt `main` precies de huidige app plus de backend-fixes.
+
+**De oude UI blijft werken tijdens WP1–WP3.** Regel: in de oude UI **alleen verwijderen of uitschakelen wat niet meer bestaat, niets herontwerpen**.
+- **WP1:**
+  - de store van de oude UI verstuurt snelle acties via `POST /api/outbox` (§9.3.1);
+  - uitloggen roept `clearLocalData()` aan;
+  - er komt een minimale pagina `/geen-toegang`.
+- **WP2a** haalt de vervallen onderdelen uit de oude schermen:
+  - "Wie?", toewijzen, de tabs "Mijn taken / Iedereen" (er blijft één lijst), avatars bij taken, filters per persoon;
+  - de kaart "Samen sparen" en de puntinstellingen;
+  - "Ik kan deze taak niet doen", ruilverzoeken, afwezigheid;
+  - "lid toevoegen zonder account", "Gezinsleden mogen aan anderen toewijzen";
+  - "gedaan door …" in toasts, historie en meldingen;
+  - persoonsherkenning in de snelle invoer.
+
+  Het tijdzoneveld wordt alleen-lezen (V-39).
+- **Vangnet tegen verwijzingen naar vervallen kolommen:** in WP2a worden de types in `src/types/database.ts` al gegenereerd uit het **doelschema van WP2b**. Een overgebleven verwijzing in de oude UI of de server is dan een typefout (`npm run typecheck` rood), geen runtimefout na het wissen.
+- **Bewijs dat de oude UI werkt:** de bestaande E2E-tests (`tests/e2e/tasks.spec.ts`, `onboarding.spec.ts`), bijgewerkt voor wat verdwijnt, zijn groen per WP op `main`. Daarnaast worden rook-screenshots gemaakt van de oude schermen Vandaag, Taken, Kalender, Boodschappen en Instellingen (`docs/screenshots/wp2a/`). Die bekijkt de bouwer zelf; het is geen visual-qa-checkpoint, want die UI wordt vervangen.
+
+**Regels voor `v2-ui`:**
+- `main` wordt in `v2-ui` gemerged na elke merge op `main`, en minstens wekelijks.
+- Migraties die WP4–WP8 nodig hebben, zijn **alleen additief** en werken ook met de oude UI. Voorbeelden: extra RPC's zoals `unarchive_shopping_list` als die nog niet in `…_200` zit, of indexen.
+- Zulke migraties mogen eerder op live worden gezet als dat een risico wegneemt. Anders gebeurt het bij R2. Destructieve migraties zijn op `v2-ui` niet toegestaan.
+- **Geen Vercel-previews van `v2-ui`.** Previews gebruiken de productievariabelen en dus de **live database**. Uitschakelen met `vercel.json` → `"git": { "deploymentEnabled": { "v2-ui": false } }`.
+- Checkpoints CP1–CP4 en E2E draaien lokaal (`tests/e2e/support/local-stack.sh`).
+
+**Release van de nieuwe schermen (na WP9 en de release gate):**
+
+| # | Stap | Controle |
+| --- | --- | --- |
+| R1 | `main` volledig gemerged in `v2-ui`; alle tests groen (unit, DB, integratie, E2E) | CI/lokaal groen |
+| R2 | Additieve migraties van `v2-ui` die nog niet live staan, toepassen (de oude UI werkt ermee) | rooktest op de oude UI |
+| R3 | `v2-ui` → `main` mergen en deployen; de SW-versie (= build-id) wist de oude pagecache. Wachtende outbox-entries blijven geldig (hetzelfde endpoint, `migrateOutboxEntry`) | rooktest: inloggen, Vandaag, afvinken + ongedaan maken, offline afvinken → online |
+| R4 | Rooktest met Jurgen op zijn telefoon (PWA op het beginscherm) | zijn akkoord in `PROGRESS.md` |
+| R5 | **Rollback:** Vercel Instant Rollback naar de laatste deployment met de oude UI. Dat kan, want alle migraties van `v2-ui` zijn additief | — |
+
+Voor elke WP die op `main` live gaat, en voor R2, geldt de volgorde hieronder.
 
 0. **Alleen bij WP1, vóór `…_100` (plan-critic 7):** alleen-lezen-telling op live: `select count(*) from household_members where user_id is not null and is_active = false`. Is die groter dan 0, dan **stoppen**. De bouwer legt Jurgen per persoon (naam) voor dat die na de update geen toegang meer heeft (V-29), met de keuze: eerst weer aanzetten, of zo laten. Er wordt niets aangepast zonder zijn antwoord. Leden zonder account (`user_id is null`) tellen niet mee: zij loggen niet in en vervallen in WP2b.
 1. De migratie lokaal groen (`test:db`, E2E).
@@ -732,7 +777,7 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 | WP | Doel en inhoud | Afhankelijk van | BR / UC / bevindingen | Checkpoint | Reviews |
 | --- | --- | --- | --- | --- | --- |
 | **WP1 — Rechtenmodel en securityfixes (live, niet-destructief)** | **Eerst stap 0 van §12.3** (telling van uitgezette leden met account op live; > 0 → Jurgen). Migraties `…_100`, `…_110` (inclusief de regel "Reekskoppeling"); **wachtrij-endpoint `POST /api/outbox` + `OUTBOX_VERSION` + `migrateOutboxEntry` + "nooit stil weggooien" (§9.3.1)**, zodat elke latere deploy de offline-wachtrij niet meer kan breken; `src/server/system/**` + ESLint-regel; `expectRows`; `ActionResult.code`; `stopSeries`, `pauseSeries`, `deleteTask` en `updateTask future` via RPC's zonder service role; `systemDb` en `fallbackDb` weg; notificatie-insert alleen door het systeem + URL-check + SW-originecheck; `/api/status` achter Bearer; `is_active` in de helpers + `/geen-toegang` (minimaal) + `clearLocalData()` bij uitloggen en uitzetten; Next 16.3.7. Op de **huidige** UI (alleen de minimaal nodige UI-aanpassing) | — | B-01, B-02 (route vervalt pas in WP2; tot dan: `autoAssign` met de user-client en een weigering als het niet mag), B-03, B-04, B-05, BR-22, BR-23, BR-24, BR-25, BR-26, BR-43, V-29 | geen (backend) | code, test-writer, **security**. Live na de review |
-| **WP2a — Scope uit de code + expand (aanbeveling 15)** | Code: toewijzing, verdeling, ruilen, afwezigheid, punten, "namens", `completed_by` en `added_by`/`bought_by` eruit (server, domein, store, mutaties, de schermen waar ze nu staan: minimaal verwijderen, geen herontwerp); `complete_task` v2, `undo` voor iedereen; voorkeuren per rol; `author_name` + triggers (V-34); BR-44; idempotente uitnodigingen, standaardtaken en archiveren; `migrateOutboxEntry` v0 → v1 voor de vervallen soorten; seed en tests bijgewerkt; M0 (sandbox-proef van het draaiboek). Live: §12.4 **M1 (voorcontroles) → M2 (expand + deploy)** | WP1 | UC-02, BR-10…BR-14, BR-20, BR-31 (standaarden), BR-41, BR-42, BR-44, R-03, V-21, V-22, V-24, V-25, V-34 | geen (backend); rooktest na M2 | code, test-writer, **security**, **performance** (snapshot zonder de vervallen tabellen) |
+| **WP2a — Scope uit de code + expand (aanbeveling 15)** | Code: toewijzing, verdeling, ruilen, afwezigheid, punten, "namens", `completed_by` en `added_by`/`bought_by` eruit (server, domein, store, mutaties, de schermen waar ze nu staan: minimaal verwijderen, geen herontwerp); `complete_task` v2, `undo` voor iedereen; voorkeuren per rol; `author_name` + triggers (V-34); BR-44; idempotente uitnodigingen, standaardtaken en archiveren; `migrateOutboxEntry` v0 → v1 voor de vervallen soorten; `src/types/database.ts` uit het doelschema van WP2b (§12.3.1); tijdzone vast (V-39: invoer weg + check na M1(f)); oude UI: alleen verwijderen wat vervalt, de oude E2E groen en rook-screenshots; seed en tests bijgewerkt; daarna de branch `v2-ui` aanmaken + previews uitschakelen in `vercel.json`; M0 (sandbox-proef van het draaiboek). Live: §12.4 **M1 (voorcontroles) → M2 (expand + deploy)** | WP1 | UC-02, BR-10…BR-14, BR-20, BR-31 (standaarden), BR-41, BR-42, BR-44, R-03, V-21, V-22, V-24, V-25, V-34 | geen (backend); rooktest na M2 | code, test-writer, **security**, **performance** (snapshot zonder de vervallen tabellen) |
 | **WP2b — Back-up, bevestiging en wissen (contract)** | §12.4 **M3–M8**: back-up, restore-test, hertelling, **"ja, wissen" van Jurgen (M5)**, `…_210` in dezelfde sessie, rooktest, na 30 dagen de back-up opruimen. Het wachten op Jurgen houdt WP3 en verder **niet** tegen: de code van WP2a gebruikt de vervallen kolommen al niet meer | WP2a (en M0 geslaagd) | BR-46, V-26, V-33; succescriterium 7 | geen; controles M6 | code (scripts), **security** (inhoudscontrole meldingen, privacytest op live). **Bevestiging van Jurgen bij M5** |
 | **WP3 — Achtergrond: planner, tick, meldingen, retentie** | `supabase/ops/planner.sql` (V-32: pg_cron + pg_net, geheim in Vault); tick set-gebaseerd (§11.3); ontvangers volgens V-23; teksten zonder namen; "taak gedaan" naar iedereen met die voorkeur aan, ook naar wie afvinkte (V-38a; `recipientsFor` krijgt geen actor-parameter); `pushed_at` op id; push-time-out; `…_300_retentie`; `vercel.json` als vangnet | **WP2a** (niet WP2b: de planner hangt niet af van het wissen) | BR-16, BR-30, BR-31, BR-45, R-01, R-02, UC-08 | geen; meting: tijd tussen het geplande moment en de melding ≤ 15 min (succescriterium 5) | code, test-writer, **security** (Bearer, Vault), **performance** (tickduur) |
 | **WP4 — Fundament UI: tokens, lettertype, shell, navigatie, states, sheets** | `globals.css` volgens DESIGN_SYSTEM §4 (één bron, D-01); Figtree zelf gehost via `next/font/local` (V-31); accent `#2B4C9B` + nieuw app-icoon in die tint (V-30); componenten in `src/components/ui/*` restyled; `AppShell` (onderbalk: Vandaag · Taken · + · Kalender · Boodschappen; kop: bel + tandwiel; V-28); max. 480 px-kolom (D-05); Toaster onder; `(app)/layout` met Suspense + `DataErrorBoundary`; `loading`/`error`/`not-found`/`global-error`; `SheetHost` + `sheets.ts` + `appUrl`; offlinebalk; SW: 3 s time-out, `/offline`-fallback, `CLEAR_PAGES`; snapshot-slices + gericht Realtime (P-01); manifest `theme_color` | WP2a | S-01, S-04, D-01, D-05, P-01, UX §3, §7 | **CP1** (shell en navigatie, leeg, laden, fout, offline) | code, test-writer, **performance** (payload, LCP), **visual-qa** |

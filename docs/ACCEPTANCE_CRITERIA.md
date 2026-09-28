@@ -48,7 +48,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
   - **V-37 — tikken:** afvinken, verplaatsen en "bezig" kosten maximaal twee tikken. Naam of details wijzigen mag vier à vijf tikken kosten (AC-181).
   - **V-38 — "taak gedaan":** gaat ook naar wie afvinkte (AC-073).
   - **V-39 — tijdzone:** vast op Europe/Amsterdam, alleen zichtbaar (AC-182).
-- **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-179 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
+- **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-182 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
 - **WP2 = WP2a + WP2b.** TECHNICAL_DESIGN splitst WP2 in WP2a (code en expand) en WP2b (draaiboek M2–M8).
   - Hier staat "WP2" voor beide.
   - AC-054 en AC-178/AC-179 horen bij WP2a.
@@ -1002,6 +1002,16 @@ DAN vraagt de app "Wijzigingen weggooien?".
 - Zonder ingevulde of gewijzigde gegevens sluit de sheet direct, zonder vraag.
 **Toets:** E2E
 
+### AC-181 — Aantal tikken (WP5/WP6; V-37; UX §4.1, §4.5, §4.6)
+GEGEVEN een open taak op Vandaag
+WANNEER de gebruiker de taak afvinkt, verplaatst naar morgen, op "bezig" zet, en de naam wijzigt
+DAN kost:
+- afvinken 1 tik (het rondje);
+- "Naar morgen" 2 tikken (rij openen → Naar morgen);
+- "bezig" maximaal 2 tikken vanaf het taakdetail;
+- naam of details wijzigen maximaal 5 tikken, typen niet meegeteld (rij → ⋯ → Bewerken → Opslaan, plus bij een reeks de keuze "Alleen deze keer" / "Deze en alle volgende keren").
+**Toets:** E2E (tikken tellen in het script)
+
 ---
 
 ## WP7 — Instellingen, account en inloggen
@@ -1178,7 +1188,7 @@ DAN:
 
 ### AC-176 — Huishoudinstellingen: alleen een beheerder (WP7; BR-20; PRODUCT_SPEC §7; plan-critic punt 11)
 GEGEVEN "Gezinsleden mogen taken maken" staat uit
-WANNEER Lynn (gezinslid) met een direct verzoek (`updateHouseholdAction`, of rechtstreeks op `households`) die instelling aanzet, of de naam of tijdzone van het huishouden wijzigt
+WANNEER Lynn (gezinslid) met een direct verzoek (`updateHouseholdAction`, of rechtstreeks op `households`) die instelling aanzet, of de naam van het huishouden wijzigt (de tijdzone kan niemand wijzigen, zie AC-182)
 DAN:
 - wordt elke poging geweigerd, en zijn alle instellingen ongewijzigd;
 - kan Lynn daarna nog steeds geen taak aanmaken (AC-010);
@@ -1191,6 +1201,16 @@ GEGEVEN Kai is door een beheerder uit Familie verwijderd, of Jurgen heeft Famili
 WANNEER Kai of Ellen de app daarna opent
 DAN ziet die persoon **eerst een uitleg** dat hij niet meer bij "Familie" hoort, met de weg naar een nieuwe uitnodiging en Uitloggen, **vóór** de keuze "Nieuw huishouden starten". De lokale gegevens van het oude huishouden zijn gewist. De precieze tekst en het scherm volgen UX_SPEC §4.15/§8, zodra die zijn aangevuld
 **Toets:** E2E
+
+### AC-182 — Tijdzone vast op Europe/Amsterdam (WP7; BR-40; V-39; UC-12)
+GEGEVEN het huishouden Familie
+WANNEER Jurgen (beheerder) Instellingen › Huishouden opent, en daarna met een direct verzoek (`updateHouseholdAction`, of rechtstreeks op `households`) de tijdzone op een andere waarde probeert te zetten; in een tweede geval maakt iemand een nieuw huishouden aan
+DAN:
+- toont de pagina de tijdzone "Europe/Amsterdam" alleen als informatie, zonder veld of keuzelijst;
+- wordt het directe verzoek geweigerd (ook voor een beheerder), en blijft de tijdzone Europe/Amsterdam;
+- blijven de deadlines en herinneringen van open taken ongewijzigd;
+- krijgt een nieuw huishouden altijd Europe/Amsterdam, ook als er een andere waarde wordt meegestuurd.
+**Toets:** DB + Int + E2E
 
 ---
 
@@ -1306,6 +1326,15 @@ DAN toont (a) "Nog niets om te laten zien. Na een week afvinken zie je hier wat 
 ---
 
 ## WP9 — Hardening en release
+
+### AC-180 — Uitrol volgens V-36 (WP1–WP9; V-36)
+GEGEVEN het bouwtraject
+WANNEER WP1, WP2a, WP2b en WP3 klaar en gereviewd zijn, en later WP4 t/m WP8 klaar zijn
+DAN:
+- gaan WP1 t/m WP3 elk direct na hun review live, met de rooktest op live. Het gezin blijft in die periode de huidige schermen gebruiken, zonder "Wie?", punten en ruilen;
+- gaan de nieuwe schermen van WP4 t/m WP8 **niet** afzonderlijk live, maar samen in één release, na afronding van WP9 en de release gate;
+- ziet het gezin tussendoor nooit een mengsel van oude en nieuwe schermen.
+**Toets:** Proces (code-reviewer controleert per WP het bouwverslag en de deploys in `docs/PROGRESS.md`) + Live (rooktest per live-moment)
 
 ### AC-163 — Alle states per scherm (WP9; UX §7; DoD)
 GEGEVEN de volledige app
