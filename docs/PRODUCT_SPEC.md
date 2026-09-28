@@ -50,7 +50,7 @@ Dit vervangt de overgenomen besluiten uit INVENTARIS §2 over Verdeling, Ruilen 
 **Wat "niet bijhouden wie" wel en niet betekent.** Jurgen koos: de app houdt niet bij wie een taak **gedaan** heeft. Andere "wie"-gegevens hebben een ander doel:
 Jurgen heeft per gegeven besloten (V-25):
 - **De maker van een taak of reeks wordt bewaard, maar nergens getoond** en niet gebruikt in overzichten. Hij is nodig voor het recht om een reeks te wijzigen, pauzeren of stoppen (V-09), en om een taak te verwijderen (V-13). Dat is "wie heeft dit ingesteld", niet "wie heeft het gedaan". Het botst dus niet met V-21.
-- **De schrijver van een notitie wordt bewaard en getoond** bij de notitie ("Ellen: ...").
+- **De schrijver van een notitie wordt bewaard en getoond** bij de notitie ("Ellen: ..."). Getoond wordt de laatst bekende naam, ook na verwijderen (V-34; zie §8).
 - **"Toegevoegd door" en "gekocht door" bij boodschappen vervallen.**
 
 **Bestaande gegevens in de live database** worden bij de overgang opgeruimd volgens BR-46 (V-26). Vlak vóór het wissen vraagt de bouwer Jurgen nogmaals om bevestiging.
@@ -267,9 +267,12 @@ Jurgen heeft per gegeven besloten (V-25):
   - **Wat de app nooit vastlegt:** wie afvinkte (V-21).
     - Niet in de database, niet in de tekst van meldingen en niet in de eigen logregels van de app. De app logt alleen actienaam, foutnaam en code.
     - **Grens van die belofte:** de platforms waarop de app draait, houden zelf toegangslogs bij die de app niet beheert.
-      - **Supabase:** de API- en auth-logs leggen per aanroep vast welk account welke functie aanriep (bijvoorbeeld `complete_task`) en wanneer. Volgens de documentatie van Supabase is de bewaartermijn op het gratis plan 1 dag, en langer op betaalde plannen. Welk plan het project heeft, is niet in de documenten vastgelegd; het technisch ontwerp gaat uit van Free.
-      - **Vercel:** de runtime-logs bewaren op het Hobby-plan 1 uur. Omdat de app geen invoer en geen `user_id` logt, bevatten ze geen persoonsgegevens van de app zelf.
-      - Deze termijnen zijn gecontroleerd op 2026-09-28 en kunnen bij de aanbieders veranderen.
+      - **Supabase:** de API- en auth-logs leggen per aanroep vast welk account welke functie aanriep (bijvoorbeeld `rpc/complete_task`) en wanneer.
+      - **Vercel:** de request- en functielogs leggen per verzoek vast welk endpoint wanneer werd aangeroepen, bijvoorbeeld `POST /api/outbox`. Via de sessie is dat naar een gebruiker te herleiden (TECHNICAL_DESIGN §9.4). De eigen logregels van de app bevatten geen invoer en geen `user_id`.
+      - **Bewaartermijn:**
+        - Volgens de openbare documentatie van de aanbieders (geraadpleegd op 2026-09-28) bewaart Supabase de logs op het gratis plan 1 dag, en langer op betaalde plannen. Vercel bewaart runtime-logs op het Hobby-plan 1 uur.
+        - Welk Supabase-plan het project heeft, en welke termijn er werkelijk geldt, is **nog niet in het dashboard gecontroleerd**. Dat gebeurt in WP3 (TECHNICAL_DESIGN §9.4), en de uitkomst komt in `docs/DECISIONS.md`.
+        - Tot die controle geldt de termijn als "kort, afhankelijk van het plan". Het is geen belofte.
     - De bouwer noemt dit in het totaalvoorstel aan Jurgen (plan-critic ronde 1, punt 3).
   - De historie blijft bestaan als de taak of reeks later wordt verwijderd.
   - Offline afgevinkt? Dan geldt het moment van afvinken, maar nooit in de toekomst en nooit meer dan 7 dagen terug.
@@ -357,12 +360,17 @@ Jurgen heeft per gegeven besloten (V-25):
      - afwezigheden;
      - meldingen van soorten die vervallen (toegewezen, ruilverzoek, ruil geaccepteerd);
      - **alle bestaande meldingen "taak gedaan" van vóór de overgang.** Hun tekst noemt letterlijk wie afvinkte ("… is gedaan door <naam>");
-     - **alle bestaande dag- en avondoverzichten van vóór de overgang.** Hun tekst is een afgeleide van toewijzing ("Waarvan N voor jou", "op jouw naam");
+     - **alle bestaande dag- en avondoverzichten van vóór de overgang.** Hun tekst is een afgeleide van toewijzing ("Waarvan N voor jou", "van jou nog open", "op jouw naam");
      - "toegevoegd door" en "gekocht door" bij boodschappen;
      - leden zonder account.
 
      Na het wissen staat nergens in de database, **ook niet in de tekst van meldingen**, wie een taak deed (plan-critic ronde 1, punt 1).
-  4. **Blijft bestaan:** de afvinkhistorie zelf (wat, wanneer, op tijd of te laat, notitie), zonder personen. Ook de makers van taken en reeksen en de schrijvers van notities blijven bestaan (V-25).
+  4. **Blijft bestaan:**
+     - de afvinkhistorie zelf (wat, wanneer, op tijd of te laat, notitie), zonder personen;
+     - de makers van taken en reeksen en de schrijvers van notities (V-25);
+     - bestaande meldingen van de soorten herinnering, "deadline nadert" en "verlopen", want hun tekst noemt geen persoon.
+
+     Dit sluit aan op TECHNICAL_DESIGN §12.4.
   5. **Meldingsvoorkeuren van bestaande gezinsleden** (nu Lynn en Kai, als ze een account hebben) worden bij de overgang op de nieuwe standaard gezet: alle soorten **uit**. Dat geldt ook als ze die meldingen zelf hadden aangezet. De voorkeuren van beheerders blijven ongewijzigd. Dit volgt uit V-23. De bouwer noemt het expliciet in het totaalvoorstel aan Jurgen, zodat Lynn en Kai niet ongemerkt geen herinneringen meer krijgen. Ze kunnen het daarna zelf weer aanzetten.
 
   **Hoe de nieuwe versie live gaat tijdens het bouwen** (per onderdeel, of alles samen): `[OPEN: V-36]`.
@@ -438,7 +446,7 @@ Leden zonder account vervallen (§0).
 | Uitnodigingen (token, optioneel e-mailadres, rol, wie uitnodigde) | Aansluiten | Beheerder | Ja (e-mailadres) | 30 dagen na verlopen of gebruik (BR-45) |
 | Taken en reeksen (titel, omschrijving, planning, deadline, duur, prioriteit, herinneringen, **maker**) | Kernfunctie; de maker is nodig voor de rechten (BR-22, BR-23) | Leden en planning | De maker wel: wie iets instelde, niet wie het deed. Wordt bewaard, maar nergens getoond (V-25) | Tot de taak verwijderd wordt |
 | Afvinkhistorie (titel, categorie, wanneer, te laat, notitie) **zonder persoon** | "Gedaan" tonen, ongedaan maken, "vergeten"-overzicht | Afvinken | Nee (alleen de vrije notitie kan iets persoonlijks bevatten) | 2 jaar (BR-45) |
-| Notities bij taken (tekst, schrijver) | Afspraken en boodschappen | Leden | Ja: de schrijver wordt bewaard en bij de notitie getoond (V-25) | Tot de taak verwijderd wordt |
+| Notities bij taken (tekst, schrijver) | Afspraken en boodschappen | Leden | Ja: de schrijver wordt bewaard en bij de notitie getoond (V-25). De getoonde naam is de **laatst bekende naam** van de schrijver:<br>• De database zet hem zelf; een meegestuurde naam wordt genegeerd en is niet te wijzigen.<br>• Bij een naamswijziging wordt hij bijgewerkt.<br>• Na verwijderen van het lid of account blijft hij staan (V-34).<br>• Oude notities zonder bekende schrijver krijgen bij de overgang "Gezinslid".<br>(TECHNICAL_DESIGN §3.1) | Tot de taak verwijderd wordt |
 | Meldingen (per ontvanger) | Informeren | Systeem | Ja (de ontvanger) | 90 dagen (BR-45) |
 | Meldingsvoorkeuren | Werking | Lid | Ja | Tot het lid verwijderd wordt |
 | Pushabonnementen (endpoint, sleutels, browserinfo) | Web Push | Apparaat | Ja | Tot uitzetten of uitloggen, of tot ze ongeldig zijn |

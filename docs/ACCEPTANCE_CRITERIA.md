@@ -44,7 +44,11 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
   - **`[OPEN: V-36]` — uitrol.** Of een work package direct live gaat of samen met andere, bepaalt wanneer de toetsen "Live" en "Proces" per WP worden uitgevoerd. Het gaat om AC-054 en om de rooktests. Wat de criteria eisen, verandert niet.
   - **`[OPEN: V-37]` — wijzigen in meer dan twee tikken.** Er is bewust geen criterium dat het aantal tikken voor "naam of details wijzigen" vastlegt, tot Jurgen beslist. AC-121 (verplaatsen in 2 tikken) staat daar los van.
   - **`[OPEN: V-38]` — ontvangers van "taak gedaan".** Zie AC-073.
-- **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-177 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
+- **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-179 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
+- **WP2 = WP2a + WP2b.** TECHNICAL_DESIGN splitst WP2 in WP2a (code en expand) en WP2b (draaiboek M2–M8).
+  - Hier staat "WP2" voor beide.
+  - AC-054 en AC-178/AC-179 horen bij WP2a.
+  - AC-055 t/m AC-061 horen bij WP2b.
 - **Regressie.** Elke bevinding uit een review krijgt een extra AC en een test. Die criteria worden na de freeze toegevoegd, via de bouwer in `docs/DECISIONS.md` en een testverwijzing.
 
 ---
@@ -270,7 +274,7 @@ GEGEVEN de database na de contract-migratie
 WANNEER `supabase/tests/30_privacy.sql` draait
 DAN:
 - **Schema:** in `tasks`, `task_completions` en `shopping_items` bestaat geen kolom `completed_by*`, `member_id`, `added_by*` of `bought_by*`. De test faalt zodra zo'n kolom terugkomt.
-- **Inhoud:** er is geen melding waarvan de titel of tekst "gedaan door" bevat, of de weergavenaam van een lid in combinatie met "gedaan", "voor jou" of "jouw naam". Er is geen melding van het type `task_completed`, `daily_summary` of `evening_summary` met `created_at` vóór het moment van de contract-migratie.
+- **Inhoud:** er is geen melding waarvan de titel of tekst "gedaan door" bevat, of de weergavenaam van een lid in combinatie met "gedaan", "voor jou", "van jou" of "jouw naam". Dit sluit aan op de inhoudscontrole van M6 in TECHNICAL_DESIGN §12.4. Er is geen melding van het type `task_completed`, `daily_summary` of `evening_summary` met `created_at` vóór het moment van de contract-migratie.
 **Toets:** DB (in CI, met seed-data die zulke oude meldingen bevat) + Live (alleen lezen, na M6)
 
 ### AC-036 — Dubbel tikken geeft één registratie (WP2; BR-10, BR-11)
@@ -461,8 +465,30 @@ Vóór de 30 dagen wordt de back-up niet verwijderd. Na de 30 dagen blijft hij n
 ### AC-062 — Schrijver van een notitie na vertrek (WP2/WP7; V-25)
 GEGEVEN een notitie van Kai
 WANNEER Kai zijn account verwijdert of uit het huishouden wordt verwijderd
-DAN blijft de notitie bestaan en staat er nog steeds "Kai:" als schrijver (V-34). De naam komt uit het opgeslagen `author_name` en verdwijnt niet door het verwijderen van het lid. Bij een uitgezet lid blijft de naam ook staan (UX §4.15)
+DAN:
+- blijft de notitie bestaan, met als schrijver de **laatst bekende naam** van Kai ("Kai:"), uit `author_name` (V-34, TECHNICAL_DESIGN §3.1);
+- wordt `member_id` leeg en blijft `author_name` staan;
+- blijft de naam ook staan bij een uitgezet lid (UX §4.15).
 **Toets:** DB + E2E
+
+### AC-178 — De schrijversnaam is niet te vervalsen en niet te wijzigen (WP2; V-25, V-34; plan-critic punt 5; TECHNICAL_DESIGN §3.1)
+GEGEVEN Lynn (gezinslid) bij een taak
+WANNEER ze:
+- (a) een notitie plaatst en daarbij met een direct verzoek `author_name = "Jurgen"` of een andere `member_id` meestuurt;
+- (b) daarna met een directe update de `author_name`, `member_id`, tekst, taak of het huishouden van een bestaande notitie probeert te wijzigen (eigen notitie of die van een ander).
+
+Een beheerder probeert (b) ook.
+DAN:
+- bij (a) is de notitie opgeslagen met `author_name` = Lynns eigen weergavenaam. De meegestuurde waarde is genegeerd, en een andere `member_id` wordt geweigerd (RLS `is_my_member`);
+- bij (b) wordt elke wijziging geweigerd, ook voor de beheerder, en is de notitie ongewijzigd;
+- verwijderen blijft volgens AC-108 mogelijk (eigen notitie, of een beheerder).
+**Toets:** DB
+
+### AC-179 — Schrijversnaam van bestaande notities bij de overgang (WP2; V-34; TECHNICAL_DESIGN §3.2 `…_200`)
+GEGEVEN live notities van vóór de migratie: een deel van leden die nog bestaan, en een deel van leden die al verwijderd zijn (`member_id` leeg)
+WANNEER de expand-migratie draait
+DAN heeft elke notitie een `author_name`: de huidige weergavenaam van het lid als dat nog bestaat, en anders "Gezinslid". Geen notitie heeft een lege schrijver
+**Toets:** DB (op een kopie van het oude schema) + Live (alleen lezen: `count(*) where author_name is null` = 0)
 
 ---
 
@@ -812,10 +838,18 @@ DAN staat in de kop eerst "nog 5 te doen" (open vandaag + verlopen) en na het af
 **Toets:** E2E + Unit
 
 ### AC-172 — Offline afgevinkt vóór een deploy, online ná de deploy (WP4/WP5; BR-10, BR-11; plan-critic punt 9)
-GEGEVEN een telefoon met de app open, en een afvinking die offline in de wachtrij staat
+GEGEVEN een telefoon met de app open, en een afvinking die offline in de wachtrij staat, in de vorm van een oudere app-versie. Voorbeeld: entry v0, met het vervallen veld `completedBy`
 WANNEER er intussen een nieuwe versie van de app wordt uitgerold en de telefoon daarna weer verbinding krijgt
-DAN bestaat er na verwerking **precies één** registratie van die afvinking. De actie wordt niet weggegooid omdat de oude versie van de app de actie anders verstuurde, en wordt ook niet dubbel verwerkt. Kan een actie in de nieuwe versie niet meer bestaan (bijvoorbeeld een vervallen soort, zoals toewijzen), dan krijgt de gebruiker de melding uit AC-032 en gaat er geen afvinking verloren
-**Toets:** E2E (build wisselen tussen offline en online) + Int
+DAN:
+- bestaat er na verwerking **precies één** registratie van die afvinking, zonder persoon. De oude vorm wordt omgezet (`migrateOutboxEntry`), niet weggegooid, en niet dubbel verwerkt. Ook een tweede verzending van dezelfde entry geeft één registratie;
+- wordt een actie van een soort die niet meer bestaat (bijvoorbeeld v0 "toewijzen") niet uitgevoerd, en ziet de gebruiker de melding "1 offline wijziging hoort bij een functie die niet meer bestaat (toewijzen) en is niet uitgevoerd.";
+- blijft een entry die een onbekend antwoord krijgt (bijvoorbeeld een HTML-foutpagina tijdens de deploy), een 5xx, 408, 429 of 401, staan en wordt die later opnieuw geprobeerd:
+  - na 5 mislukte pogingen blijft hij staan, met de balk "N wijzigingen konden niet worden verstuurd · Opnieuw";
+  - bij 401 staat er "Log opnieuw in om N wijzigingen te versturen";
+- verdwijnt een entry nooit uit de wachtrij zonder dat de gebruiker dat ziet.
+
+Dit geldt vanaf de eerste deploy mét het stabiele wachtrij-endpoint (TECHNICAL_DESIGN §9.3.1). Het eenmalige restrisico bij de allereerste deploy (WP1) wordt vooraf aan Jurgen gemeld, samen met de beperkende maatregel (§9.3.1 punt 5)
+**Toets:** E2E (entry v0 in IndexedDB geïnjecteerd → online na de deploy → precies één registratie) + Int (`POST /api/outbox`: dubbele entry, CSRF-weigering, zonder sessie 401) + Unit (`migrateOutboxEntry`, alle v0-soorten) + Proces (melding aan Jurgen bij de WP1-deploy)
 
 ---
 
@@ -1082,9 +1116,9 @@ GEGEVEN een lid
 WANNEER het de eigen naam, kleur of emoji wijzigt
 DAN:
 - is dat direct opgeslagen ("Opgeslagen");
-- zien huisgenoten de nieuwe naam in de ledenlijst en bij **nieuwe** notities;
-- houden **bestaande** notities de naam van het moment waarop ze werden geplaatst, want de interface toont `author_name` als momentopname (TECHNICAL_DESIGN §3.1, V-34).
-**Toets:** E2E
+- zien huisgenoten de nieuwe naam in de ledenlijst;
+- tonen **alle** notities van dit lid, ook de oudere, de nieuwe naam. `author_name` is de laatst bekende naam en wordt bij een naamswijziging bijgewerkt (TECHNICAL_DESIGN §3.1, V-34).
+**Toets:** DB (naamswijziging → `author_name` van alle notities van dit lid bijgewerkt) + E2E
 
 ### AC-144 — Meldingen instellen (WP7; BR-31; V-23; UX §4.10)
 GEGEVEN Lynn met de standaardvoorkeuren van een gezinslid
@@ -1403,7 +1437,7 @@ DAN:
 | --- | --- |
 | 1 (oude meldingen met namen) | AC-035 (schema en inhoud), AC-058, AC-059 |
 | 2 (ontvangers "taak gedaan") | AC-073, `[OPEN: V-38]` |
-| 5 (naam bij notities) | AC-143 |
+| 5 (naam bij notities) | AC-062, AC-143, AC-178, AC-179 |
 | 7 (uitgezette leden op live) | AC-055, AC-170 |
 | 9 (wachtrij over een deploy heen) | AC-172 |
 | 10 (reeks wijzigen vanuit het reeksdetail) | AC-173 |
