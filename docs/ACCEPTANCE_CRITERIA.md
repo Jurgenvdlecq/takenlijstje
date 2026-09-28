@@ -9,7 +9,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 | `docs/PRODUCT_SPEC.md` (ronde 3) | BR-nn en UC-nn |
 | `docs/UX_SPEC.md` | Flows §4, schermen §5, states §7, rechten in de interface §9 |
 | `docs/TECHNICAL_DESIGN.md` | Rechten per regel §5.2, gelijktijdigheid §7, datamigratie §12.4, teststrategie §13, work packages §15 |
-| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-29. V-30 t/m V-35 staan nog open |
+| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-35 |
 
 ## Afspraken
 
@@ -40,7 +40,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 
 - **"Maker"** is het lid dat een taak of reeks aanmaakte. Hij wordt nooit getoond (V-25).
 - **"Er verandert niets"** betekent: het aantal rijen en de waarden van de betrokken reeks, taken en historie zijn na de actie gelijk aan ervoor.
-- **Open punten bij Jurgen.** Criteria die afhangen van V-30 t/m V-35 zijn neutraal geschreven of gemarkeerd met `[OPEN: V-nr]`.
+- **Besluiten van Jurgen.** Er zijn geen open punten meer. De criteria die van V-30 t/m V-35 afhingen, volgen nu die antwoorden.
 - **Regressie.** Elke bevinding uit een review krijgt een extra AC en een test. Die criteria worden na de freeze toegevoegd, via de bouwer in `docs/DECISIONS.md` en een testverwijzing.
 
 ---
@@ -381,10 +381,14 @@ WANNEER een van die tellingen niet 0 is
 DAN stopt het draaiboek, wordt er niets gewist of gewijzigd, en legt de bouwer de opties voor aan Jurgen. Hij verzint zelf geen ontdubbelregel
 **Toets:** Proces
 
-### AC-056 — Back-up is volledig (WP2; BR-46.1; M3)
+### AC-056 — Back-up is volledig (WP2; BR-46.1; V-33; M3)
 GEGEVEN de live database vóór het wissen
 WANNEER de back-up is gemaakt
-DAN is het aantal rijen per tabel in de back-up gelijk aan live. De back-up is niet bereikbaar voor de rollen `anon` en `authenticated`. Waar de back-up staat en of er een los bestand bij komt: `[OPEN: V-33]`
+DAN:
+- staat hij als kopie van alle tabellen van `public` in het schema `backup_v2_<datum>`, binnen het eigen Supabase-project in Frankfurt;
+- is het aantal rijen per tabel in de back-up gelijk aan live;
+- is het schema niet bereikbaar voor de rollen `anon` en `authenticated`, en wordt het niet via de API ontsloten;
+- is er geen los exportbestand gemaakt en hebben er geen gegevens het project verlaten (V-33).
 **Toets:** Proces + Live
 
 ### AC-057 — Terugzetten is getest (WP2; BR-46.1; M4, M0)
@@ -418,11 +422,16 @@ WANNEER `restore_v2.sql` wordt uitgevoerd en de vorige deployment wordt teruggez
 DAN werkt de oude versie weer met de oude gegevens (getest in M0)
 **Toets:** DB (sandbox)
 
-### AC-061 — De back-up wordt pas na melding opgeruimd (WP2; M8)
-GEGEVEN de back-up na het wissen
-WANNEER de bewaartermijn voorbij is `[OPEN: V-33 — termijn]`
-DAN wordt het back-upschema pas verwijderd nadat Jurgen dat gemeld is
-**Toets:** Proces
+### AC-061 — De back-up wordt na 30 dagen en een melding opgeruimd (WP2; V-33; M8)
+GEGEVEN de back-up `backup_v2_<datum>` na het wissen
+WANNEER 30 dagen na de datum van het wissen voorbij zijn
+DAN:
+- meldt de bouwer Jurgen dat de back-up wordt opgeruimd;
+- wordt daarna het schema verwijderd (`drop schema … cascade`);
+- bestaat er daarna geen kopie meer met de oude persoonsgegevens.
+
+Vóór de 30 dagen wordt de back-up niet verwijderd. Na de 30 dagen blijft hij niet ongemerkt staan
+**Toets:** Proces + Live (het schema bestaat niet meer)
 
 ### AC-062 — Schrijver van een notitie na vertrek (WP2/WP7; V-25)
 GEGEVEN een notitie van Kai

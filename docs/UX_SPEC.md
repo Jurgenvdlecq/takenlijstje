@@ -1,6 +1,6 @@
 # UX-specificatie — Takenlijstje
 
-Versie: ronde 2 (2026-09-28, V-28 en V-29 verwerkt) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
+Versie: ronde 3 (2026-09-28, V-28 en V-29 verwerkt; §4.13 gelijkgetrokken met TECHNICAL_DESIGN §4.5) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
 Basis: `docs/PRODUCT_SPEC.md` (ronde 3), de besluiten en antwoorden in `docs/PROGRESS.md`, `docs/INVENTARIS.md` en de huidige schermen in `docs/screenshots/bestaand/`.
 Dit document beschrijft **hoe de gebruiker zijn doel bereikt**: structuur, flows, schermen en states. Kleur, typografie en vorm zijn werk voor de visual-designer; de wireframes zijn bewust grijs.
 
@@ -175,7 +175,9 @@ Ontvanger:
 
 ### 4.13 Account verwijderen (UC-11, V-15, BR-24)
 1. Instellingen › Account verwijderen (2) → pagina met wat er gebeurt: "Je account en je profiel verdwijnen. Taken, reeksen en de historie van het huishouden blijven bestaan. Je notities blijven staan." `[AANNAME: notities blijven met de naam van de schrijver; dit volgt uit V-25 en §8, en vraagt geen nieuwe beslissing]`
-2. **Account definitief verwijderen** (3) → bevestiging met invoer van het eigen wachtwoord of, bij inloglink-gebruikers, een bevestigingscode per e-mail (technische keuze voor de architect) → uitgelogd, naar het inlogscherm met "Je account is verwijderd."
+2. **Account definitief verwijderen** (3) → bevestiging door het **eigen wachtwoord** in te voeren (veld met "tonen") → uitgelogd, naar het inlogscherm met "Je account is verwijderd." (uitvoeringskeuze van de architect, TECHNICAL_DESIGN §4.5; AC-137)
+- Wie alleen met een inloglink inlogt en geen wachtwoord heeft: in plaats van het wachtwoordveld staat "Stel eerst een wachtwoord in via Wachtwoord vergeten", met een link naar die flow (§4.12). De knop **Account definitief verwijderen** is dan uitgeschakeld. Na het instellen van een wachtwoord kom je hier terug en werkt het zoals hierboven.
+- Verkeerd wachtwoord: "Dit wachtwoord klopt niet" onder het veld; er wordt niets verwijderd en je blijft op de pagina.
 - Enige beheerder: de knop is uitgeschakeld met "Je bent de enige beheerder. Maak eerst iemand anders beheerder in Gezinsleden." en een link daarheen.
 
 ### 4.14 Huishouden verwijderen (UC-12, V-15) — beheerder

@@ -597,6 +597,7 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
   3. de vorige Vercel-deployment terugzetten.
 
   Wijzigingen die ná M6 in de app zijn gedaan, gaan daarbij verloren voor de teruggezette kolommen. Dit is in M0 getest.
+- **Na M8 (30 dagen, V-33):** het back-upschema bestaat niet meer, en terugzetten van de gewiste gegevens is dan niet meer mogelijk. Er is geen los exportbestand. De melding aan Jurgen bij M8 noemt dit expliciet.
 
 ## 13. Teststrategie
 
