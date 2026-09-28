@@ -160,14 +160,56 @@ set role authenticated;
 select pg_temp.als(:'u_jurgen');
 select public.create_household('Familie', 'Jurgen') as fam \gset
 select id as jurgen from public.household_members where household_id = :'fam' and user_id = :'u_jurgen' \gset
-insert into public.household_members (household_id, user_id, display_name, role)
-values (:'fam', :'u_ellen', 'Ellen', 'admin') returning id as ellen \gset
-insert into public.household_members (household_id, user_id, display_name)
-values (:'fam', :'u_lynn', 'Lynn') returning id as lynn \gset
-insert into public.household_members (household_id, user_id, display_name)
-values (:'fam', :'u_kai', 'Kai') returning id as kai \gset
-insert into public.household_members (household_id, user_id, display_name)
-values (:'fam', :'u_noor', 'Noor') returning id as noor \gset
+
+-- Leden met account komen er alleen via een uitnodiging in (D-016)
+insert into public.household_invitations (household_id, email, role, invited_by_member_id) values
+  (:'fam', 'ellen.br@example.com', 'admin',  :'jurgen'),
+  (:'fam', 'lynn.br@example.com',  'member', :'jurgen'),
+  (:'fam', 'kai.br@example.com',   'member', :'jurgen'),
+  (:'fam', 'noor.br@example.com',  'member', :'jurgen');
+select token as tok_ellen from public.household_invitations where email = 'ellen.br@example.com' \gset
+select token as tok_lynn  from public.household_invitations where email = 'lynn.br@example.com' \gset
+select token as tok_kai   from public.household_invitations where email = 'kai.br@example.com' \gset
+select token as tok_noor  from public.household_invitations where email = 'noor.br@example.com' \gset
+select pg_temp.als(:'u_ellen'); select public.accept_invitation(:'tok_ellen', 'Ellen');
+select pg_temp.als(:'u_lynn');  select public.accept_invitation(:'tok_lynn', 'Lynn');
+select pg_temp.als(:'u_kai');   select public.accept_invitation(:'tok_kai', 'Kai');
+select pg_temp.als(:'u_noor');  select public.accept_invitation(:'tok_noor', 'Noor');
+select pg_temp.als(:'u_jurgen');
+select id as ellen from public.household_members where household_id = :'fam' and user_id = :'u_ellen' \gset
+select id as lynn  from public.household_members where household_id = :'fam' and user_id = :'u_lynn' \gset
+select id as kai   from public.household_members where household_id = :'fam' and user_id = :'u_kai' \gset
+select id as noor  from public.household_members where household_id = :'fam' and user_id = :'u_noor' \gset
+select pg_temp.assert((select (l).role = 'admin' from (select pg_temp.lid(:'ellen') as l) x), 'setup: Ellen beheerder via uitnodiging');
+select pg_temp.assert((select (l).role = 'member' from (select pg_temp.lid(:'lynn') as l) x), 'setup: Lynn gezinslid via uitnodiging');
+
+-- =============================================================================
+-- D-016 / security punt 1: een beheerder koppelt geen vreemd account
+-- =============================================================================
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, user_id, display_name) values (%L, %L, 'Vreemd')$$, :'fam', :'u_zonder'), '42501',
+  'D-016: beheerder voegt vreemd account toe');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, user_id, display_name, role) values (%L, %L, 'Vreemd', 'admin')$$, :'fam', :'u_zonder'), '42501',
+  'D-016: beheerder voegt vreemd account toe als beheerder');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, user_id, display_name) values (%L, gen_random_uuid(), 'Onbekend')$$, :'fam'), '42501',
+  'D-016: beheerder voegt onbekende uuid toe (zelfde uitkomst)');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, user_id, display_name) values (%L, %L, 'Nogmaals ik')$$, :'fam', :'u_jurgen'), '42501',
+  'D-016: beheerder voegt eigen account nogmaals toe');
+select pg_temp.assert((select count(*) = 0 from public.household_members where user_id = :'u_zonder'), 'D-016: geen vreemd account gekoppeld');
+-- Een lid zonder account toevoegen mag wel; een account eraan hangen niet
+insert into public.household_members (household_id, display_name) values (:'fam', 'Baby') returning id as baby \gset
+select pg_temp.expect_sqlstate(format($$update public.household_members set user_id = %L where id = %L$$, :'u_zonder', :'baby'), '42501',
+  'D-016: beheerder koppelt account aan lid zonder account');
+select pg_temp.als(:'u_lynn');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, display_name) values (%L, 'Door Lynn')$$, :'fam'), '42501',
+  'BR-24: gezinslid voegt lid toe');
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, user_id, display_name) values (%L, %L, 'Lynn 2')$$, :'fam', :'u_lynn'), '42501',
+  'D-016: gezinslid koppelt zichzelf nogmaals');
 
 -- Buren: Bas (buitenstaander)
 select pg_temp.als(:'u_bas');
@@ -218,6 +260,7 @@ select pg_temp.expect_sqlstate(format($$select public.delete_task(%L, 'future')$
   'AC-003: gezinslid verwijdert "deze en volgende" van andermans reeks');
 select pg_temp.expect_sqlstate(format($$select public.delete_task(%L, 'this')$$, :'rj_p7'), '42501',
   'BR-23: gezinslid verwijdert één uitvoering die hij niet maakte');
+select pg_temp.expect_sqlstate('select public.stop_series(gen_random_uuid())', 'P0002', 'D-022: lid, onbekende reeks → niet gevonden');
 -- Ongeldige invoer verandert de weigering niet: de rechtencheck komt eerst
 select pg_temp.expect_sqlstate(format($$select public.pause_series(%L, current_date, current_date - 5)$$, :'r_jurgen'), '42501',
   'rechtencheck vóór invoercontrole in pause_series');
@@ -234,12 +277,18 @@ select pg_temp.assert(pg_temp.reeks_fp(:'r_jurgen') = :'fp_rj', 'AC-001..005: er
 select pg_temp.assert(pg_temp.open_uitvoeringen(:'r_jurgen') = 2, 'AC-001..005: nog steeds 2 open uitvoeringen');
 select pg_temp.assert((pg_temp.reeks(:'r_jurgen')).is_active, 'AC-001: reeks nog actief');
 
--- Buitenstaander (BR-26, AC-027) evenmin
+-- Buitenstaander (BR-26, AC-027) evenmin. D-022: "ander huishouden" gedraagt zich
+-- als "bestaat niet" (P0002 bij reeks-RPC's, true zonder wijziging bij delete_task).
 select pg_temp.als(:'u_bas');
-select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_jurgen'), '42501', 'AC-027: buitenstaander stopt reeks');
-select pg_temp.expect_sqlstate(format($$select public.pause_series(%L, current_date, null)$$, :'r_jurgen'), '42501', 'AC-027: buitenstaander pauzeert reeks');
-select pg_temp.expect_sqlstate(format($$select public.clear_series_occurrences(%L, current_date)$$, :'r_jurgen'), '42501', 'AC-027: buitenstaander ruimt op');
-select pg_temp.expect_sqlstate(format($$select public.delete_task(%L, 'future')$$, :'rj_p7'), 'P0002', 'AC-027: buitenstaander verwijdert taak');
+select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_jurgen'), 'P0002', 'AC-027: buitenstaander stopt reeks');
+select pg_temp.expect_sqlstate(format($$select public.pause_series(%L, current_date, null)$$, :'r_jurgen'), 'P0002', 'AC-027: buitenstaander pauzeert reeks');
+select pg_temp.expect_sqlstate(format($$select public.resume_series(%L)$$, :'r_jurgen'), 'P0002', 'AC-027: buitenstaander hervat reeks');
+select pg_temp.expect_sqlstate(format($$select public.clear_series_occurrences(%L, current_date)$$, :'r_jurgen'), 'P0002', 'AC-027: buitenstaander ruimt op');
+select pg_temp.expect_sqlstate('select public.stop_series(gen_random_uuid())', 'P0002', 'D-022: onbekende reeks geeft dezelfde uitkomst');
+select public.delete_task(:'rj_p7', 'future') as bas_delete \gset
+select pg_temp.assert(:'bas_delete'::boolean, 'D-022: delete_task op taak van ander huishouden geeft true (geen orakel)');
+select public.delete_task(gen_random_uuid(), 'this') as onbekend_delete \gset
+select pg_temp.assert(:'onbekend_delete'::boolean, 'D-022: delete_task op onbekende id geeft true');
 select pg_temp.expect_error(format($$select public.complete_task(%L, gen_random_uuid())$$, :'rj_p7'), 'AC-027: buitenstaander vinkt af');
 select pg_temp.assert(pg_temp.reeks_fp(:'r_jurgen') = :'fp_rj', 'AC-027: niets veranderd na pogingen van buitenstaander');
 
@@ -457,10 +506,11 @@ select pg_temp.assert(pg_temp.reeks_fp(:'r_kai') = :'fp_rk', 'AC-008: niets vera
 
 -- Uitgezette maker zelf mag zijn reeks niet meer beheren (V-29)
 select pg_temp.als(:'u_kai');
-select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_kai'), '42501', 'V-29: uitgezette maker stopt eigen reeks');
-select pg_temp.expect_sqlstate(format($$select public.pause_series(%L, current_date, null)$$, :'r_kai'), '42501', 'V-29: uitgezette maker pauzeert eigen reeks');
-select pg_temp.expect_sqlstate(format($$select public.clear_series_occurrences(%L, current_date)$$, :'r_kai'), '42501', 'V-29: uitgezette maker ruimt op');
-select pg_temp.expect_sqlstate(format($$select public.delete_task(%L, 'this')$$, :'t_kai'), 'P0002', 'V-29: uitgezette maker verwijdert eigen taak');
+select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_kai'), 'P0002', 'V-29: uitgezette maker stopt eigen reeks (D-022: geen lid = niet gevonden)');
+select pg_temp.expect_sqlstate(format($$select public.pause_series(%L, current_date, null)$$, :'r_kai'), 'P0002', 'V-29: uitgezette maker pauzeert eigen reeks');
+select pg_temp.expect_sqlstate(format($$select public.clear_series_occurrences(%L, current_date)$$, :'r_kai'), 'P0002', 'V-29: uitgezette maker ruimt op');
+select public.delete_task(:'t_kai', 'this') as kai_delete \gset
+select pg_temp.assert(:'kai_delete'::boolean, 'V-29/D-022: delete_task door uitgezet lid geeft true zonder wijziging');
 select pg_temp.assert(pg_temp.reeks_fp(:'r_kai') = :'fp_rk', 'V-29: niets veranderd door uitgezette maker');
 select pg_temp.assert((pg_temp.taak(:'t_kai')).deleted_at is null, 'V-29: eigen taak van uitgezet lid niet verwijderd');
 
@@ -736,7 +786,7 @@ select pg_temp.assert(pg_temp.rows(format($$delete from public.shopping_items wh
 -- Iemand zonder huishouden
 select pg_temp.als(:'u_zonder');
 select pg_temp.assert((select count(*) = 0 from public.my_membership()), 'my_membership(): geen lidmaatschap = geen rij');
-select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_jurgen'), '42501', 'BR-26: zonder huishouden stopt reeks');
+select pg_temp.expect_sqlstate(format($$select public.stop_series(%L)$$, :'r_jurgen'), 'P0002', 'BR-26/D-022: zonder huishouden stopt reeks');
 
 -- =============================================================================
 -- B-04: interne functies in "private" niet aanroepbaar, helpers wel (AC-028)
