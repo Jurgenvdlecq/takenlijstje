@@ -51,6 +51,7 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 - Totaalvoorstel en toestemmingen (2026-09-28): "Dat is allemaal akkoord .  /design-go" → akkoord met het totaalvoorstel én toestemming voor: pushen naar `main` (live-deploys WP1–WP3) en naar een nieuwe branch `v2-ui`, en wijzigingen aan de live Supabase-database via de koppeling (planner, migraties, inloginstellingen). Let op: `/design-go` stond midden in de zin en is daardoor niet door de poort geregistreerd; Jurgen is gevraagd het als los bericht te typen.
 - Stap 0 WP1 — uitgezette leden (2026-09-28): telling op live (alleen lezen) → 0 leden met account op `is_active = false`. Controle url-check (code-review 19): 0 van 5 meldingen op live hebben een afwijkende url. Geen keuze nodig. Context live: 1 huishouden, 2 leden (1 met account), 69 taken, 1 afvinking.
 - Onderhoud poort (2026-09-28, na `/onderhoud-go` van Jurgen): test-writer mag `supabase/tests/**` schrijven; de poort analyseert nu ook `su`/`runuser -c "…"` (gat gemeld door de test-writer). Poorttest: 101 geslaagd, 0 mislukt.
+- Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
 ## Open vragen
 - (geen)
