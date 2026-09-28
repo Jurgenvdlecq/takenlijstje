@@ -30,7 +30,7 @@ function must<T>(result: { data: T; error: unknown }, label: string): NonNullabl
 export async function familie() {
   const db = adminDb();
   const household = must(await db.from("households").select("id").eq("name", "Familie").order("created_at", { ascending: false }).limit(1).single(), "huishouden");
-  const members = must(await db.from("household_members").select("id, display_name, email, is_active, role").eq("household_id", household.id), "leden");
+  const members = must(await db.from("household_members").select("id, display_name, is_active, role, user_id").eq("household_id", household.id), "leden");
   const lid = (naam: string) => {
     const m = members.find((x) => x.display_name === naam);
     if (!m) throw new Error(`lid ${naam} ontbreekt`);

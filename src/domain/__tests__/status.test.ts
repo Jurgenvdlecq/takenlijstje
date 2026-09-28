@@ -47,26 +47,55 @@ describe("verlopen taken opruimen", () => {
   });
 });
 
-describe("statistieken", () => {
-  it("telt per persoon en vindt meest vergeten taak", () => {
+describe("statistieken voor het huishouden (V-21)", () => {
+  it("telt voor het huishouden als geheel en vindt de meest vergeten taak", () => {
     const stats = periodStats(
       [
-        { memberId: "j", title: "WC", recurrenceId: "a", completedAt: "", wasLate: true, points: 3 },
-        { memberId: "j", title: "Afwas", recurrenceId: "b", completedAt: "", wasLate: false, points: 2 },
-        { memberId: "e", title: "WC", recurrenceId: "a", completedAt: "", wasLate: false, points: 3 },
+        { title: "WC", recurrenceId: "a", completedAt: "", wasLate: true },
+        { title: "Afwas", recurrenceId: "b", completedAt: "", wasLate: false },
+        { title: "WC", recurrenceId: "a", completedAt: "", wasLate: false },
       ],
       [
-        { id: "1", title: "WC", recurrenceId: "a", assignedMemberId: "e", status: "todo", scheduledDate: "2026-09-27", overdue: true },
-        { id: "2", title: "Stofzuigen", recurrenceId: "c", assignedMemberId: "j", status: "todo", scheduledDate: "2026-09-28", overdue: false },
+        { id: "1", title: "WC", recurrenceId: "a", status: "todo", scheduledDate: "2026-09-27", overdue: true },
+        { id: "2", title: "Stofzuigen", recurrenceId: "c", status: "todo", scheduledDate: "2026-09-28", overdue: false },
       ],
-      ["j", "e"],
     );
-    expect(stats.completed).toBe(3);
-    expect(stats.open).toBe(2);
-    expect(stats.completionRate).toBeCloseTo(0.6);
-    expect(stats.mostDone).toEqual({ title: "WC", count: 2 });
-    expect(stats.mostForgotten).toEqual({ title: "WC", count: 2 });
-    expect(stats.members.find((m) => m.memberId === "j")).toMatchObject({ done: 2, open: 1, points: 5 });
+    expect(stats).toEqual({
+      completed: 3,
+      open: 2,
+      late: 1,
+      overdue: 1,
+      completionRate: 0.6,
+      mostDone: { title: "WC", count: 2 },
+      mostForgotten: { title: "WC", count: 2 },
+    });
+  });
+
+  it("bevat geen cijfers per persoon of punten", () => {
+    const stats = periodStats([{ title: "WC", recurrenceId: "a", completedAt: "", wasLate: false }], []);
+    expect(Object.keys(stats)).not.toContain("members");
+    expect(JSON.stringify(stats)).not.toMatch(/member|points|punten/i);
+  });
+
+  it("lege periode: geen percentage en geen toplijsten", () => {
+    expect(periodStats([], [])).toEqual({
+      completed: 0,
+      open: 0,
+      late: 0,
+      overdue: 0,
+      completionRate: null,
+      mostDone: null,
+      mostForgotten: null,
+    });
+  });
+
+  it("overgeslagen telt als gepland en als vergeten", () => {
+    const stats = periodStats(
+      [{ title: "Dweilen", recurrenceId: "d", completedAt: "", wasLate: false }],
+      [{ id: "1", title: "Stofzuigen", recurrenceId: "c", status: "skipped", scheduledDate: "2026-09-26", overdue: false }],
+    );
+    expect(stats.completionRate).toBe(0.5);
+    expect(stats.mostForgotten).toEqual({ title: "Stofzuigen", count: 1 });
   });
 });
 
@@ -102,13 +131,44 @@ describe("herinneringen", () => {
     expect(taskMessages({ ...task, status: "done" }, prefs, later, TZ)).toEqual([]);
   });
 
-  it("dagoverzicht om 07:30 en avondoverzicht om 20:00", () => {
+  const counts = { todayOpen: 4, openIncludingOverdue: 2 };
+
+  it("dagoverzicht om 07:30 en avondoverzicht om 20:00 (UX §4.9)", () => {
     const morning = new Date("2026-09-27T05:40:00Z"); // 07:40 lokaal
-    expect(summaryMessages(prefs, morning, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })[0].title)
-      .toBe("Vandaag staan er 4 taken gepland");
+    expect(summaryMessages(prefs, morning, TZ, counts)).toEqual([
+      { type: "daily_summary", title: "Vandaag staan er 4 taken", dedupeKey: "daily:2026-09-27" },
+    ]);
     const evening = new Date("2026-09-27T18:05:00Z"); // 20:05 lokaal
-    expect(summaryMessages(prefs, evening, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })[0].title)
-      .toBe("Er staan nog 2 taken open");
-    expect(summaryMessages(prefs, now, TZ, { todayCount: 4, mineToday: 2, mineOpen: 2 })).toEqual([]);
+    expect(summaryMessages(prefs, evening, TZ, counts)).toEqual([
+      { type: "evening_summary", title: "Er staan nog 2 taken open", dedupeKey: "evening:2026-09-27" },
+    ]);
+    expect(summaryMessages(prefs, now, TZ, counts)).toEqual([]);
+  });
+
+  it("enkelvoud en niets bij 0", () => {
+    const morning = new Date("2026-09-27T05:40:00Z");
+    const evening = new Date("2026-09-27T18:05:00Z");
+    expect(summaryMessages(prefs, morning, TZ, { todayOpen: 1, openIncludingOverdue: 1 })[0].title).toBe("Vandaag staat er 1 taak");
+    expect(summaryMessages(prefs, evening, TZ, { todayOpen: 1, openIncludingOverdue: 1 })[0].title).toBe("Er staat nog 1 taak open");
+    expect(summaryMessages(prefs, morning, TZ, { todayOpen: 0, openIncludingOverdue: 0 })).toEqual([]);
+    expect(summaryMessages(prefs, evening, TZ, { todayOpen: 0, openIncludingOverdue: 0 })).toEqual([]);
+  });
+
+  it("overzichten noemen niemand: geen 'voor jou', 'van jou' of 'jouw naam' (V-21, AC-074)", () => {
+    const moments = ["2026-09-27T05:40:00Z", "2026-09-27T18:05:00Z"].map((t) => new Date(t));
+    for (const c of [counts, { todayOpen: 1, openIncludingOverdue: 1 }, { todayOpen: 12, openIncludingOverdue: 30 }]) {
+      for (const at of moments) {
+        for (const m of summaryMessages(prefs, at, TZ, c)) {
+          const text = `${m.title} ${m.body ?? ""}`;
+          expect(text).not.toMatch(/voor jou|van jou|jouw naam|jouw|waarvan/i);
+        }
+      }
+    }
+  });
+
+  it("uitgezette voorkeur geeft geen overzicht", () => {
+    const off = { ...prefs, dailySummaryEnabled: false, eveningSummaryEnabled: false };
+    expect(summaryMessages(off, new Date("2026-09-27T05:40:00Z"), TZ, counts)).toEqual([]);
+    expect(summaryMessages(off, new Date("2026-09-27T18:05:00Z"), TZ, counts)).toEqual([]);
   });
 });

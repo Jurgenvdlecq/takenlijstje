@@ -20,7 +20,6 @@ function recurrence(overrides: Partial<RecurrenceRow> = {}): RecurrenceRow {
     category: "cleaning",
     priority: "normal",
     duration_minutes: null,
-    points: null,
     rule: { freq: "weekly", interval: 1, weekdays: [2] }, // dinsdag
     time_of_day: null,
     available_days_before: 0,
@@ -30,9 +29,6 @@ function recurrence(overrides: Partial<RecurrenceRow> = {}): RecurrenceRow {
     ends_on: null,
     paused_from: null,
     paused_until: null,
-    assignment_strategy: "fixed",
-    fixed_member_id: "m1",
-    rotation_member_ids: [],
     reminder_minutes_before: [],
     is_active: true,
     generated_until: "2026-10-11",
@@ -91,7 +87,9 @@ describe("projectOccurrences", () => {
   it("projecteert alleen ná generated_until", () => {
     const result = projectOccurrences([recurrence()], [], range, "2026-09-27");
     expect(result.map((p) => p.date)).toEqual(["2026-10-13", "2026-10-20", "2026-10-27"]);
-    expect(result[0].memberId).toBe("m1");
+    // Geen persoon meer in de projectie (V-21)
+    expect(Object.keys(result[0])).not.toContain("memberId");
+    expect(Object.keys(result[0])).not.toContain("candidateMemberIds");
   });
 
   it("slaat bestaande taken, inactieve reeksen en het verleden over", () => {

@@ -143,6 +143,7 @@ grant execute on all functions in schema pg_temp to authenticated;
 \set u_noor   '20000000-0000-0000-0000-0000000000a6'
 \set u_solo   '20000000-0000-0000-0000-0000000000a7'
 \set u_zonder '20000000-0000-0000-0000-0000000000a8'
+\set u_weg    '20000000-0000-0000-0000-0000000000a9'
 
 insert into auth.users (id, email, raw_user_meta_data) values
   (:'u_jurgen', 'jurgen.br@example.com', '{"display_name":"Jurgen"}'),
@@ -152,7 +153,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   (:'u_bas',    'bas.br@example.com',    '{"display_name":"Bas"}'),
   (:'u_noor',   'noor.br@example.com',   '{"display_name":"Noor"}'),
   (:'u_solo',   'solo.br@example.com',   '{"display_name":"Solo"}'),
-  (:'u_zonder', 'zonder.br@example.com', '{"display_name":"Zonder"}');
+  (:'u_zonder', 'zonder.br@example.com', '{"display_name":"Zonder"}'),
+  (:'u_weg',    'weg.br@example.com',    '{"display_name":"Weg"}');
 
 set role authenticated;
 
@@ -567,8 +569,11 @@ select pg_temp.assert((select not is_active from public.household_members where 
 select pg_temp.assert((select member_id = :'kai' and household_id = :'fam' and household_name = 'Familie' and not is_active and role = 'member'
                        from public.my_membership()), 'V-29: my_membership() geeft is_active = false en de naam van het huishouden');
 
-select pg_temp.expect_sqlstate(format($$select public.complete_task(%L, gen_random_uuid())$$, :'rk_p1'), '42501', 'AC-022: uitgezet lid vinkt af');
-select pg_temp.expect_sqlstate(format($$select public.undo_complete_task(%L)$$, :'rj_m7'), '42501', 'AC-022: uitgezet lid draait terug');
+-- WP2a (security WP1 N2, D-022): geen actief lid = "niet gevonden", net als bij een onbekende taak
+select pg_temp.expect_sqlstate(format($$select public.complete_task(%L, gen_random_uuid())$$, :'rk_p1'), 'P0002', 'AC-022: uitgezet lid vinkt af');
+select pg_temp.expect_sqlstate(format($$select public.undo_complete_task(%L)$$, :'rj_m7'), 'P0002', 'AC-022: uitgezet lid draait terug');
+select pg_temp.assert((pg_temp.taak(:'rk_p1')).status = 'todo' and (pg_temp.taak(:'rj_m7')).status = 'done',
+  'AC-022: afvinken en terugdraaien door uitgezet lid veranderen niets');
 select pg_temp.expect_error(format(
   $$insert into public.tasks (household_id, title, scheduled_date) values (%L, 'Stiekem', current_date)$$, :'fam'), 'AC-022: uitgezet lid maakt taak');
 select pg_temp.expect_sqlstate(format(
@@ -832,8 +837,9 @@ select pg_temp.expect_error(format(
 -- =============================================================================
 -- guard_member_changes laat FK-cascades door: huishouden verwijderen werkt
 -- =============================================================================
-select pg_temp.als(:'u_solo');
-select public.create_household('Weg', 'Solo') as weg_h \gset
+-- WP2a (BR-44): één huishouden per persoon, dus een eigen account voor dit huishouden
+select pg_temp.als(:'u_weg');
+select public.create_household('Weg', 'Weg') as weg_h \gset
 select id as weg_admin from public.household_members where household_id = :'weg_h' \gset
 insert into public.household_members (household_id, display_name) values (:'weg_h', 'Kind');
 insert into public.tasks (household_id, title, scheduled_date, created_by_member_id) values (:'weg_h', 'Opruimen', current_date, :'weg_admin');

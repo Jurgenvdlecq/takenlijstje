@@ -7,7 +7,43 @@ describe("migrateOutboxEntry (TECHNICAL_DESIGN §9.3.1, AC-172)", () => {
   it("zet een v0-afvinking (zonder versie, met het vervallen completedBy) om, en gooit hem niet weg", () => {
     const payload = { taskId: "t1", mutationId: "m1", completedAt: "2026-09-28T08:00:00Z", completedBy: "lid-kai" };
     const result = migrateOutboxEntry(undefined, "complete", payload, vasteId);
-    expect(result).toEqual({ status: "ok", kind: "complete", payload });
+    expect(result).toEqual({
+      status: "ok",
+      kind: "complete",
+      payload: { taskId: "t1", mutationId: "m1", completedAt: "2026-09-28T08:00:00Z" },
+    });
+  });
+
+  it("WP2a: een v1-afvinking met completedBy wordt uitgevoerd zonder persoon (V-21)", () => {
+    const payload = { taskId: "t1", mutationId: "m1", completedAt: "2026-09-28T08:00:00Z", completedBy: "lid-kai" };
+    const result = migrateOutboxEntry(1, "complete", payload, vasteId);
+    expect(result).toEqual({
+      status: "ok",
+      kind: "complete",
+      payload: { taskId: "t1", mutationId: "m1", completedAt: "2026-09-28T08:00:00Z" },
+    });
+    // de payload van de aanroeper blijft ongewijzigd
+    expect(payload.completedBy).toBe("lid-kai");
+  });
+
+  it("WP2a: v1 'assign' wordt niet stil weggegooid maar 'obsolete' met het label 'toewijzen'", () => {
+    expect(migrateOutboxEntry(1, "assign", { taskId: "t1", memberId: "lid-kai" }, vasteId)).toEqual({
+      status: "obsolete",
+      kind: "assign",
+      label: "toewijzen",
+    });
+    expect(migrateOutboxEntry(undefined, "assign", { taskId: "t1" }, vasteId)).toEqual({
+      status: "obsolete",
+      kind: "assign",
+      label: "toewijzen",
+    });
+  });
+
+  it("WP2a: de huidige versie is 2 en kent geen toewijzen meer", () => {
+    expect(OUTBOX_VERSION).toBe(2);
+    expect(OUTBOX_KINDS as readonly string[]).not.toContain("assign");
+    expect(migrateOutboxEntry(2, "undo", { taskId: "t1" }, vasteId)).toEqual({ status: "ok", kind: "undo", payload: { taskId: "t1" } });
+    expect(migrateOutboxEntry(3, "undo", { taskId: "t1" }, vasteId)).toEqual({ status: "future" });
   });
 
   it("behandelt een expliciete versie 0 hetzelfde als een ontbrekende versie", () => {
