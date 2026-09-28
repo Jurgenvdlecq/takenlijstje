@@ -843,7 +843,9 @@ select public.create_household('Weg', 'Weg') as weg_h \gset
 select id as weg_admin from public.household_members where household_id = :'weg_h' \gset
 insert into public.household_members (household_id, display_name) values (:'weg_h', 'Kind');
 insert into public.tasks (household_id, title, scheduled_date, created_by_member_id) values (:'weg_h', 'Opruimen', current_date, :'weg_admin');
-select pg_temp.assert(pg_temp.rows(format($$delete from public.households where id = %L$$, :'weg_h')) = 1,
+-- WP2a: verwijderen gaat via de RPC delete_household (TD §3.1, §4.6)
+select public.delete_household('Weg') as weg_verwijderd \gset
+select pg_temp.assert(:'weg_verwijderd'::boolean,
   'FK-cascade: enige beheerder verwijdert zijn huishouden zonder guard-fout');
 reset role;
 select pg_temp.assert((select count(*) = 0 from public.household_members where household_id = :'weg_h'), 'FK-cascade: leden mee weg');
