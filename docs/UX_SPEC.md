@@ -1,10 +1,10 @@
 # UX-specificatie — Takenlijstje
 
-Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
+Versie: ronde 2 (2026-09-28, V-28 en V-29 verwerkt) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
 Basis: `docs/PRODUCT_SPEC.md` (ronde 3), de besluiten en antwoorden in `docs/PROGRESS.md`, `docs/INVENTARIS.md` en de huidige schermen in `docs/screenshots/bestaand/`.
 Dit document beschrijft **hoe de gebruiker zijn doel bereikt**: structuur, flows, schermen en states. Kleur, typografie en vorm zijn werk voor de visual-designer; de wireframes zijn bewust grijs.
 
-Open plekken zijn gemarkeerd met `[OPEN: V-nr]` (zie §12).
+Er zijn geen open plekken meer: V-28 en V-29 zijn beantwoord (zie §12).
 
 ---
 
@@ -60,9 +60,8 @@ Per persoon: meldingen, meldingsvoorkeuren, pushapparaten
 | **Kop, rechtsboven** | Meldingen (bel met aantal ongelezen) · Instellingen (tandwiel) | Meldingen open je via de badge of een pushmelding; instellingen zelden |
 | **Kaart onderaan Vandaag** | Overzicht ("Deze week: 9 gedaan · 7 op tijd · 1 vergeten ›") | Reflectie, ongeveer wekelijks. Hoort bij de vraag "hoe gaat het", dus bij Vandaag |
 
-`[OPEN: V-28]` — Dit wijkt af van de huidige app: **Boodschappen gaat van het kopicoon naar de onderbalk, Huishouden(-overzicht) gaat uit de onderbalk** en wordt een kaart op Vandaag.
+**Besluit V-28 (Jurgen: "Volg voorstel"):** dit wijkt af van de huidige app: **Boodschappen gaat van het kopicoon naar de onderbalk, Huishouden(-overzicht) gaat uit de onderbalk** en wordt een kaart onderaan Vandaag.
 - Onderbouwing: boodschappen wordt (bijna) dagelijks gebruikt, ook met één hand in de winkel; een klein icoon rechtsboven is dan het slechtst bereikbare punt van het scherm. Het overzicht wordt zonder punten en zonder statistieken per persoon veel kleiner (UC-06) en is een wekelijkse blik, geen dagelijkse bestemming.
-- Voorstel: zo doen. Alternatief: huidige indeling houden (Huishouden in de balk, Boodschappen in de kop).
 
 ### Regels
 - Onderbalk op elk ingelogd scherm, ook op Meldingen, Instellingen en Overzicht. Het actieve tabblad is gemarkeerd; op Meldingen en Instellingen is geen tabblad actief.
@@ -184,7 +183,11 @@ Instellingen › Huishouden › onderaan **Huishouden verwijderen…** → pagin
 
 ### 4.15 Gezinsleden beheren (UC-12) — beheerder
 Instellingen › Gezinsleden (wireframe 16) → tik een lid → sheet: naam, rol (Beheerder / Gezinslid), **Uitzetten** / **Weer aanzetten**, **Verwijderen uit huishouden** (bevestiging). Voor de enige beheerder zijn "Gezinslid maken" en "Verwijderen" uitgeschakeld met "Er moet altijd minstens één beheerder zijn." (BR-24). Jezelf verwijderen kan hier niet (dat is "Account verwijderen").
-Wat "uitzetten" voor het lid betekent, is open: `[OPEN: V-29]`.
+**Uitzetten (besluit V-29, Jurgen: "Volg voorstel"):** een uitgezet lid heeft **geen toegang tot het huishouden** en krijgt **geen meldingen**. Zijn account en zijn notities blijven bestaan. **Weer aanzetten herstelt alles.**
+- Beheerder: tik een lid → **Uitzetten** → bevestiging "Kai uitzetten? Kai kan dan niet meer bij het huishouden en krijgt geen meldingen. Je kunt Kai later weer aanzetten." → **Uitzetten** / Annuleren. In de ledenlijst staat het lid grijs met het label "uitgezet" en de regel "Geen toegang, geen meldingen". **Weer aanzetten** heeft geen bevestiging nodig; melding "Kai heeft weer toegang".
+- Uitzetten is niet mogelijk voor jezelf en niet voor de enige beheerder (anders kan niemand het huishouden nog beheren; volgt uit BR-24). Die knop is dan uitgeschakeld met "Er moet altijd minstens één beheerder met toegang zijn."
+- Het uitgezette lid zelf: bij openen van de app (of bij de eerstvolgende verbinding) één scherm: "Je hebt op dit moment geen toegang tot ‘Familie’. Een beheerder kan je weer toegang geven." met **Uitloggen**. Geen taken, geen onderbalk. Account verwijderen blijft bereikbaar via een link op dat scherm. De offline opgeslagen stand op het toestel verdwijnt dan (technische uitwerking voor de architect).
+- Notities van een uitgezet lid blijven met zijn naam zichtbaar bij de taak.
 
 ## 5. Schermen
 
@@ -248,7 +251,7 @@ Per scherm: **Behouden / Herwerken / Vervallen** ten opzichte van de huidige app
 - **Primaire actie:** afvinken (in de winkel) / toevoegen (thuis). Het invoerveld staat bovenaan omdat thuis toevoegen het meest voorkomt; afvinken zit in de lijst eronder.
 - **Opbouw:** kop "Boodschappen · 6 te halen · 2 gekocht" · invoerveld "Bijv. 2 melk" + **Toevoegen** · Vaak gekocht (chips, twee regels, "meer…") · categorieën met producten (aantal als label, notitie als tweede regel) · **Gekocht (n)** inklapbaar · **Klaar met winkelen**.
 - **Vervalt:** avatars ("toegevoegd door"), het ⋯-menu per product (tik op de rij opent bewerken), de onduidelijke tussenstatus van het vakje (INVENTARIS §5, "Cola"), "In je mandje" wordt "Gekocht".
-- Boodschappen staat in de onderbalk in plaats van als icoon in de kop: zie V-28.
+- Boodschappen staat in de onderbalk in plaats van als icoon in de kop (besluit V-28).
 - **Rollen:** geen verschil (BR-42).
 
 ### 5.7 Meldingen — BEHOUDEN met aanpassingen · wireframe 13
@@ -354,7 +357,7 @@ Algemene afspraken (gelden voor alle schermen, lossen S-01 op):
 | Boodschappen | "De lijst is leeg. Wat moet er gehaald worden?" + Vaak gekocht | skelet | algemeen | "Lijst afgerond · Ongedaan maken" | Klaar met winkelen verborgen als niets gekocht is | — | — | toevoegen en afvinken via wachtrij |
 | Meldingen | "Nog geen meldingen. Hier komt een seintje als iets bijna moet of verlopen is." | skelet | algemeen | — | Alles gelezen uit als alles gelezen is | "Laden…" bij Oudere | meer dan 30: "Oudere meldingen laden" | cache, alleen lezen |
 | Meldingen instellen | — | skelet | "Opslaan lukte niet" per schakelaar, schakelaar springt terug | "Opgeslagen" | aanzetten uit als de browser push niet kent, met uitleg (§4.10) | schakelaar toont bezig | — | uitgeschakeld |
-| Instellingen + subpagina's | Gezinsleden met alleen jou: "Nodig iemand uit om samen te werken" | skelet | algemeen | "Opgeslagen" / "Link gekopieerd" | enige beheerder (BR-24); gezinslid: beheer verborgen | "Bezig…" | — | alleen bekijken, knoppen uit |
+| Instellingen + subpagina's | Gezinsleden met alleen jou: "Nodig iemand uit om samen te werken" | skelet | algemeen | "Opgeslagen" / "Link gekopieerd" / "Kai heeft weer toegang" | enige beheerder (BR-24): degraderen, verwijderen en uitzetten uit; jezelf uitzetten uit; gezinslid: beheer verborgen | "Bezig…" | — | alleen bekijken, knoppen uit |
 | Overzicht | S-03: zie §5.9 | skelet | algemeen | — | — | — | periode met weinig gegevens: getallen tonen, lijsten weglaten | cache |
 | Inloggen | — | knop "Bezig…" | zie §4.12 | door naar Vandaag / "Check je mail" | Inloggen uit bij leeg veld | "Bezig…" | — | "Je bent offline. Inloggen kan alleen met verbinding." |
 | Uitnodiging | — | "Uitnodiging controleren…" | zie §4.11 | "Welkom bij Familie" | — | "Bezig…" | — | offline-melding |
@@ -390,6 +393,8 @@ In de praktijk zelden gebruikt (het gezin bestaat al, UC-10), maar moet kloppen.
 | Instellingen › Standaardtaken, Huishouden | ja | nee | rij verborgen |
 | Gezinsleden beheren, uitnodigen | ja | nee (alleen bekijken) | knoppen verborgen, uitlegregel |
 | Account verwijderen | ja, niet als enige beheerder | ja | uitgeschakeld met reden |
+| Lid uitzetten / weer aanzetten (V-29) | ja, niet zichzelf en niet de enige beheerder | nee | verborgen (gezinslid) / uitgeschakeld met reden |
+| Toegang tot het huishouden als je uitgezet bent | — | — | alleen het scherm "Geen toegang" met Uitloggen (§4.15) |
 
 De maker van een taak of reeks wordt nooit getoond (V-25); uitlegregels noemen hem niet ("wie de reeks heeft ingesteld").
 
@@ -434,9 +439,11 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 
 ## 12. Open vragen en aannames
 
-**Vragen voor Jurgen**
-- **V-28** — Navigatie (§3): Boodschappen in de onderbalk, Huishouden-overzicht eruit (wordt een kaart onderaan Vandaag). Voorstel: ja.
-- **V-29** — Wat betekent "uitzetten" van een gezinslid nu niemand taken toegewezen krijgt (§4.15)? In de huidige app sloot uitzetten iemand alleen uit van toewijzen en meldingen; hij kon verder alles blijven zien en doen. Voorstel: uitgezet = kan niet meer bij het huishouden (niet inloggen in de app, geen meldingen), account en notities blijven; weer aanzetten herstelt alles. Alternatief: "uitzetten" weghalen en alleen "verwijderen uit huishouden" houden.
+**Vragen voor Jurgen:** geen open vragen.
+
+**Beantwoord (2026-09-28, letterlijk in `docs/PROGRESS.md`):**
+- **V-28** — "Volg voorstel": Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag. Verwerkt in §3, §5.1, §5.6.
+- **V-29** — "Volg voorstel": uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles. Verwerkt in §4.15, §7, §9 en wireframe 16.
 
 **Aannames (raken geen rechten, gegevens, privacy of scope)**
 - `[AANNAME]` Bij account verwijderen blijven notities met de naam van de schrijver staan (volgt uit V-25 en PRODUCT_SPEC §8: "tot de taak verwijderd wordt").
