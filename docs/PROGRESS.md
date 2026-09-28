@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Wacht op Design Freeze — planreview ronde 4: DESIGN FREEZE MOGELIJK: JA (2026-09-28); totaalvoorstel aan Jurgen gedaan
-Volgende stap: Jurgen geeft `/design-go` (en toestemming voor pushen naar main/v2-ui en live-deploys per WP1–WP3); daarna WP1 stap 0: telling uitgezette leden met account op live (alleen lezen) en keuzes van Jurgen vastleggen.
+Fase: Bouwen — WP1 (rechtenmodel en securityfixes op live)
+Volgende stap: WP1 stap 0 — telling op live (alleen lezen) van uitgezette leden met account (AC-170); daarna WP1 bouwen volgens TECHNICAL_DESIGN §15.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -12,6 +12,7 @@ Volgende stap: Jurgen geeft `/design-go` (en toestemming voor pushen naar main/v
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-28T18:50 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-28 — Scopewijziging (V-19/V-21/V-22): geen toewijzing van taken aan personen, geen automatische verdeling, geen ruilen, geen punten/spaardoel, geen registratie van wie afvinkte; iedereen mag afvinken en terugdraaien. Vervangt de overgenomen besluiten over Verdeling, Ruilen en punten in INVENTARIS §2.
 - 2026-09-27T20:43 — Jurgen zet het kwaliteitsniveau op 2 (bestaand project, meerdere gebruikers)
 <!-- De poort voegt hier automatisch /design-go, /niveau en /onderhoud-go toe. -->
@@ -57,7 +58,7 @@ Volgende stap: Jurgen geeft `/design-go` (en toestemming voor pushen naar main/v
 ## Work packages
 | WP | Omschrijving | Acceptatiecriteria | Checkpoint | Status |
 | --- | --- | --- | --- | --- |
-| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | — | open |
+| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | — | bezig |
 | WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | open |
 | WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | open |
 | WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | open |
