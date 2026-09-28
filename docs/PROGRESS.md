@@ -108,6 +108,8 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - WP2a, security 6: een ex-lid kan de omzetting "losse taak wordt terugkerend" voor één bekende taak-id blokkeren door vooraf een reeks met die id te maken (DoS, geen lek). Eventueel een afgeleide reeks-id (uuidv5) in WP6.
 - WP2a, security 8 (= WP1 N3): TD §4.1 noemt WP8 voor de script-CSP met nonce, D-018/§15 zeggen WP9. WP9 geldt.
 - WP2a, performance 3: `select("*")` in de snapshot neemt vervallen kolommen mee tot M6; expliciete kolommen in WP4.
+- WP2a, test-writer: de snelle-invoerparser herkent nog personen (`memberId`); de UI geeft `members: []` mee, dus het werkt niet door. De persoonlogica en de bijbehorende testgevallen gaan eruit in WP6.
+- WP2a, test-writer: bij WP2b de tests die bij `…_210` horen bijwerken (lid zonder account, index op de actieve lijst, tijdzonecheck).
 - WP1, security N3: TD §4.1 noemt WP8 voor de script-CSP met nonce; D-018 en TD §15 zeggen WP9. WP9 geldt, niet verder uitstellen.
 
 ## Technische schuld

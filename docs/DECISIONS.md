@@ -117,3 +117,4 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - **Security 1.** `delete_my_account` lockt eerst het huishouden en telt pas daarna de beheerders.
   - **Security 3.** `delete_my_account` is niet aanroepbaar (`revoke … from authenticated`) tot WP7, waar "Account verwijderen" met wachtwoordcheck komt. Dit is geen nieuwe productkeuze: het houdt de app gelijk aan de spec, waarin "huishouden verlaten zonder account te verwijderen" niet voorkomt.
   - **Security 5.** `activateTemplatesAction` plant alleen in wat de upsert werkelijk heeft aangemaakt.
+- **D-038: herstel na de test-writer van WP2a.** De policy "households: beheerder verwijdert" vervalt in `…_200`. Een huishouden verwijderen kan dan alleen nog via de RPC `delete_household`, met naambevestiging (TD §3.1). Geen oude of nieuwe code verwijdert een huishouden rechtstreeks, dus terugrollen blijft werken. De uitnodigingspagina belooft geen "verdelen" meer (V-21).

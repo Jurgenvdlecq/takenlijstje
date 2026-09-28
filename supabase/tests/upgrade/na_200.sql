@@ -54,8 +54,6 @@ update public.household_members set display_name = 'Lynn L.' where id = '4200000
 select pg_temp.assert((select author_name = 'Lynn L.' from public.task_comments where id = '44000000-0000-0000-0000-000000000002'),
   'V-34: naamswijziging na de migratie werkt door in een oude notitie');
 
--- Tijdzonecheck staat er (V-39)
-select pg_temp.assert((select count(*) = 1 from pg_constraint where conname = 'households_timezone_amsterdam'), 'V-39: tijdzonecheck bestaat');
 
 drop schema upgrade_test cascade;
 \o

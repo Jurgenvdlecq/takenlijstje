@@ -501,6 +501,10 @@ begin
 end;
 $$;
 
+-- Verwijderen alleen via de RPC hieronder (met naambevestiging, TD §3.1); geen
+-- oude of nieuwe code verwijdert een huishouden rechtstreeks
+drop policy if exists "households: beheerder verwijdert" on public.households;
+
 -- -----------------------------------------------------------------------------
 -- Huishouden verwijderen (UC-12, §4.6): alleen een actieve beheerder, met de
 -- exacte naam als bevestiging. Alles gaat mee door cascade.

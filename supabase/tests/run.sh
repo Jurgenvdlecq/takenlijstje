@@ -26,6 +26,13 @@ for f in supabase/tests/[1-9]*.sql; do
   "${TARGET[@]}" -f "$f"
 done
 
+# Gelijktijdigheid (twee echte sessies; BR-24 en BR-44)
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  bash supabase/tests/gelijktijdig.sh "${DATABASE_URL%/*}/$DB_NAME"
+else
+  bash supabase/tests/gelijktijdig.sh "$DB_NAME"
+fi
+
 # Upgrade-test (AC-053, AC-179): oud schema (migraties vóór …_200) + oude
 # gegevens, dan …_200 en verder, dan de controles.
 UPG_NAME="${DB_NAME}_upgrade"

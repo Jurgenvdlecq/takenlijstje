@@ -208,15 +208,8 @@ select id as jurgen from public.household_members where household_id = :'fam' an
 -- =============================================================================
 select pg_temp.assert((select timezone = 'Europe/Amsterdam' from public.households where id = :'fam'),
   'V-39: create_household negeert p_timezone');
-select pg_temp.expect_sqlstate(format($$update public.households set timezone = 'UTC' where id = %L$$, :'fam'), '23514',
-  'V-39: beheerder zet een andere tijdzone');
-select pg_temp.expect_sqlstate(format($$update public.households set timezone = 'Europe/Brussels' where id = %L$$, :'fam'), '23514',
-  'V-39: ook een tijdzone met dezelfde offset wordt geweigerd');
-reset role;
-select pg_temp.expect_sqlstate($$insert into public.households (name, timezone) values ('Elders', 'Asia/Tokyo')$$, '23514',
-  'V-39: ook het systeem kan geen andere tijdzone opslaan');
-set role authenticated;
-select pg_temp.assert((select timezone = 'Europe/Amsterdam' from public.households where id = :'fam'), 'V-39: tijdzone ongewijzigd');
+-- De check op de tabel (households_timezone_amsterdam) staat sinds D-037 in …_210
+-- (compatibel terugrollen); die wordt in WP2b getoetst.
 
 -- Leden via uitnodiging: Ellen en Tim beheerder; Lynn, Kai, Noor en Mila gezinslid
 insert into public.household_invitations (household_id, email, role, invited_by_member_id) values
@@ -455,6 +448,10 @@ select pg_temp.fout(format($$select public.undo_complete_task(%L)$$, :'t_geheim_
 select pg_temp.assert(:'u_onbekend' like 'P0002:%', 'N2: undo onbekend → P0002, kreeg: ' || :'u_onbekend');
 select pg_temp.assert(:'u_vreemd' = :'u_onbekend', 'N2: undo vreemd = onbekend, kreeg: ' || :'u_vreemd');
 select pg_temp.assert(:'u_vreemd_gedaan' = :'u_onbekend', 'N2: undo gedane vreemde taak = onbekend, kreeg: ' || :'u_vreemd_gedaan');
+select pg_temp.fout(format($$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L)$$, :'t_geheim', :'bas')) as f_oud_vreemd \gset
+select pg_temp.fout(format($$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L)$$, gen_random_uuid(), :'bas')) as f_oud_onbekend \gset
+select pg_temp.assert(:'f_oud_vreemd' = :'f_onbekend' and :'f_oud_onbekend' = :'f_onbekend',
+  'N2: oude signatuur vreemd = onbekend = nieuwe signatuur, kreeg: ' || :'f_oud_vreemd' || ' / ' || :'f_oud_onbekend');
 select pg_temp.assert(pg_temp.taak_fp(:'t_geheim') = :'fp_geheim' and pg_temp.taak_fp(:'t_geheim_gedaan') = :'fp_geheim_gedaan',
   'N2: pogingen van een buitenstaander veranderen niets');
 
@@ -524,6 +521,23 @@ select pg_temp.als(:'u_jurgen');
 select pg_temp.assert((select accepted_at is not null and accepted_by = :'u_lynn' from public.household_invitations where id = :'inv_lynn2'),
   'AC-047: al lid → uitnodiging afgerond');
 
+-- D-037 (code-review 7): al lid, maar de uitnodiging is verlopen of voor een ander adres →
+-- wel het huishouden terug, geen tweede lidrij, en de uitnodiging wordt NIET verbruikt
+insert into public.household_invitations (household_id, email, invited_by_member_id)
+values (:'fam', 'kai.wp2a@example.com', :'jurgen') returning id as inv_voor_kai, token as tok_voor_kai \gset
+insert into public.household_invitations (household_id, email, invited_by_member_id, expires_at)
+values (:'fam', null, :'jurgen', now() - interval '1 minute') returning id as inv_verlopen_open, token as tok_verlopen_open \gset
+-- De beheerder test zijn eigen link voor Kai
+select public.accept_invitation(:'tok_voor_kai') as jurgen_test \gset
+select pg_temp.assert(:'jurgen_test' = :'fam', 'D-037: al lid + link voor een ander adres → huishouden terug');
+select pg_temp.assert((select accepted_at is null and accepted_by is null from public.household_invitations where id = :'inv_voor_kai'),
+  'D-037: beheerder die de link voor een ander test, verbruikt hem niet');
+select public.accept_invitation(:'tok_verlopen_open') as jurgen_verlopen \gset
+select pg_temp.assert(:'jurgen_verlopen' = :'fam', 'D-037: al lid + verlopen link → huishouden terug, geen fout');
+select pg_temp.assert((select accepted_at is null from public.household_invitations where id = :'inv_verlopen_open'),
+  'D-037: verlopen link wordt niet afgerond');
+select pg_temp.assert(pg_temp.lidmaatschappen(:'u_jurgen') = 1, 'D-037: geen tweede lidrij voor de beheerder');
+
 -- Positief: een open link werkt, ook voor wie nog nergens lid is; e-mail zonder hoofdlettergevoeligheid
 insert into public.household_invitations (household_id, email, invited_by_member_id)
 values (:'fam', 'NIEUW.WP2A@Example.com', :'jurgen') returning token as tok_nieuw \gset
@@ -576,6 +590,24 @@ insert into public.shopping_items (id, household_id, list_id, name)
 values (:'id_boods', :'fam', :'fam_lijst', 'Kaas') on conflict (id) do nothing;
 insert into public.shopping_items (id, household_id, list_id, name)
 values (:'id_boods', :'fam', :'fam_lijst', 'Kaas') on conflict (id) do nothing;
+-- Een client-id die al bij een ander huishouden hoort: de upsert maakt niets en laat niets zien
+select pg_temp.als(:'u_bas');
+insert into public.task_recurrences (household_id, title, rule, starts_on, created_by_member_id)
+values (:'buren', 'Heg van Bas', '{"freq":"weekly","interval":1}', current_date, :'bas') returning id as r_buren \gset
+select row(r.*)::text as r_buren_voor from public.task_recurrences r where id = :'r_buren' \gset
+select pg_temp.als(:'u_lynn');
+with x as (
+  insert into public.task_recurrences (id, household_id, title, rule, starts_on, created_by_member_id)
+  values (:'r_buren', :'fam', 'Kaping', '{"freq":"daily"}', current_date, :'lynn') on conflict (id) do nothing returning id
+) select count(*) as vreemde_upsert from x \gset
+select pg_temp.assert(:'vreemde_upsert' = '0', 'security WP2a-5: upsert met reeks-id van ander huishouden voegt niets toe');
+reset role;
+select pg_temp.assert((select row(r.*)::text = :'r_buren_voor' from public.task_recurrences r where id = :'r_buren'),
+  'security WP2a-5: reeks van het andere huishouden ongewijzigd');
+select pg_temp.assert((select count(*) = 0 from public.task_recurrences where household_id = :'fam' and title = 'Kaping'),
+  'security WP2a-5: geen reeks in Familie');
+set role authenticated;
+
 select pg_temp.als(:'u_jurgen');
 insert into public.household_invitations (id, household_id, email, invited_by_member_id)
 values (:'id_uitn', :'fam', 'oma.wp2a@example.com', :'jurgen') on conflict (id) do nothing;
@@ -607,14 +639,18 @@ select pg_temp.assert((pg_temp.lijst(:'nieuwe_lijst')).archived_at is null, 'AC-
 select pg_temp.assert(pg_temp.items(:'nieuwe_lijst') = 'Melk-,Zeep-', 'AC-050: nieuwe lijst heeft de 2 niet-gekochte, kreeg: ' || pg_temp.items(:'nieuwe_lijst'));
 select pg_temp.assert((pg_temp.lijst(:'fam_lijst')).archived_at is not null, 'AC-050: oude lijst is gearchiveerd');
 select pg_temp.assert(pg_temp.items(:'fam_lijst') = 'Appels+,Brood+,Cola+', 'AC-050: oude lijst houdt de 3 gekochte, kreeg: ' || pg_temp.items(:'fam_lijst'));
--- Vangnet: een tweede actieve lijst kan niet bestaan
-select pg_temp.expect_sqlstate(format($$insert into public.shopping_lists (household_id) values (%L)$$, :'fam'), '23505',
-  'AC-050: tweede actieve lijst');
+-- (De unieke index "één actieve lijst" staat sinds D-037 in …_210; idempotentie hier via de rijlock in de RPC.)
 -- Buitenstaander en uitgezet lid: niet gevonden, niets veranderd
 select pg_temp.als(:'u_bas');
 select pg_temp.expect_sqlstate(format($$select public.archive_shopping_list(%L)$$, :'nieuwe_lijst'), 'P0002', 'AC-050: buitenstaander archiveert');
 select pg_temp.expect_sqlstate(format($$select public.unarchive_shopping_list(%L)$$, :'fam_lijst'), 'P0002', 'AC-051: buitenstaander zet terug');
 select pg_temp.expect_sqlstate('select public.archive_shopping_list(gen_random_uuid())', 'P0002', 'AC-050: onbekende lijst');
+select pg_temp.fout(format($$select public.archive_shopping_list(%L)$$, :'nieuwe_lijst')) as fa_vreemd \gset
+select pg_temp.fout('select public.archive_shopping_list(gen_random_uuid())') as fa_onbekend \gset
+select pg_temp.fout(format($$select public.unarchive_shopping_list(%L)$$, :'fam_lijst')) as fu_vreemd \gset
+select pg_temp.fout('select public.unarchive_shopping_list(gen_random_uuid())') as fu_onbekend \gset
+select pg_temp.assert(:'fa_vreemd' = :'fa_onbekend' and :'fu_vreemd' = :'fu_onbekend' and :'fa_vreemd' = :'fu_vreemd',
+  'N2: archive/unarchive vreemd = onbekend, kreeg: ' || :'fa_vreemd' || ' / ' || :'fu_vreemd');
 select pg_temp.als(:'u_mila');
 select pg_temp.expect_sqlstate(format($$select public.archive_shopping_list(%L)$$, :'nieuwe_lijst'), 'P0002', 'AC-050: uitgezet lid archiveert');
 select pg_temp.assert((pg_temp.lijst(:'nieuwe_lijst')).archived_at is null, 'AC-050: niets veranderd door buitenstaander of uitgezet lid');
@@ -670,6 +706,22 @@ select pg_temp.assert(pg_temp.geweigerd(format($$update public.task_comments set
 select pg_temp.assert(row(pg_temp.notitie(:'n_lynn'))::text = :'n_lynn_voor' and row(pg_temp.notitie(:'n_ellen'))::text = :'n_ellen_voor',
   'AC-178b: notities ongewijzigd');
 
+-- Upsert met "on conflict do update" herschrijft een bestaande notitie niet (security WP2a)
+select pg_temp.assert(pg_temp.geweigerd(format(
+  $$insert into public.task_comments (id, household_id, task_id, member_id, body, author_name) values (%L, %L, %L, %L, 'Overschreven', 'Jurgen')
+    on conflict (id) do update set body = excluded.body, author_name = excluded.author_name$$, :'n_lynn', :'fam', :'t_ramen', :'lynn')),
+  'AC-178b: upsert met on conflict do update op eigen notitie');
+select pg_temp.assert(pg_temp.geweigerd(format(
+  $$insert into public.task_comments (id, household_id, task_id, member_id, body) values (%L, %L, %L, %L, 'Overschreven')
+    on conflict (id) do update set body = excluded.body$$, :'n_ellen', :'fam', :'t_ramen', :'lynn')),
+  'AC-178b: upsert met on conflict do update op andermans notitie');
+-- Een notitie zonder schrijver (member_id null) plaatsen mag niet
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.task_comments (household_id, task_id, member_id, body, author_name) values (%L, %L, null, 'Anoniem', 'Jurgen')$$,
+  :'fam', :'t_ramen'), '42501', 'AC-178a: notitie met member_id null');
+select pg_temp.assert(row(pg_temp.notitie(:'n_lynn'))::text = :'n_lynn_voor' and row(pg_temp.notitie(:'n_ellen'))::text = :'n_ellen_voor',
+  'AC-178: notities ongewijzigd na upsert-pogingen');
+
 -- Tweede laag: ook zonder RLS (superuser met de sessie van een gebruiker, diepte 1) weigert de guard
 reset role;
 select pg_temp.als(:'u_lynn');
@@ -717,21 +769,28 @@ select pg_temp.assert((select member_id is null and author_name = 'Kai' and body
 
 -- =============================================================================
 -- delete_my_account (TD §4.5, BR-24)
+-- D-037 / security WP2a-3: tot WP7 niet aanroepbaar voor authenticated. De
+-- logica wordt getoetst als eigenaar met de jwt-claim van de gebruiker (zo
+-- roept de server hem in WP7 niet aan, maar de functie gebruikt alleen auth.uid()).
 -- =============================================================================
--- Gezinslid verwijdert zijn account: lidmaatschap weg, notitie blijft met naam (AC-062)
+select pg_temp.als(:'u_noor');
+select pg_temp.expect_sqlstate('select public.delete_my_account()', '42501', 'D-037: delete_my_account dicht voor authenticated');
+select pg_temp.assert(pg_temp.lidmaatschappen(:'u_noor') = 1, 'D-037: geweigerde aanroep laat het lidmaatschap staan');
 reset role;
+select pg_temp.assert(not has_function_privilege('authenticated', 'public.delete_my_account()', 'EXECUTE')
+                      and not has_function_privilege('anon', 'public.delete_my_account()', 'EXECUTE'),
+  'D-037: geen execute voor authenticated en anon');
+
+-- Gezinslid verwijdert zijn account: lidmaatschap weg, notitie blijft met naam (AC-062)
 insert into public.notifications (household_id, member_id, type, title) values (:'fam', :'noor', 'reminder', 'Herinnering voor Noor');
-set role authenticated;
 select pg_temp.als(:'u_noor');
 select public.delete_my_account() as noor_weg \gset
 select pg_temp.assert(:'noor_weg'::boolean and pg_temp.lidmaatschappen(:'u_noor') = 0, 'delete_my_account: lidmaatschap weg');
-reset role;
 select pg_temp.assert((select count(*) = 0 from public.user_preferences where member_id = :'noor'), 'delete_my_account: voorkeuren mee weg');
 select pg_temp.assert((select count(*) = 0 from public.notifications where member_id = :'noor'), 'delete_my_account: meldingen mee weg');
 delete from auth.users where id = :'u_noor';  -- stap 4 (auth.admin.deleteUser)
 select pg_temp.assert((select member_id is null and author_name = 'Noor' from pg_temp.notitie(:'n_noor')),
   'AC-062: na account verwijderen: member_id leeg, "Noor" blijft');
-set role authenticated;
 
 -- Uitgezet lid mag zijn account verwijderen (plan-critic 17)
 select pg_temp.als(:'u_mila');
@@ -743,12 +802,17 @@ select pg_temp.als(:'u_zonder');
 select public.delete_my_account() as zonder_weg \gset
 select pg_temp.assert(:'zonder_weg'::boolean, 'delete_my_account: zonder lidmaatschap → true (no-op)');
 
+-- Niet ingelogd → geweigerd
+select set_config('request.jwt.claims', '', false);
+select pg_temp.expect_sqlstate('select public.delete_my_account()', '42501', 'delete_my_account: zonder gebruiker');
+
 -- Beheerder naast andere actieve beheerders mag
 select pg_temp.als(:'u_tim');
 select public.delete_my_account();
 select pg_temp.assert(pg_temp.lidmaatschappen(:'u_tim') = 0, 'delete_my_account: beheerder met andere actieve beheerder mag');
 
 -- Enige actieve beheerder wordt geweigerd, ook als er een uitgezette beheerder is
+set role authenticated;
 select pg_temp.als(:'u_solo');
 select public.create_household('Solo WP2a', 'Solo') as solo_h \gset
 select id as solo from public.household_members where user_id = :'u_solo' \gset
@@ -757,6 +821,7 @@ values (:'solo_h', 'piet.wp2a@example.com', 'admin', :'solo') returning token as
 select pg_temp.als(:'u_piet'); select public.accept_invitation(:'tok_piet', 'Piet');
 select pg_temp.als(:'u_solo');
 update public.household_members set is_active = false where user_id = :'u_piet';
+reset role;
 select pg_temp.fout('select public.delete_my_account()') as f_solo \gset
 select pg_temp.assert(:'f_solo' = 'P0001: Je bent de enige beheerder. Maak eerst iemand anders beheerder, of verwijder het huishouden.',
   'BR-24: enige actieve beheerder verwijdert account, kreeg: ' || :'f_solo');
@@ -765,6 +830,7 @@ select pg_temp.assert(pg_temp.lidmaatschappen(:'u_solo') = 1, 'BR-24: lidmaatsch
 select pg_temp.als(:'u_piet');
 select public.delete_my_account();
 select pg_temp.assert(pg_temp.lidmaatschappen(:'u_piet') = 0, 'delete_my_account: uitgezette beheerder mag');
+set role authenticated;
 
 -- =============================================================================
 -- delete_household (TD §4.6, UC-12)

@@ -126,19 +126,11 @@ $$;"""),
   if not found or v_task.deleted_at is not null then
     raise exception 'Taak niet gevonden' using errcode = 'P0002';
   end if;"""),
-  'undo_zonder_lidcheck': (E, """  select * into v_task from public.tasks where id = p_task_id;
-  if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then
-    raise exception 'Taak niet gevonden' using errcode = 'P0002';
-  end if;
-
-  select * into v_task from public.tasks where id = p_task_id for update;
-  if v_task.status <> 'done' then""", """  select * into v_task from public.tasks where id = p_task_id;
-  if not found or v_task.deleted_at is not null then
-    raise exception 'Taak niet gevonden' using errcode = 'P0002';
-  end if;
-
-  select * into v_task from public.tasks where id = p_task_id for update;
-  if v_task.status <> 'done' then"""),
+  'undo_zonder_lidcheck': (E, """begin
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then""", """begin
+  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null then"""),
   'schrijversnaam_van_client': (E, "  new.author_name := coalesce(\n", "  new.author_name := coalesce(new.author_name,\n"),
   'guard_notitie_laat_alles_door': (E, "  raise exception 'Een notitie kan niet worden gewijzigd' using errcode = '42501';", "  return new;"),
   'naam_sync_weg': (E, """create trigger household_members_sync_comment_author
@@ -169,8 +161,6 @@ where c.author_name is null;"""),
   'archiveren_niet_idempotent': (E, """  if v_list.archived_at is not null then
     select * into v_new from public.shopping_lists""", """  if false then
     select * into v_new from public.shopping_lists"""),
-  'geen_unieke_actieve_lijst': (E, """create unique index if not exists shopping_lists_one_active_idx
-  on public.shopping_lists (household_id) where archived_at is null;""", ""),
   'oudere_lijst_terugzetten': (E, "    raise exception 'Deze lijst kan niet meer worden teruggezet' using errcode = 'P0001';", "    null;"),
   'huishouden_verwijderen_zonder_naam': (E, "  if v_name is distinct from p_confirm_name then", "  if false then"),
   'huishouden_verwijderen_door_lid': (E, "  if v_member.role <> 'admin' then", "  if false then"),
@@ -180,9 +170,18 @@ where c.author_name is null;"""),
   for update;""", """  select * into v_member from public.household_members
   where user_id = (select auth.uid()) and is_active
   for update;"""),
-  'tijdzonecheck_weg': (E, """alter table public.households
-  add constraint households_timezone_amsterdam check (timezone = 'Europe/Amsterdam');""", ""),
   'tijdzone_uit_invoer': (E, "  values (trim(p_name), 'Europe/Amsterdam', v_user)", "  values (trim(p_name), coalesce(p_timezone, 'Europe/Amsterdam'), v_user)"),
+  # ---- D-037 ----
+  'account_verwijderen_zonder_huishoudlock': (E, "  perform 1 from public.households where id = v_member.household_id for update;\n", ""),
+  'create_household_zonder_advisory_lock': (E, """  perform pg_advisory_xact_lock(hashtext('takenlijstje.lid:' || v_user::text));
+  if exists (select 1 from public.household_members where user_id = v_user) then""", """  if exists (select 1 from public.household_members where user_id = v_user) then"""),
+  'accept_invitation_zonder_advisory_lock': (E, """  perform pg_advisory_xact_lock(hashtext('takenlijstje.lid:' || v_user::text));
+
+  select * into v_inv from public.household_invitations""", """  select * into v_inv from public.household_invitations"""),
+  'al_lid_verbruikt_elke_link': (E, """    if v_inv.accepted_at is null and v_inv.expires_at >= now()
+       and (v_inv.email is null or lower(v_inv.email) = lower(coalesce(v_email, ''))) then""", """    if v_inv.accepted_at is null then"""),
+  'delete_my_account_open': (E, "revoke execute on function public.delete_my_account() from authenticated;",
+                             "grant execute on function public.delete_my_account() to authenticated;"),
 }
 gevangen = 0
 for name, spec in muts.items():
@@ -211,7 +210,11 @@ for name, spec in muts.items():
             ok = False
             out = next((l[l.find('ERROR'):] for l in r.stderr.splitlines() if 'ERROR' in l), r.stderr.strip())
             break
-    subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}'], capture_output=True)
+    if ok:
+        r = subprocess.run(['bash', 'supabase/tests/gelijktijdig.sh', db], capture_output=True, text=True)
+        if r.returncode != 0:
+            ok = False
+            out = 'gelijktijdig: ' + next((l[l.find('ERROR'):] for l in (r.stdout + r.stderr).splitlines() if 'ERROR' in l), (r.stdout + r.stderr).strip())
     if ok:
         # Upgrade-test (AC-053, AC-179): oud schema + oude gegevens → …_200 → controles
         subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}', '-c', f'create database {db}'], capture_output=True)
@@ -226,6 +229,7 @@ for name, spec in muts.items():
                 out = 'upgrade: ' + next((l[l.find('ERROR'):] for l in r.stderr.splitlines() if 'ERROR' in l), r.stderr.strip())
                 break
         subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}'], capture_output=True)
+    subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}'], capture_output=True)
     if ok:
         print(f'{name}: NIET GEVANGEN')
     else:

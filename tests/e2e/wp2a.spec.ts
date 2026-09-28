@@ -325,3 +325,79 @@ test("AC-062: notitie van een lid dat uit het huishouden is verwijderd toont nog
     if (user.user) await db.auth.admin.deleteUser(user.user.id);
   }
 });
+
+// =============================================================================
+// AC-046 / AC-047 (E2E) — uitnodigingen via de uitnodigingspagina
+// =============================================================================
+test.describe("AC-046/AC-047: uitnodigingspagina", () => {
+  let burenId: string;
+
+  test.beforeEach(async () => {
+    const { data, error } = await adminDb().from("households").insert({ name: `Buren E2E ${Date.now() % 100000}` }).select("id").single();
+    expect(error).toBeNull();
+    burenId = data!.id;
+  });
+
+  test.afterEach(async () => {
+    await adminDb().from("households").delete().eq("id", burenId);
+  });
+
+  async function uitnodiging(householdId: string, extra: { email?: string; expires_at?: string } = {}) {
+    const { data, error } = await adminDb()
+      .from("household_invitations")
+      .insert({ id: randomUUID(), household_id: householdId, email: extra.email ?? null, ...(extra.expires_at ? { expires_at: extra.expires_at } : {}) })
+      .select("token")
+      .single();
+    expect(error).toBeNull();
+    return data!.token;
+  }
+
+  async function lidmaatschappen(userEmail: string) {
+    const { data: users } = await adminDb().auth.admin.listUsers({ perPage: 1000 });
+    const id = users.users.find((u) => u.email === userEmail)!.id;
+    const { count } = await adminDb().from("household_members").select("id", { count: "exact", head: true }).eq("user_id", id);
+    return count;
+  }
+
+  test("AC-046: Lynn accepteert een uitnodiging van een ander huishouden → BR-44-melding, geen tweede lidmaatschap", async ({ page }) => {
+    const token = await uitnodiging(burenId);
+    await login(page, "lynn@example.com");
+    await page.goto(`/invite/${token}`);
+    await page.getByRole("button", { name: "Uitnodiging accepteren" }).click();
+    await expect(
+      page.locator("[data-sonner-toast]").filter({ hasText: "Je hoort al bij een ander huishouden. Je kunt maar bij één huishouden horen." }).first(),
+    ).toBeVisible();
+    expect(await lidmaatschappen("lynn@example.com")).toBe(1);
+    const { count } = await adminDb().from("household_members").select("id", { count: "exact", head: true }).eq("household_id", burenId);
+    expect(count).toBe(0);
+  });
+
+  test("AC-047: uitnodiging voor een ander e-mailadres → de tekst uit UX §4.11", async ({ page }) => {
+    const token = await uitnodiging(burenId, { email: "x@example.com" });
+    await login(page, "lynn@example.com");
+    await page.goto(`/invite/${token}`);
+    await page.getByRole("button", { name: "Uitnodiging accepteren" }).click();
+    await expect(
+      page
+        .locator("[data-sonner-toast]")
+        .filter({ hasText: "Deze uitnodiging is voor een ander e-mailadres. Log in met dat adres of vraag een nieuwe link." })
+        .first(),
+    ).toBeVisible();
+    expect(await lidmaatschappen("lynn@example.com")).toBe(1);
+  });
+
+  test("AC-047: verlopen uitnodiging → 'ongeldig of verlopen'", async ({ page }) => {
+    const token = await uitnodiging(burenId, { expires_at: new Date(Date.now() - 60_000).toISOString() });
+    await login(page, "lynn@example.com");
+    await page.goto(`/invite/${token}`);
+    await expect(page.getByRole("heading", { name: "Deze uitnodiging is ongeldig of verlopen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Uitnodiging accepteren" })).toHaveCount(0);
+  });
+
+  test("AC-045: de uitnodigingspagina belooft geen verdeling meer", async ({ page }) => {
+    const token = await uitnodiging(burenId);
+    await page.goto(`/invite/${token}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    expect((await page.locator("body").innerText()).match(VERVALLEN)?.[0] ?? null).toBeNull();
+  });
+});

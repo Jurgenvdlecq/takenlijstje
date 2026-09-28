@@ -91,7 +91,7 @@ export function InviteView({
                 <span className="text-primary">{invitation.household_name}</span>
               </h1>
               <p className="text-sm text-muted-foreground">
-                Samen de huishoudelijke taken plannen, verdelen en afvinken.
+                Samen de huishoudelijke taken plannen en afvinken.
               </p>
             </div>
 
