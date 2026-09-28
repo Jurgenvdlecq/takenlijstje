@@ -20,6 +20,8 @@ Status: inventarisatie. Er is geen productiecode gewijzigd en er zijn geen funct
 
 ## 2. Overgenomen besluiten (uit README en ARCHITECTUUR)
 
+> Let op: scopewijziging van Jurgen (2026-09-28, V-19/V-21/V-22/V-24) vervangt de regels hieronder over Verdeling, Ruilen, punten en afwezigheid, en "toewijzen in twee tikken". Zie `docs/PROGRESS.md` en `docs/PRODUCT_SPEC.md` §0.
+
 Deze gelden als uitgangspunt voor het nieuwe ontwerp.
 
 | Onderwerp | Besluit |

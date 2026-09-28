@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — planreview ronde 1: DESIGN FREEZE MOGELIJK: NEE (0 blokkerend, 14 moet vóór bouw, 8 aanbevelingen); herstel loopt
-Volgende stap: antwoorden V-36/V-37/V-38 vastleggen; herstelpunten uit docs/reviews/plan-critic.md door analyst, designer en architect laten verwerken; plan-critic ronde 2.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — herstel na planreview ronde 1 klaar; alle vragen beantwoord (V-01…V-39); laatste verwerking en planreview ronde 2
+Volgende stap: analyst, designer en architect verwerken V-36…V-39 (laatste [OPEN]-markeringen); daarna plan-critic ronde 2 tot "DESIGN FREEZE MOGELIJK: JA"; dan totaalvoorstel aan Jurgen.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -45,12 +45,10 @@ Volgende stap: antwoorden V-36/V-37/V-38 vastleggen; herstelpunten uit docs/revi
   - V-04: de extensies pg_cron en pg_net zijn **niet geïnstalleerd**. De planner van elk kwartier staat dus niet aan; de achtergrondtaak draait alleen via `vercel.json` één keer per dag (05:30 UTC). Bevestigt INVENTARIS R-01. Oplossing hoort in het technisch ontwerp.
 - V-28 en V-29 (2026-09-28): "Volg voorstel" → V-28 Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag · V-29 uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles.
 - V-30 t/m V-35 (2026-09-28): "Volg je voorstellen" → V-30 accentkleur diep blauw #2B4C9B, app-icoon in dezelfde tint · V-31 lettertype Figtree, zelf gehost · V-32 planner elke 15 min via Supabase Cron (pg_cron + pg_net) in het eigen project, geheim in Vault, gratis · V-33 back-up als kopie binnen het eigen Supabase-project (Frankfurt), 30 dagen bewaren, geen los exportbestand · V-34 naam van de schrijver blijft bij notities staan · V-35 bouwer past de Supabase-inloginstellingen aan via de koppeling (Nederlandse mail wachtwoord vergeten, min. 8 tekens); lukt dat niet, dan stappenlijst voor Jurgen.
+- V-36 t/m V-39 (2026-09-28): "Volg voorstellen" → V-36 beveiliging, gegevensomzetting en herinneringen meteen live; de nieuwe schermen pas samen live als ze allemaal klaar zijn · V-37 wijzigen van naam/details van een taak mag 4–5 tikken kosten; afvinken, verplaatsen en bezig blijven 2 tikken · V-38 (a) melding "taak gedaan" gaat ook naar wie afvinkte · V-39 tijdzone vast op Europe/Amsterdam, alleen zichtbaar, niet wijzigbaar.
 
 ## Open vragen
-- V-36: Uitrol: beveiliging, gegevensomzetting en herinneringen meteen live, en de nieuwe schermen pas samen aan het eind (voorstel) — of elk onderdeel meteen live? — gesteld 2026-09-28 (plan-critic ronde 1, punt 8) — blokkeert: TD §12.3.
-- V-37: Mag de naam of details van een taak wijzigen 4–5 tikken kosten, terwijl afvinken, verplaatsen en bezig 2 tikken blijven? Voorstel: akkoord — gesteld 2026-09-28 (punt 14) — blokkeert: UX-besluit twee-tikken-regel.
-- V-38: Melding "taak gedaan": (a) ook naar wie afvinkte sturen (voorstel), (b) helemaal schrappen, (c) zo laten — gesteld 2026-09-28 (punt 2) — blokkeert: BR-31/AC-073.
-- V-39: Mag de tijdzone van het huishouden gewijzigd worden? Voorstel: vast op Europe/Amsterdam, alleen zichtbaar. Alternatief: wijzigbaar, open taken houden dezelfde kloktijd — gesteld 2026-09-28 (plan-critic aanbeveling 19) — blokkeert: UC-12.
+- (geen)
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
@@ -58,7 +56,18 @@ Volgende stap: antwoorden V-36/V-37/V-38 vastleggen; herstelpunten uit docs/revi
 ## Work packages
 | WP | Omschrijving | Acceptatiecriteria | Checkpoint | Status |
 | --- | --- | --- | --- | --- |
-| — | Nog te bepalen na inventarisatie en technisch ontwerp | — | — | — |
+| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | — | open |
+| WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | open |
+| WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | open |
+| WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | open |
+| WP4 | Tokens, lettertype, shell, navigatie, states, sheets, snapshot | ACCEPTANCE_CRITERIA (WP4) | CP1 | open |
+| WP5 | Vandaag, afvinken (kernflow), taakdetail | ACCEPTANCE_CRITERIA (WP5) | CP2 → CP3 | open |
+| WP6 | Taak maken/wijzigen, reeksen, Taken | ACCEPTANCE_CRITERIA (WP6) | CP3-aanvulling | open |
+| WP7 | Instellingen, account, auth, uitnodigen, onboarding | ACCEPTANCE_CRITERIA (WP7) | CP3-aanvulling | open |
+| WP8 | Kalender, Boodschappen, Meldingen, Overzicht | ACCEPTANCE_CRITERIA (WP8) | CP4-voorbereiding | open |
+| WP9 | Hardening, CSP, opruimen, release gate | ACCEPTANCE_CRITERIA (WP9) | CP4 | open |
+
+Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 
 ## Bevindingen per work package
 - Inventarisatie (2026-09-27): zie `docs/INVENTARIS.md` §7. Open BLOKKEREND: B-01 (gezinslid kan open taken van andermans reeks laten verwijderen). GEMIDDELD: B-02, B-03, R-01, R-02, S-01, S-02, A-01, A-02, P-01. Worden na de Design Freeze als eerste work packages behandeld (werkwijze §15 stap 6); geen code gewijzigd.
