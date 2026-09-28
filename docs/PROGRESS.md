@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — technisch ontwerp ronde 1 klaar (9 work packages); acceptatiecriteria gestart
-Volgende stap: visual-designer en solution-architect verwerken V-30…V-35 (markeringen weg); product-analyst rondt ACCEPTANCE_CRITERIA.md af; daarna plan-critic tot "DESIGN FREEZE MOGELIJK: JA"; dan totaalvoorstel aan Jurgen.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — planreview ronde 1: DESIGN FREEZE MOGELIJK: NEE (0 blokkerend, 14 moet vóór bouw, 8 aanbevelingen); herstel loopt
+Volgende stap: antwoorden V-36/V-37/V-38 vastleggen; herstelpunten uit docs/reviews/plan-critic.md door analyst, designer en architect laten verwerken; plan-critic ronde 2.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -47,7 +47,9 @@ Volgende stap: visual-designer en solution-architect verwerken V-30…V-35 (mark
 - V-30 t/m V-35 (2026-09-28): "Volg je voorstellen" → V-30 accentkleur diep blauw #2B4C9B, app-icoon in dezelfde tint · V-31 lettertype Figtree, zelf gehost · V-32 planner elke 15 min via Supabase Cron (pg_cron + pg_net) in het eigen project, geheim in Vault, gratis · V-33 back-up als kopie binnen het eigen Supabase-project (Frankfurt), 30 dagen bewaren, geen los exportbestand · V-34 naam van de schrijver blijft bij notities staan · V-35 bouwer past de Supabase-inloginstellingen aan via de koppeling (Nederlandse mail wachtwoord vergeten, min. 8 tekens); lukt dat niet, dan stappenlijst voor Jurgen.
 
 ## Open vragen
-- (geen)
+- V-36: Uitrol: beveiliging, gegevensomzetting en herinneringen meteen live, en de nieuwe schermen pas samen aan het eind (voorstel) — of elk onderdeel meteen live? — gesteld 2026-09-28 (plan-critic ronde 1, punt 8) — blokkeert: TD §12.3.
+- V-37: Mag de naam of details van een taak wijzigen 4–5 tikken kosten, terwijl afvinken, verplaatsen en bezig 2 tikken blijven? Voorstel: akkoord — gesteld 2026-09-28 (punt 14) — blokkeert: UX-besluit twee-tikken-regel.
+- V-38: Melding "taak gedaan": (a) ook naar wie afvinkte sturen (voorstel), (b) helemaal schrappen, (c) zo laten — gesteld 2026-09-28 (punt 2) — blokkeert: BR-31/AC-073.
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
