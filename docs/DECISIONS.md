@@ -80,6 +80,6 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - Security N1: na de upsert van "losse taak wordt terugkerend" leest de actie de reeks terug. Is die door iemand anders aangemaakt, dan volgt CONFLICT en wordt de taak niet gekoppeld.
   - Security N4: ESLint blokkeert ook `process.env["SUPABASE_SERVICE_ROLE_KEY"]` en destructuring van die naam (getest via `eslint --stdin`).
   - Code-review N2: bij "geen huishouden meer zichtbaar" herlaadt de pagina maximaal één keer per sessie (vlag in `sessionStorage`, gewist na een geslaagde verversing). Zo ontstaat er geen herlaadlus.
-  - Code-review N4: netwerkfouten terwijl de browser online is, krijgen een eigen backoff-teller (2 s, 4 s, 8 s … tot 60 s). Ze tellen niet mee voor de vijf pogingen.
+  - Code-review N4: netwerkfouten terwijl de browser online is, krijgen een eigen backoff-teller (4 s, 8 s, 16 s … tot 60 s). Ze tellen niet mee voor de vijf pogingen.
   - Code-review N5: bij push aanzetten wordt eerst de voorkeur bijgewerkt, daarna het abonnement.
 - **D-033: de foutmelding bij "deze en toekomstige" zonder recht volgt nu letterlijk AC-004:** "Dit mag je niet (meer) wijzigen. Er is niets veranderd." (test-writer r3, GEMIDDELD). Het label voor vervallen wachtrij-soorten (`OBSOLETE_LABELS`) wordt ingevuld in WP2a, zodra er soorten vervallen.

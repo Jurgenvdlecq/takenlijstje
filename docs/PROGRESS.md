@@ -93,6 +93,9 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - WP1, code-review N6: archiveren van de boodschappenlijst kan bij gelijktijdigheid half lukken. Dit wordt in WP2a vervangen door de RPC `archive_shopping_list`.
 - WP1, code-review 16: losse subquery in de push-policies, functioneel correct.
 - WP1, security N2: `complete_task`/`undo_complete_task` geven verschillende foutcodes voor "vreemd" en "onbekend". Gelijktrekken in WP2a bij de nieuwe versies.
+- WP1, code-review r3 punt 1: een "weesreeks" (omzetten naar terugkerend half mislukt) blokkeert die omzetting voor anderen; de melding belooft dat opnieuw proberen helpt. Zeldzaam; tekst en afhandeling herzien in WP6 (splitsen `updateTaskAction`).
+- WP1, code-review r3 punt 2: na één keer herladen wordt een tweede "geen huishouden" stil genegeerd. Loggen of naar `/` sturen in WP4 (nieuwe store).
+- WP1, ESLint-omwegen met template literal, tekst-sleutel of variabele (`process.env[naam]`) worden niet gevangen; alleen opzettelijk misbruik. Eventueel een grep-controle in WP9.
 - WP1, security N3: TD §4.1 noemt WP8 voor de script-CSP met nonce; D-018 en TD §15 zeggen WP9. WP9 geldt, niet verder uitstellen.
 
 ## Technische schuld
