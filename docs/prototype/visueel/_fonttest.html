@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Figtree;src:url(fonts/figtree.woff2) format("woff2");font-weight:300 900}
+@font-face{font-family:Hanken;src:url(fonts/hanken-grotesk.woff2) format("woff2");font-weight:100 900}
+@font-face{font-family:Onest;src:url(fonts/onest.woff2) format("woff2");font-weight:100 900}
+@font-face{font-family:Instrument;src:url(fonts/instrument-sans.woff2) format("woff2");font-weight:400 700}
+body{font:16px monospace;padding:20px}
+span{font-size:40px;white-space:nowrap}
+</style></head><body><div id="o"></div>
+<script>
+document.fonts.ready.then(async()=>{
+  for(const f of ["Figtree","Hanken","Onest","Instrument"]){await document.fonts.load(`40px ${f}`)}
+  let out="";
+  for(const f of ["Figtree","Hanken","Onest","Instrument"]){
+    const m=(txt,tn)=>{const s=document.createElement("span");s.style.fontFamily=f;s.style.fontVariantNumeric=tn?"tabular-nums":"normal";s.textContent=txt;document.body.appendChild(s);const w=s.getBoundingClientRect().width;s.remove();return w.toFixed(1)};
+    out+=`${f}: normaal 1111=${m("1111")} 0000=${m("0000")} | tnum 1111=${m("1111",1)} 0000=${m("0000",1)}<br>`;
+  }
+  document.getElementById("o").innerHTML=out;
+});
+</script></body></html>
