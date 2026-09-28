@@ -669,7 +669,11 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 
 Voor elke WP die op `main` live gaat, en voor R2, geldt de volgorde hieronder.
 
-0. **Alleen bij WP1, vóór `…_100` (plan-critic 7):** alleen-lezen-telling op live: `select count(*) from household_members where user_id is not null and is_active = false`. Is die groter dan 0, dan **stoppen**. De bouwer legt Jurgen per persoon (naam) voor dat die na de update geen toegang meer heeft (V-29), met de keuze: eerst weer aanzetten, of zo laten. Er wordt niets aangepast zonder zijn antwoord. Leden zonder account (`user_id is null`) tellen niet mee: zij loggen niet in en vervallen in WP2b.
+0. **Alleen bij WP1, vóór `…_100` (plan-critic 7):** alleen-lezen-telling op live: `select count(*) from household_members where user_id is not null and is_active = false`. Is die groter dan 0, dan **stoppen**. De bouwer legt Jurgen per persoon (naam) voor dat die na de update geen toegang meer heeft (V-29), met **twee keuzes** (AC-055/AC-170):
+- **"weer aanzetten":** de bouwer zet `is_active = true`, vóór `…_100`;
+- **"uitgezet laten":** er verandert niets.
+
+Verwijderen hoort niet bij dit draaiboek; dat kan Jurgen later zelf via Gezinsleden. Er wordt niets aangepast zonder zijn antwoord. **Zijn keuzes worden letterlijk bewaard in `docs/PROGRESS.md`**, in de sectie "Antwoorden van Jurgen", onder de kop "Stap 0 WP1 — uitgezette leden", per naam met `household_members.id` en de keuze. M1(d) gebruikt die lijst. Leden zonder account (`user_id is null`) tellen niet mee: zij loggen niet in en vervallen in WP2b.
 1. De migratie lokaal groen (`test:db`, E2E).
 2. **Niet-destructieve migratie** eerst op live, via de Supabase-koppeling (MCP `apply_migration`) of de SQL-editor. De huidige productiecode blijft ermee werken ("expand").
 3. Code deployen (push naar de productiebranch; Vercel bouwt).

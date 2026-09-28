@@ -260,7 +260,7 @@ DAN ziet de gebruiker een Nederlandse tekst zonder policynaam of stacktrace. De 
 ### AC-170 — Niemand verliest ongemerkt toegang bij de invoering van "uitgezet" (WP1; V-29; plan-critic punt 7)
 GEGEVEN de live database vóór de deploy van WP1
 WANNEER de bouwer met een alleen-lezen telling vaststelt hoeveel leden een account hebben en `is_active = false`
-DAN wordt WP1 alleen uitgerold bij 0. Bij 1 of meer toont de bouwer Jurgen de namen, en kiest Jurgen per naam wat er gebeurt: weer aanzetten, uitgezet laten, of verwijderen. Er wordt niets uitgerold tot hij voor elke naam heeft beslist
+DAN wordt WP1 alleen uitgerold bij 0. Bij 1 of meer toont de bouwer Jurgen de namen, en kiest Jurgen per naam uit twee mogelijkheden: **weer aanzetten** of **uitgezet laten**. Verwijderen hoort daar niet bij; dat kan Jurgen daarna zelf via Gezinsleden. Er wordt niets uitgerold tot hij voor elke naam heeft beslist. Zijn keuze per naam komt in `docs/PROGRESS.md`, zodat de tweede controle (AC-055) weet wie al beoordeeld is
 **Toets:** Proces + Live (alleen lezen)
 
 ---

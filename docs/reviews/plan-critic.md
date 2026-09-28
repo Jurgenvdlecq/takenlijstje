@@ -1,95 +1,55 @@
-# Plan-critic — ronde 2 — 2026-09-28
+# Plan-critic — ronde 3 — 2026-09-28
 
 Gelezen:
-- `docs/PROGRESS.md`: antwoorden V-01…V-39, de tabel Work packages en de uitrol volgens V-36.
-- `docs/INVENTARIS.md` §2 en §8.
-- `docs/PRODUCT_SPEC.md` (ronde 5): BR-12, BR-31, BR-40, BR-46, UC-12 en §11.
-- `docs/UX_SPEC.md` (ronde 6): §0, §4.5, §4.9, §4.14–§4.16, §5.2, §5.8 en §7.
-- `docs/TECHNICAL_DESIGN.md` (ronde 4): §3.1–§3.3, §4.5, §4.6, §5.2 (Reekskoppeling), §6.1, §6.2, §9.3, §9.3.1, §9.4, §12.3, §12.3.1, §12.4, §14, §15 en §17.
-- `docs/ACCEPTANCE_CRITERIA.md` (182 AC's): onder meer AC-054…AC-062, AC-073, AC-138, AC-170…AC-182 en de dekking.
-- `docs/DESIGN_SYSTEM.md` §3.
-- Ter controle de bestaande code: `src/server/actions/tasks.ts` (de ontvangers van "taak gedaan") en `supabase/migrations/20260927000100_schema.sql` (het verwijdergedrag van de FK's op `task_comments`).
-- Screenshots uit ronde 1. De nieuwe wireframes 22 en 23 heb ik niet opnieuw bekeken; hun inhoud heb ik aan de tekst van UX §4.16 en §5.2 getoetst.
+- `docs/PROGRESS.md`;
+- `docs/PRODUCT_SPEC.md` BR-46 (ongewijzigd ten opzichte van ronde 2, gecontroleerd);
+- `docs/TECHNICAL_DESIGN.md` §3.1 (`guard_comment_changes`), §4.1 (proxy), §12.3 stap 0 en §12.4 (wat verdwijnt, M1–M6);
+- `docs/ACCEPTANCE_CRITERIA.md` AC-035, AC-055, AC-073, AC-138, AC-170 en AC-172;
+- `docs/DESIGN_SYSTEM.md` §3 en `docs/INVENTARIS.md` §8.
+
+Geen nieuwe screenshots. De rest van de documenten is ongewijzigd sinds ronde 2 en daar al beoordeeld.
 
 Algemeen oordeel:
-- Het herstel is grondig. Alle veertien MOET-punten uit ronde 1 zijn inhoudelijk opgelost, en ook de meeste aanbevelingen.
-- Door het herstel zijn twee nieuwe punten ontstaan die vóór de freeze moeten worden rechtgezet:
-  - een acceptatiecriterium dat nog het oude gedrag beschrijft;
-  - een privacygat in de volgorde van de werkpakketten.
-- Beide zijn in één of twee zinnen op te lossen.
+- Alle punten uit ronde 2 zijn verwerkt.
+- Eén nieuwe tegenstrijdigheid is door het herstel ontstaan: de keuzes die Jurgen per uitgezet lid krijgt. Die raakt gegevens (een lid verwijderen) en staat straks in twee bevroren documenten, dus die moet vóór de freeze recht.
 
 ## Bevindingen
 
-1. [MOET VÓÓR BOUW WORDEN OPGELOST] ACCEPTANCE_CRITERIA AC-138, laatste punt, tegenover UX_SPEC §4.14/§4.16, AC-177 en TECHNICAL_DESIGN §4.6.
-   - Het probleem: AC-138 zegt nog "komt Ellen bij haar volgende gebruik in de onboarding". Na het herstel van punt 12 moet zij eerst het scherm "Je hoort niet meer bij ‘Familie’" zien. Dat staat in UX §4.14 ("niet de onboarding") en in AC-177.
-   - Gevolg: twee bevroren criteria spreken elkaar tegen. De test-writer toetst het ene, de bouwer bouwt het andere, en daarna is dit alleen nog via een wijzigingsverzoek recht te zetten.
-   - Nodig: AC-138 aanpassen naar "ziet Ellen bij haar volgende gebruik eerst het scherm uit UX §4.16 (zie AC-177); daarna is haar lokale data gewist".
+1. [MOET VÓÓR BOUW WORDEN OPGELOST] De keuzes die Jurgen per uitgezet lid krijgt, verschillen per document.
+   - **Waar:**
+     - ACCEPTANCE_CRITERIA AC-170 en AC-055 (punt "Uitgezette leden met een account") bieden drie keuzes: **weer aanzetten, uitgezet laten of verwijderen**;
+     - TECHNICAL_DESIGN §12.3 stap 0 en §12.4 M1(d) bieden er twee: **weer aanzetten of zo laten**.
+   - **Tweede probleem, vanaf WP1:** "uitgezet" is dan een gewone functie (V-29). M1(d) stopt het draaiboek bij elk uitgezet lid, ook bij iemand voor wie Jurgen bij stap 0 al "zo laten" koos, of die een beheerder na WP1 bewust via de app heeft uitgezet. Het draaiboek zegt niet of zo'n eerdere keuze telt.
+   - **Gevolg:**
+     - de bouwer weet niet welke vraag hij moet stellen;
+     - de keuze "verwijderen" staat alleen in de AC's. Die haalt een lid onomkeerbaar uit het huishouden (profiel, voorkeuren, meldingen), terwijl het technisch draaiboek die handeling niet kent;
+     - Jurgen kan bij M1 dezelfde vraag opnieuw krijgen over een keuze die hij al maakte.
+   - **Nodig:**
+     - één lijst met keuzes in alle vier de plekken. Mijn voorstel: alleen "weer aanzetten" of "uitgezet laten". Verwijderen kan Jurgen daarna zelf via Gezinsleden (UX §4.15, met bevestiging) en hoort niet in een voorcontrole;
+     - bij M1(d) vastleggen dat alleen namen stoppen die Jurgen nog niet eerder heeft beoordeeld. Een eerdere keuze uit stap 0 en na WP1 in de app uitgezette leden worden gemeld, zonder te stoppen.
 
-2. [MOET VÓÓR BOUW WORDEN OPGELOST] TECHNICAL_DESIGN §15 (WP2a, WP2b, WP3) en §12.4 M6, samen met AC-073.
-   - Het probleem: de nieuwe ontvangersregel voor "taak gedaan" (V-38a: ook naar wie afvinkte) staat alleen in WP3 ("`recipientsFor` krijgt geen actor-parameter"). WP2a haalt alleen de naam uit de tekst. De huidige code sluit de afvinker als ontvanger uit (`src/server/actions/tasks.ts`, het blok bij regel 59–74). WP2b (M6) mag volgens §15 vóór WP3 gebeuren ("het wachten op Jurgen houdt WP3 niet tegen", en omgekeerd legt niets de volgorde vast).
-   - Gevolg: komt M6 vóór WP3, dan maakt de live app tussen M6 en WP3 nieuwe `task_completed`-rijen waarvan de ontvangerslijst weer verraadt wie afvinkte. Die rijen blijven 90 dagen staan. De inhoudscontrole van M6 zoekt alleen naar tekst en ziet dit niet, en daarna ruimt niets ze op. Succescriterium 7 en V-21 worden zo stil gebroken.
-   - Nodig, één van beide:
-     - (a) de ontvangerswijziging van V-38a expliciet in WP2a opnemen (dezelfde deploy als de naamloze tekst), met AC-073 ook onder WP2a;
-     - (b) in §12.4 als voorwaarde voor M6 opnemen: "WP3 staat live".
-
-     Voorkeur (a): dan klopt het meteen vanaf de expand-stap.
-
-3. [AANBEVELING] TECHNICAL_DESIGN §3.1: `guard_comment_changes` tegenover het FK-gedrag en `sync_comment_author`.
-   - Het probleem: de guard "weigert elke wijziging van `author_name` en `member_id` door een gebruiker". Twee andere mechanismen wijzigen die velden wél binnen de sessie van een gebruiker:
-     - de FK-actie `on delete set null (member_id)` op `task_comments` (`…0100_schema.sql:360`). Die loopt als update door de trigger bij lid verwijderen, account verwijderen en bij M6 (leden zonder account);
-     - de trigger `sync_comment_author` bij een naamswijziging.
-   - Hoe de guard die van een gebruikersupdate onderscheidt, staat er niet. Bij "Reekskoppeling" is dat wel expliciet geregeld (de FK-actie en de RPC-vlag).
-   - Gevolg: zonder uitzondering mislukken lid verwijderen, account verwijderen, een naamswijziging en de contract-migratie. De DB-tests uit §3.1 en de sandbox-proef M0 vangen dit wel op, dus het is geen ontwerpfout, maar het kost een herstelronde.
-   - Voorstel: in §3.1 vastleggen dat de guard alleen geldt op het bovenste niveau (`pg_trigger_depth() = 1`) of buiten de RPC-vlag.
-
-4. [AANBEVELING] TECHNICAL_DESIGN §4.1 (`PUBLIC_PATHS` en "zonder sessie naar `/login?next=`") tegenover §9.3.1 en AC-172 ("zonder sessie 401").
-   - Het probleem: `/api/outbox` staat niet bij de uitzonderingen van de proxy. Zonder sessie krijgt de wachtrij dan een doorverwijzing naar de HTML van het inlogscherm, geen 401.
-   - Gevolg: dat is veilig (de entry blijft staan als "onbekend antwoord"), maar de melding "Log opnieuw in om N wijzigingen te versturen" verschijnt dan nooit, en de integratietest uit AC-172 faalt.
-   - Voorstel: vastleggen dat de proxy voor `/api/*` zonder sessie 401 teruggeeft in plaats van door te sturen.
-
-5. [AANBEVELING] ACCEPTANCE_CRITERIA AC-055 tegenover TECHNICAL_DESIGN §12.4 M1(d).
-   - Het probleem: AC-055 laat het draaiboek stoppen bij "leden met een account en `is_active = false`", terwijl M1(d) bij die telling alleen "melden" zegt. De echte stop zit al in stap 0 van §12.3 (AC-170).
-   - Voorstel: beide gelijktrekken. M1(d) als controle ("melden"), en AC-055 zonder dit punt of met dezelfde formulering.
-
-6. [AANBEVELING] Documenthygiëne:
-   - `docs/PROGRESS.md` "Fase" en "Volgende stap" zeggen nog dat V-36…V-39 verwerkt moeten worden en dat er nog [OPEN]-markeringen zijn.
-   - `docs/DESIGN_SYSTEM.md` §3 noemt nog `next/font/google` als optie, terwijl V-31, TECHNICAL_DESIGN §1 en AC-091 `next/font/local` vastleggen. Dit document wordt bevroren, dus nu rechtzetten.
-   - `docs/INVENTARIS.md` §8 zegt nog "Behouden: … offline-wachtrij, snelle invoer". De wachtrij wordt herwerkt (nieuw endpoint, §9.3.1), en van de snelle invoer blijft alleen de parser; de invoerbalk vervalt.
+2. [AANBEVELING] De controle van "taak gedaan"-meldingen staat bij de verkeerde stap.
+   - **Waar:** TECHNICAL_DESIGN §12.4, "Wat verdwijnt", punt `task_completed` ("De inhoudscontrole bij M6 kijkt ook naar de `task_completed`-meldingen van na de WP2a-deploy"), tegenover dezelfde paragraaf ("de hele soort vóór M6 gaat weg") en AC-035 ("geen melding van het type `task_completed` … met `created_at` vóór het moment van de contract-migratie").
+   - **Probleem:** na M6 bestaan die meldingen niet meer, dus die controle kan bij M6 niet draaien.
+   - **Gevolg:** de controle is niet uitvoerbaar zoals beschreven. Er gaat niets mis met de gegevens.
+   - **Voorstel:** noem de controle van AC-073 ("controle op live na de WP2a-deploy") als stap vóór M5, en haal de verwijzing uit de M6-regel. Vergelijk daarbij de ontvangers per `dedupe_key` met de voorkeuren op het moment van controle. Voorkeuren kunnen intussen zijn gewijzigd; een verschil is dan eerst uit te zoeken, niet meteen een lek.
 
 ## Opgelost sinds vorige ronde
 
-Ronde 1 (2026-09-28) gaf 14 × MOET, 8 × AANBEVELING en de vragen V-36…V-38. Stand:
+**Ronde 2:**
+- **Punt 1 (AC-138 tegenover UX §4.14/§4.16):** opgelost. AC-138 toont nu eerst het scherm "Je hoort niet meer bij ‘Familie’", met de grens bij een toestel zonder cache.
+- **Punt 2 (privacygat tussen M6 en WP3):** opgelost. Vanaf WP2a gaan de naamloze teksten en de ontvangersregel van V-38a live (TD §12.4, AC-073 onder WP2a, met een live-controle na de deploy).
+- **Aanbeveling 3 (guard tegenover FK-actie en naamsynchronisatie):** opgelost. Het onderscheid loopt via `pg_trigger_depth() > 1`, beperkt tot precies twee toegestane wijzigingen (TD §3.1).
+- **Aanbeveling 4 (`/api/outbox` zonder sessie):** opgelost. De proxy stuurt dit pad niet door, en de route geeft een 401 in JSON (TD §4.1, AC-172).
+- **Aanbeveling 5 (AC-055 tegenover M1(d)):** stop tegenover melden is gelijkgetrokken, maar de keuzes verschillen nog. Dat staat nu bij punt 1.
+- **Aanbeveling 6 (hygiëne):** opgelost. DESIGN_SYSTEM §3 noemt alleen `next/font/local`, INVENTARIS §8 en PROGRESS zijn bijgewerkt.
 
-1. Oude meldingen met "gedaan door <naam>" → BR-46.3 en TD §12.4 wissen alle bestaande `task_completed`-meldingen en dag- en avondoverzichten. Ze tellen mee bij M5, M6 krijgt een inhoudscontrole, en AC-058/AC-059 zijn aangevuld. **Opgelost.** (Het nieuwe gat na M6 staat bij punt 2.)
-2. De ontvangers van "taak gedaan" verraden wie afvinkte → V-38 (a) van Jurgen, verwerkt in BR-31, TD §6.1/WP3, UX §4.9 en AC-073. **Opgelost in het ontwerp**; de volgorde van de WP's staat bij punt 2.
-3. "Ook niet in logs" → BR-12, §8 en TD §9.4 beschrijven nu eerlijk de grens van de platformlogs, met de controle van de bewaartermijn in WP3 en een melding in het totaalvoorstel. **Opgelost.**
-4. Guard tegenover "losse taak wordt terugkerend" → de regel "Reekskoppeling" in TD §5.2, met DB-tests. **Opgelost.**
-5. `author_name` tegenover AC-143 → "laatst bekende naam", gezet door de database, niet te vervalsen (AC-178, AC-179). **Opgelost** (zie aanbeveling 3).
-6. Volgorde van de voorcontroles → M1 (alleen lezen) staat nu vóór `…_200` (M2), en er is een controle op de tijdzone bijgekomen. **Opgelost.**
-7. Ongemerkt toegang kwijt door `is_active` → stap 0 in §12.3 en AC-170. **Opgelost.**
-8. Uitrolstrategie → V-36, TD §12.3.1 (`main` en `v2-ui`, geen previews, release R1–R5, rollback) en AC-180. **Opgelost.**
-9. Wachtrij over deploys heen → een stabiel `/api/outbox`, een versie per entry, `migrateOutboxEntry` en "nooit stil weggooien" (TD §9.3.1, AC-172). Het restrisico bij de eerste deploy is benoemd en wordt aan Jurgen gemeld. **Opgelost** (zie aanbeveling 4).
-10. Reeks wijzigen vanuit het reeksdetail → `updateSeriesAction`, UX §5.2 met wireframe 23, en AC-173. **Opgelost.**
-11. Ontbrekende rechten-AC's → AC-175 (standaardtaken) en AC-176 (huishoudinstellingen). **Opgelost.**
-12. Scherm na verwijdering → UX §4.16 met wireframe 22, TD §4.6 en AC-177. **Opgelost**, met de tegenstrijdigheid in AC-138 als restpunt (punt 1).
-13. Offline in het taakdetail → UX §7 is gelijkgetrokken met TD §9.3. **Opgelost.**
-14. De regel van twee tikken → V-37 van Jurgen, verwerkt in UX §0/§4.5 en AC-181. **Opgelost.**
-- Aanbevelingen uit ronde 1:
-  - 15 (WP2 splitsen, planner los van het wissen): opgelost met WP2a/WP2b en "WP3 hangt af van WP2a".
-  - 16 (hertellen vlak vóór M5, M6 in dezelfde sessie): opgelost.
-  - 17 (`delete_my_account` voor een uitgezet lid): opgelost in TD §4.5.
-  - 18 (succescriterium 1 meetbaar): opgelost met een meting op dag 30 en dag 90.
-  - 19 (tijdzone): opgelost met V-39 (vast, met een databasecheck, AC-182).
-  - 20 (voorkeuren van gezinsleden): opgelost; BR-46.5 noemt het expliciet voor het totaalvoorstel.
-  - 21 (hygiëne): grotendeels opgelost, de rest staat bij aanbeveling 6.
-  - 22 (AC's voor "Wijzigingen weggooien?" en de teller): opgelost met AC-174 en AC-171.
+**Ronde 1:** alle 14 MOET-punten en de 8 aanbevelingen waren al in ronde 2 als opgelost bevestigd. Dat is niet teruggedraaid.
 
 ## Onbevestigde aannames
-
-Geen die rechten, gegevens of scope raken.
-
-- Het eenmalige restrisico van de wachtrij bij de eerste deploy (TD §9.3.1 punt 5) is geen aanname. Het is een benoemd risico dat vooraf aan Jurgen wordt gemeld (AC-172, Proces).
-- Dat "niet meer lid" alleen herkend wordt op een toestel met cache (TD §4.6, AC-177) is een bewust vastgelegde grens die UX volgt. Er worden daarvoor geen extra gegevens bewaard.
+- "Verwijderen" als keuze in de voorcontrole voor uitgezette leden (AC-055, AC-170) staat niet in het technisch ontwerp, en Jurgen heeft er niet om gevraagd. Dit raakt gegevens (een lid onomkeerbaar verwijderen), zie punt 1.
+- Verder geen.
 
 ## Conclusie
+Reden: één open MOET-punt. De keuzes per uitgezet lid spreken elkaar tegen tussen de acceptatiecriteria en het technisch ontwerp, en de extra keuze "verwijderen" raakt gegevens. Na gelijktrekken is de freeze wat mij betreft mogelijk.
 DESIGN FREEZE MOGELIJK: NEE
