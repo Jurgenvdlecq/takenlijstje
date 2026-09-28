@@ -359,7 +359,7 @@ Algemene afspraken (gelden voor alle schermen, lossen S-01 op):
 | Boodschappen | "De lijst is leeg. Wat moet er gehaald worden?" + Vaak gekocht | skelet | algemeen | "Lijst afgerond · Ongedaan maken" | Klaar met winkelen verborgen als niets gekocht is | — | — | toevoegen en afvinken via wachtrij |
 | Meldingen | "Nog geen meldingen. Hier komt een seintje als iets bijna moet of verlopen is." | skelet | algemeen | — | Alles gelezen uit als alles gelezen is | "Laden…" bij Oudere | meer dan 30: "Oudere meldingen laden" | cache, alleen lezen |
 | Meldingen instellen | — | skelet | "Opslaan lukte niet" per schakelaar, schakelaar springt terug | "Opgeslagen" | aanzetten uit als de browser push niet kent, met uitleg (§4.10) | schakelaar toont bezig | — | uitgeschakeld |
-| Instellingen + subpagina's | Gezinsleden met alleen jou: "Nodig iemand uit om samen te werken" | skelet | algemeen | "Opgeslagen" / "Link gekopieerd" / "Kai heeft weer toegang" | enige beheerder (BR-24): degraderen, verwijderen en uitzetten uit; jezelf uitzetten uit; gezinslid: beheer verborgen | "Bezig…" | — | alleen bekijken, knoppen uit |
+| Instellingen + subpagina's | Gezinsleden met alleen jou: "Nodig iemand uit om samen te werken" | skelet | algemeen | "Opgeslagen" / "Link gekopieerd" / "Kai heeft weer toegang" | enige beheerder (BR-24): degraderen, verwijderen en uitzetten uit; jezelf uitzetten uit; account verwijderen uit zonder wachtwoord (§4.13); gezinslid: beheer verborgen | "Bezig…" | — | alleen bekijken, knoppen uit |
 | Overzicht | S-03: zie §5.9 | skelet | algemeen | — | — | — | periode met weinig gegevens: getallen tonen, lijsten weglaten | cache |
 | Inloggen | — | knop "Bezig…" | zie §4.12 | door naar Vandaag / "Check je mail" | Inloggen uit bij leeg veld | "Bezig…" | — | "Je bent offline. Inloggen kan alleen met verbinding." |
 | Uitnodiging | — | "Uitnodiging controleren…" | zie §4.11 | "Welkom bij Familie" | — | "Bezig…" | — | offline-melding |
@@ -394,7 +394,7 @@ In de praktijk zelden gebruikt (het gezin bestaat al, UC-10), maar moet kloppen.
 | Boodschappen | alles | alles | — |
 | Instellingen › Standaardtaken, Huishouden | ja | nee | rij verborgen |
 | Gezinsleden beheren, uitnodigen | ja | nee (alleen bekijken) | knoppen verborgen, uitlegregel |
-| Account verwijderen | ja, niet als enige beheerder | ja | uitgeschakeld met reden |
+| Account verwijderen | ja, niet als enige beheerder | ja | uitgeschakeld met reden (enige beheerder; of nog geen wachtwoord: "Stel eerst een wachtwoord in via Wachtwoord vergeten", §4.13) |
 | Lid uitzetten / weer aanzetten (V-29) | ja, niet zichzelf en niet de enige beheerder | nee | verborgen (gezinslid) / uitgeschakeld met reden |
 | Toegang tot het huishouden als je uitgezet bent | — | — | alleen het scherm "Geen toegang" met Uitloggen (§4.15) |
 

@@ -436,7 +436,7 @@ Vóór de 30 dagen wordt de back-up niet verwijderd. Na de 30 dagen blijft hij n
 ### AC-062 — Schrijver van een notitie na vertrek (WP2/WP7; V-25)
 GEGEVEN een notitie van Kai
 WANNEER Kai zijn account verwijdert of uit het huishouden wordt verwijderd
-DAN blijft de notitie bestaan, en toont hij als schrijver `[OPEN: V-34]`: de naam van Kai, of "Oud-gezinslid". Bij een uitgezet lid blijft de naam altijd staan (UX §4.15)
+DAN blijft de notitie bestaan en staat er nog steeds "Kai:" als schrijver (V-34). De naam komt uit het opgeslagen `author_name` en verdwijnt niet door het verwijderen van het lid. Bij een uitgezet lid blijft de naam ook staan (UX §4.15)
 **Toets:** DB + E2E
 
 ---
@@ -446,8 +446,12 @@ DAN blijft de notitie bestaan, en toont hij als schrijver `[OPEN: V-34]`: de naa
 ### AC-063 — De planner draait elke 15 minuten (WP3; BR-30; R-01)
 GEGEVEN productie na WP3
 WANNEER het schema van de planner wordt bekeken en over 2 uur de tick-aanroepen worden geteld
-DAN draait de tick minstens elke 15 minuten en antwoordt hij met 200. Het dagelijkse vangnet via Vercel blijft bestaan. Welk mechanisme: `[OPEN: V-32]`
-**Toets:** Live
+DAN:
+- staat in het eigen Supabase-project een Supabase Cron-taak (pg_cron + pg_net) met schema elke 15 minuten, die de tick aanroept (V-32);
+- staan het geheim en de URL van de tick in Supabase Vault, en komen ze niet voor in migraties, de repository of `docs/`;
+- zijn er in 2 uur minstens 8 aanroepen, die elk met 200 antwoorden;
+- blijft het dagelijkse vangnet via Vercel bestaan.
+**Toets:** Live + code-review (geen geheimen in de repository)
 
 ### AC-064 — Herinneringen komen binnen 15 minuten (WP3; BR-30, BR-31; succescriterium 5)
 GEGEVEN een taak met een herinnering op tijdstip T, en een beheerder met herinneringen aan
@@ -636,8 +640,12 @@ DAN:
 ### AC-091 — Eén bron voor kleuren en letters (WP4; D-01; V-30, V-31)
 GEGEVEN het design system
 WANNEER de schermen worden bekeken in licht en donker
-DAN komen alle kleuren uit de tokens (geen hardgecodeerde kleuren, geen dubbele tokens), en past de `theme_color` van het manifest bij de app. De waarden van de accentkleur en het lettertype volgen Jurgens keuze `[OPEN: V-30, V-31]`; het criterium geldt voor beide uitkomsten
-**Toets:** code-review + Vis
+DAN:
+- komen alle kleuren uit de tokens, zonder hardgecodeerde kleuren of dubbele tokens;
+- is de accentkleur #2B4C9B, en heeft het app-icoon dezelfde tint (V-30);
+- past de `theme_color` van het manifest bij de app;
+- is het lettertype Figtree, door de app zelf gehost via `next/font/local` (V-31). Er gaan geen verzoeken naar Google Fonts of een andere externe letterdienst; te controleren in het netwerkoverzicht.
+**Toets:** code-review + Vis + E2E (netwerkverzoeken)
 
 ---
 
@@ -920,7 +928,7 @@ DAN:
 - komt ze na het opslaan ingelogd op Vandaag;
 - verliezen haar andere toestellen hun sessie.
 
-De mail is Nederlandstalig; wie de Supabase-instellingen aanpast, is `[OPEN: V-35]`
+De mail is Nederlandstalig. De bouwer heeft in Supabase via de koppeling de template "Reset password" (Nederlands, `token_hash`-variant) en een minimale wachtwoordlengte van 8 ingesteld. Lukt dat niet via de koppeling, dan heeft Jurgen een stappenlijst gekregen en zijn de instellingen daarna gecontroleerd (V-35)
 **Toets:** E2E (link via `generateLink`) + Live-controle mail
 
 ### AC-131 — Wachtwoordeisen en een verlopen herstellink (WP7; UC-11)
@@ -1294,11 +1302,11 @@ DAN:
 - Beheerder: AC-014 (de maker wijzigen), AC-019 (de laatste beheerder degraderen) en AC-021 (zichzelf uitzetten).
 - Buitenstaander: AC-026, AC-027.
 
-**Afhankelijk van open vragen bij Jurgen:**
+**Verwerkte besluiten van Jurgen (V-30 t/m V-35):**
 - AC-056 en AC-061: V-33.
 - AC-062 en AC-134: V-34.
 - AC-063: V-32.
 - AC-091: V-30 en V-31.
 - AC-130: V-35.
 
-Die criteria zijn zo geschreven dat ze gelden voor elke uitkomst, of ze zijn gemarkeerd.
+Er zijn geen open punten meer.
