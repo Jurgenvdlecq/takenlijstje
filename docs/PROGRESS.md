@@ -80,8 +80,8 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - Inventarisatie (2026-09-27): zie `docs/INVENTARIS.md` §7. Open BLOKKEREND: B-01 (gezinslid kan open taken van andermans reeks laten verwijderen). GEMIDDELD: B-02, B-03, R-01, R-02, S-01, S-02, A-01, A-02, P-01. Worden na de Design Freeze als eerste work packages behandeld (werkwijze §15 stap 6); geen code gewijzigd.
 
 ## Wijzigingsverzoeken (op bevroren documenten)
-- W-01 (2026-09-28): AC-014 noemt `occurrence_date` onveranderlijk; TD §5.2 ("Reekskoppeling") staat het toe voor beheerder/maker van de reeks (nodig voor "deze en volgende"). Voorstel: AC-014 formeel gelijktrekken met TD §5.2 (gebouwd volgens TD, D-013). Gevolg: geen functionele wijziging. — status: voor te leggen
-- W-02 (2026-09-28): TD §4.1 zegt dat `@supabase/ssr` Secure zelf zet; dat klopt niet. De app zet het nu zelf (D-019). Voorstel: tekst in TD corrigeren. Gevolg: geen. — status: voor te leggen
+- W-01 (2026-09-28): AC-014 noemt `occurrence_date` onveranderlijk; TD §5.2 ("Reekskoppeling") staat het toe voor beheerder/maker van de reeks (nodig voor "deze en volgende"). Voorstel: AC-014 formeel gelijktrekken met TD §5.2 (gebouwd volgens TD, D-013). Gevolg: geen functionele wijziging. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); tekstaanpassing volgt bij het eerstvolgende /design-go intrekken → aanpassen → /design-go
+- W-02 (2026-09-28): TD §4.1 zegt dat `@supabase/ssr` Secure zelf zet; dat klopt niet. De app zet het nu zelf (D-019). Voorstel: tekst in TD corrigeren. Gevolg: geen. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); tekstaanpassing volgt samen met W-01
 
 ## Bewust geaccepteerde open punten (alleen met besluit van Jurgen)
 - (geen)
