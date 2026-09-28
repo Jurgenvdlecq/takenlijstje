@@ -8,7 +8,7 @@ import "server-only";
  *  4. dag- en avondoverzicht
  */
 import { todayIn } from "@/domain/dates";
-import { summaryMessages, taskMessages, type ReminderPrefs } from "@/domain/reminders";
+import { recipientsFor, summaryMessages, taskMessages, type ReminderPrefs } from "@/domain/reminders";
 import { isOverdue } from "@/domain/status";
 import { createAdminClient } from "./admin-client";
 import type { HouseholdRow, MemberRow, PreferencesRow, TaskRow } from "@/types/database";
@@ -70,9 +70,12 @@ async function sendDueMessages(household: HouseholdRow, now: Date): Promise<numb
   const withAccount = (members as MemberRow[]).filter((m) => m.user_id);
   const prefsFor = (memberId: string) => toPrefs((prefs as PreferencesRow[]).find((p) => p.member_id === memberId));
   let sent = 0;
+  // Vooraf filteren: alleen wie deze soort aan heeft (V-23), zodat er geen
+  // lege notify-aanroepen zijn en `sent` echte meldingen telt
+  const wants = (type: Parameters<typeof recipientsFor>[0], memberId: string) =>
+    recipientsFor(type, members as MemberRow[], prefs as PreferencesRow[]).includes(memberId);
 
   // Iedereen met een account krijgt de meldingen die hij aan heeft staan
-  // (V-23); welke soort iemand wil, filtert de dispatcher (recipientsFor)
   for (const task of tasks as TaskRow[]) {
     for (const member of withAccount) {
       const messages = taskMessages(
@@ -90,6 +93,7 @@ async function sendDueMessages(household: HouseholdRow, now: Date): Promise<numb
         tz,
       );
       for (const message of messages) {
+        if (!wants(message.type, member.id)) continue;
         await notify({ householdId: household.id, memberIds: [member.id], message });
         sent++;
       }
@@ -107,6 +111,7 @@ async function sendDueMessages(household: HouseholdRow, now: Date): Promise<numb
   for (const member of withAccount) {
     const messages = summaryMessages(prefsFor(member.id), now, tz, counts);
     for (const message of messages) {
+      if (!wants(message.type, member.id)) continue;
       await notify({ householdId: household.id, memberIds: [member.id], message: { ...message, url: "/" } });
       sent++;
     }

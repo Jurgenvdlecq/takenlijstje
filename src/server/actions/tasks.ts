@@ -54,22 +54,21 @@ export async function completeTaskAction(raw: z.input<typeof completeInput>): Pr
       }),
     ) as CompletionRow;
 
-    // Volgende uitvoering inplannen (meestal staat die er al door de planningshorizon)
-    if (completion.recurrence_id) {
-      await topUp(household.id, [completion.recurrence_id]);
-    }
-
-    // Iedereen die "taak gedaan" aan heeft, ook wie afvinkte; zonder naam,
-    // zodat tekst en ontvangers niet verraden wie het deed (V-21, V-38a)
-    await notify({
-      householdId: household.id,
-      message: {
-        type: "task_completed",
-        title: `${completion.title} is gedaan`,
-        taskId: completion.task_id,
-        dedupeKey: `completed:${completion.id}`,
-      },
-    });
+    // Volgende uitvoering inplannen, en iedereen die "taak gedaan" aan heeft
+    // informeren, ook wie afvinkte; zonder naam, zodat tekst en ontvangers niet
+    // verraden wie het deed (V-21, V-38a). Beide onafhankelijk, dus tegelijk.
+    await Promise.all([
+      completion.recurrence_id ? topUp(household.id, [completion.recurrence_id]) : Promise.resolve(),
+      notify({
+        householdId: household.id,
+        message: {
+          type: "task_completed",
+          title: `${completion.title} is gedaan`,
+          taskId: completion.task_id,
+          dedupeKey: `completed:${completion.id}`,
+        },
+      }),
+    ]);
 
     return completion;
   });
