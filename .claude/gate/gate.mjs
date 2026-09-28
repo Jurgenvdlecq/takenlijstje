@@ -282,6 +282,16 @@ function analyzeBash(cmd, cwd) {
     if (base === "claude") res.flags.add("claude-cli");
     if (base === "eval") { res.flags.add("obfuscatie"); res.unknownWrite = true; }
     if (base === "base64" && has("-d", "--decode")) res.flags.add("obfuscatie");
+    // su/runuser -c "…": de binnenste opdracht telt mee (anders een omweg om
+    // scripts van buiten het project of verborgen schrijfacties uit te voeren)
+    if (["su", "runuser"].includes(base)) {
+      const ci = args.indexOf("-c");
+      if (ci >= 0 && args[ci + 1]) {
+        const inner = analyzeBash(args[ci + 1], cwd);
+        res.targets.push(...inner.targets); inner.flags.forEach((f) => res.flags.add(f));
+        res.unknownWrite ||= inner.unknownWrite; res.installs.push(...inner.installs); res.execScripts.push(...inner.execScripts);
+      }
+    }
     if (["bash", "sh", "zsh", "dash"].includes(base)) {
       const ci = args.indexOf("-c");
       if (ci >= 0 && args[ci + 1]) {

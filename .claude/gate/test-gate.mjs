@@ -118,6 +118,10 @@ expect("DECISIONS schrijfbaar", run(d, "pretool", W("docs/DECISIONS.md")), "allo
 expect("status blijft beschermd na freeze", run(d, "pretool", W(".claude/state/gate.json")), "deny");
 expect("test-writer testbestand", run(d, "pretool", W("src/lib/punten.test.ts", "x", AG("test-writer"))), "allow");
 expect("test-writer productiecode", run(d, "pretool", W("src/lib/punten.ts", "x", AG("test-writer"))), "deny");
+expect("test-writer databasetest", run(d, "pretool", W("supabase/tests/20_rechten.sql", "x", AG("test-writer"))), "allow");
+expect("test-writer migratie", run(d, "pretool", W("supabase/migrations/x.sql", "x", AG("test-writer"))), "deny");
+expect("test-writer script buiten project via su -c", run(d, "pretool", B('su postgres -c "bash /opt/elders/run.sh"', AG("test-writer"))), "deny");
+expect("test-writer projectscript via su -c", run(d, "pretool", B('su postgres -c "bash supabase/tests/run.sh"', AG("test-writer"))), "allow");
 expect("reviewer schrijft na freeze nog steeds niets", run(d, "pretool", W("src/lib/punten.ts", "x", AG("code-reviewer"))), "deny");
 expect("reviewer mag geen scaffold", run(d, "pretool", B("npx shadcn@latest add button", AG("ux-reviewer"))), "deny");
 expect("builder mag installeren na freeze", run(d, "pretool", B("npm i zod")), "allow");

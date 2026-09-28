@@ -12,6 +12,7 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-28T20:29 — onderhoud aan het agentensysteem vrijgegeven tot 20:59 UTC
 - 2026-09-28T18:50 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-28 — Scopewijziging (V-19/V-21/V-22): geen toewijzing van taken aan personen, geen automatische verdeling, geen ruilen, geen punten/spaardoel, geen registratie van wie afvinkte; iedereen mag afvinken en terugdraaien. Vervangt de overgenomen besluiten over Verdeling, Ruilen en punten in INVENTARIS §2.
 - 2026-09-27T20:43 — Jurgen zet het kwaliteitsniveau op 2 (bestaand project, meerdere gebruikers)
@@ -49,6 +50,7 @@ Volgende stap: WP1 afronden — (1) Jurgen: /onderhoud-go voor schrijfrecht test
 - V-36 t/m V-39 (2026-09-28): "Volg voorstellen" → V-36 beveiliging, gegevensomzetting en herinneringen meteen live; de nieuwe schermen pas samen live als ze allemaal klaar zijn · V-37 wijzigen van naam/details van een taak mag 4–5 tikken kosten; afvinken, verplaatsen en bezig blijven 2 tikken · V-38 (a) melding "taak gedaan" gaat ook naar wie afvinkte · V-39 tijdzone vast op Europe/Amsterdam, alleen zichtbaar, niet wijzigbaar.
 - Totaalvoorstel en toestemmingen (2026-09-28): "Dat is allemaal akkoord .  /design-go" → akkoord met het totaalvoorstel én toestemming voor: pushen naar `main` (live-deploys WP1–WP3) en naar een nieuwe branch `v2-ui`, en wijzigingen aan de live Supabase-database via de koppeling (planner, migraties, inloginstellingen). Let op: `/design-go` stond midden in de zin en is daardoor niet door de poort geregistreerd; Jurgen is gevraagd het als los bericht te typen.
 - Stap 0 WP1 — uitgezette leden (2026-09-28): telling op live (alleen lezen) → 0 leden met account op `is_active = false`. Controle url-check (code-review 19): 0 van 5 meldingen op live hebben een afwijkende url. Geen keuze nodig. Context live: 1 huishouden, 2 leden (1 met account), 69 taken, 1 afvinking.
+- Onderhoud poort (2026-09-28, na `/onderhoud-go` van Jurgen): test-writer mag `supabase/tests/**` schrijven; de poort analyseert nu ook `su`/`runuser -c "…"` (gat gemeld door de test-writer). Poorttest: 101 geslaagd, 0 mislukt.
 
 ## Open vragen
 - (geen)
