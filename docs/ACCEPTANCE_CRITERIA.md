@@ -1196,11 +1196,25 @@ DAN:
 - kan Jurgen dezelfde wijzigingen wel doen.
 **Toets:** DB (positief en negatief) + Int
 
-### AC-177 — Uit het huishouden verwijderd, of het huishouden is verwijderd (WP7; UC-12; plan-critic punt 12)
-GEGEVEN Kai is door een beheerder uit Familie verwijderd, of Jurgen heeft Familie verwijderd terwijl Ellen ingelogd blijft
-WANNEER Kai of Ellen de app daarna opent
-DAN ziet die persoon **eerst een uitleg** dat hij niet meer bij "Familie" hoort, met de weg naar een nieuwe uitnodiging en Uitloggen, **vóór** de keuze "Nieuw huishouden starten". De lokale gegevens van het oude huishouden zijn gewist. De precieze tekst en het scherm volgen UX_SPEC §4.15/§8, zodra die zijn aangevuld
-**Toets:** E2E
+### AC-177 — Niet meer in een huishouden (WP7; UC-12; BR-43, BR-44; plan-critic punt 12; UX_SPEC §4.16, wireframe 22; TECHNICAL_DESIGN §4.6)
+GEGEVEN (a) Ellen heeft Kai uit Familie verwijderd, (b) Jurgen heeft Familie verwijderd terwijl Ellen ingelogd blijft. In beide gevallen staat op het toestel nog de offline-cache van deze gebruiker (`userId`-sleutel)
+WANNEER Kai, respectievelijk Ellen, de app daarna opent, of de eerstvolgende verbinding krijgt
+DAN ziet die persoon **vóór de onboarding** het scherm uit UX_SPEC §4.16:
+- titel "Je hoort niet meer bij ‘Familie’", met de naam uit de cache;
+- de uitleg "Je bent uit dit huishouden gehaald, of het huishouden bestaat niet meer. Wil je er weer bij? Vraag iemand uit je gezin om een nieuwe uitnodiging en open de link.";
+- **Uitloggen** als hoofdknop;
+- kleiner de link **"Een eigen huishouden starten"**. Die vraagt eerst "Weet je het zeker? Je kunt maar bij één huishouden horen. Een uitnodiging van je gezin werkt dan pas weer als je dit huishouden verlaat.". Pas na **Toch starten** volgt de onboarding; Annuleren laat het scherm staan;
+- kleiner de link **"Account verwijderen"**, naar de flow van AC-134;
+- geen onderbalk en geen taken.
+
+Daarna zijn de offline opgeslagen gegevens op het toestel gewist: IndexedDB-cache, wachtrij en paginacache. Opnieuw openen toont dus geen gegevens van Familie meer.
+
+Randgevallen:
+- Is de naam van het huishouden niet bekend, dan luidt de titel "Je hoort niet meer bij een huishouden".
+- **Bewuste grens (TECHNICAL_DESIGN §4.6):** op een toestel zonder cache van deze gebruiker verschijnt direct de onboarding, zonder dit scherm. De database bewaart hiervoor bewust niets over het verwijderde lidmaatschap.
+- De beheerder die het huishouden zelf verwijderde, ziet dit scherm niet. Hij wordt uitgelogd naar `/login` met "Het huishouden is verwijderd." (AC-138).
+- Opent de persoon later een geldige uitnodiging, dan verloopt het accepteren volgens AC-140.
+**Toets:** E2E (Ellen verwijdert Kai → Kai opent de app → dit scherm met "Familie" → Toch starten → onboarding; IndexedDB leeg), plus E2E zonder cache (direct de onboarding) + Vis (wireframe 22)
 
 ### AC-182 — Tijdzone vast op Europe/Amsterdam (WP7; BR-40; V-39; UC-12)
 GEGEVEN het huishouden Familie
