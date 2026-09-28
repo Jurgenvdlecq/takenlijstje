@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectToast, login } from "./helpers";
+import { adminDb, todayAmsterdam } from "./support/db";
 
 test.describe("taken (Jurgen)", () => {
   test.beforeEach(async ({ page }) => {
@@ -33,29 +34,35 @@ test.describe("taken (Jurgen)", () => {
     await expect(overdue).toHaveCount(0);
   });
 
-  test("snelle invoer: 'Planten water geven morgen Ellen'", async ({ page }) => {
-    await page.getByLabel("Snel een taak toevoegen").fill("Planten water geven morgen Ellen");
+  // WP2a: snelle invoer herkent geen persoon meer; de taak is van het huishouden (V-21)
+  test("snelle invoer: 'Planten water geven morgen' → taak voor morgen, zonder persoon", async ({ page }) => {
+    const title = `Planten water geven ${Date.now() % 100000}`;
+    await page.getByLabel("Snel een taak toevoegen").fill(`${title} morgen`);
     await expect(page.getByText("Morgen", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "Toevoegen", exact: true }).click();
-    await expectToast(page, /Planten water geven.*toegevoegd/);
+    await expectToast(page, new RegExp(`${title}.*toegevoegd`));
+    // select("*"): na WP2b bestaat de kolom niet meer; dan is hij hier undefined
+    const { data } = await adminDb().from("tasks").select("*").eq("title", title).single();
+    const row = data as Record<string, unknown>;
+    expect(row.scheduled_date).toBe(todayAmsterdam(1));
+    expect(row.assigned_member_id ?? null).toBeNull();
     await page.goto("/taken");
-    const card = page.getByText("Planten water geven").first();
+    const card = page.getByText(title).first();
     await expect(card).toBeVisible();
     await card.click();
-    await expect(page.getByRole("dialog")).toContainText("Planten water geven");
-    await expect(page.getByLabel("Toewijzen aan")).toHaveValue(/.+/);
-    await expect(page.getByLabel("Toewijzen aan").locator("option:checked")).toHaveText("Ellen");
+    await expect(page.getByRole("dialog")).toContainText(title);
+    await expect(page.getByLabel("Toewijzen aan")).toHaveCount(0);
   });
 
   test("nieuwe terugkerende taak via + Taak", async ({ page }) => {
     await page.getByRole("button", { name: "Nieuwe taak" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Naam taak").fill("Ramen lappen");
-    await dialog.getByRole("button", { name: "Om en om" }).waitFor({ state: "detached" }).catch(() => {});
     await dialog.getByRole("switch").click(); // Herhalen
     await dialog.getByRole("button", { name: "Elke 2 weken" }).click();
     await expect(dialog.getByText(/Elke 2 weken op/)).toBeVisible();
-    await dialog.getByRole("button", { name: "Om en om" }).click();
+    // WP2a: geen verdeling meer (V-21)
+    await expect(dialog.getByRole("button", { name: "Om en om" })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Toevoegen" }).click();
     await expectToast(page, "Terugkerende taak ingepland");
 
@@ -66,12 +73,12 @@ test.describe("taken (Jurgen)", () => {
     await expect(page.getByRole("dialog")).toContainText(/Elke 2 weken op/);
   });
 
-  test("taak ruilen: overnemen vanuit meldingen", async ({ page }) => {
+  // WP2a: ruilen is vervallen (V-21); de meldingenpagina heeft geen "Overnemen" meer
+  test("meldingen: geen ruilverzoeken of 'Overnemen'", async ({ page }) => {
     await page.goto("/meldingen");
-    const takeOver = page.getByRole("button", { name: "Overnemen" }).first();
-    await expect(takeOver).toBeVisible();
-    await takeOver.click();
-    await expectToast(page, "Taak overgenomen");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Overnemen" })).toHaveCount(0);
+    await expect(page.getByText(/ruil/i)).toHaveCount(0);
   });
 
   test("boodschappen toevoegen en afvinken", async ({ page }) => {

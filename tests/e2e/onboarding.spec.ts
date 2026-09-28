@@ -12,14 +12,12 @@ test("nieuw account → huishouden inrichten → dashboard; ziet niets van een a
   // Stap 1
   await page.getByLabel("Hoe heet je huishouden?").fill("Huize Zonnebloem");
   await page.getByRole("button", { name: /Volgende/ }).click();
-  // Stap 2: gezinslid toevoegen
-  await page.getByLabel("Naam van gezinslid").fill("Tim");
-  await page.getByRole("button", { name: "Toevoegen", exact: true }).click();
-  await expect(page.getByText("Tim")).toBeVisible();
-  await page.getByRole("button", { name: /Volgende/ }).click();
-  // Stap 3-5: standaard aangevinkte taken, frequentie en verdeling accepteren
-  for (const heading of [/Welke taken/, /Hoe vaak/, /Hoe verdelen/]) {
+  // WP2a: geen stap "gezinsleden zonder account" en geen stap "verdeling" meer (V-21);
+  // alleen standaardtaken en hoe vaak
+  for (const heading of [/Welke taken/, /Hoe vaak/]) {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);
+    await expect(page.getByLabel("Naam van gezinslid")).toHaveCount(0);
+    await expect(page.getByText(/Hoe verdelen|Om en om|Wie\?/)).toHaveCount(0);
     await page.getByRole("button", { name: /Volgende|Verder|Klaar/ }).last().click();
   }
   await expect(page.getByText(/Je huishouden is klaar/)).toBeVisible({ timeout: 20_000 });
