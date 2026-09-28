@@ -834,6 +834,15 @@ select pg_temp.expect_error(format(
 -- =============================================================================
 select pg_temp.als(:'u_solo');
 select public.create_household('Weg', 'Solo') as weg_h \gset
+select id as weg_admin from public.household_members where household_id = :'weg_h' \gset
+insert into public.household_members (household_id, display_name) values (:'weg_h', 'Kind');
+insert into public.tasks (household_id, title, scheduled_date, created_by_member_id) values (:'weg_h', 'Opruimen', current_date, :'weg_admin');
+select pg_temp.assert(pg_temp.rows(format($$delete from public.households where id = %L$$, :'weg_h')) = 1,
+  'FK-cascade: enige beheerder verwijdert zijn huishouden zonder guard-fout');
+reset role;
+select pg_temp.assert((select count(*) = 0 from public.household_members where household_id = :'weg_h'), 'FK-cascade: leden mee weg');
+select pg_temp.assert((select count(*) = 0 from public.tasks where household_id = :'weg_h'), 'FK-cascade: taken mee weg');
+set role authenticated;
 -- =============================================================================
 -- Notities: plaatsen als jezelf, verwijderen eigen of beheerder (TD §5.2)
 -- =============================================================================
