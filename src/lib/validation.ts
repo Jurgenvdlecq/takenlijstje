@@ -38,8 +38,6 @@ export const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Ongeldige kleur")
 export const reminderList = z.array(z.number().int().min(0).max(10080)).max(5).default([]);
 
 export const recurrenceInput = z.object({
-  /** Door de client gegenereerd: dubbel versturen geeft één reeks (BR-10) */
-  recurrenceId: uuid.optional(),
   rule: recurrenceRuleSchema,
   endsOn: isoDate.nullable().optional(),
 });
@@ -47,7 +45,7 @@ export const recurrenceInput = z.object({
 export const taskInput = z
   .object({
     /** Door de client gegenereerd, zodat opnieuw versturen (offline) geen dubbele taak geeft */
-    id: uuid.optional(),
+    id: uuid,
     title: trimmed(1, 80, "Naam taak"),
     description: optionalText(1000),
     category: taskCategory.default("other"),
@@ -59,7 +57,8 @@ export const taskInput = z
     dueTime: timeOfDay.nullable().optional(),
     durationMinutes: z.number().int().min(1).max(1440).nullable().optional(),
     reminderMinutesBefore: reminderList,
-    recurrence: recurrenceInput.nullable().optional(),
+    /** Bij een nieuwe reeks: ook de reeks-id komt van de client (BR-10, R-03) */
+    recurrence: recurrenceInput.extend({ recurrenceId: uuid }).nullable().optional(),
     templateId: uuid.nullable().optional(),
   })
   .refine((t) => !t.dueDate || t.dueDate >= t.scheduledDate, {
@@ -161,7 +160,7 @@ export const templateActivationInput = z.object({
     .array(
       z.object({
         /** Door de client gegenereerd: dubbel activeren geeft één reeks (R-03) */
-        recurrenceId: uuid.optional(),
+        recurrenceId: uuid,
         templateId: uuid,
         title: trimmed(1, 80, "Naam taak").optional(),
         rule: recurrenceRuleSchema,

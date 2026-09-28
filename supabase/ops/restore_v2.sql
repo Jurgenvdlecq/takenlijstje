@@ -11,7 +11,18 @@
 --  3. de functies van vóór …_210 terugzetten, zodat de code van WP2a (en de
 --     code daarvóór) weer werkt.
 -- Wijzigingen die ná M6 zijn gedaan aan de teruggezette kolommen gaan verloren.
+-- Eén transactie (begin … commit); zie de opmerking in …_210 over hulpmiddelen
+-- die zelf een transactie openen.
 -- =============================================================================
+
+begin;
+
+-- Wat …_210 extra toevoegde, weer weghalen; de insert-policy van WP1 terug
+drop index if exists public.shopping_lists_one_active_idx;
+alter table public.households drop constraint if exists households_timezone_amsterdam;
+create policy "members: beheerder voegt toe" on public.household_members
+  for insert to authenticated
+  with check (private.is_admin(household_id) and user_id is null);
 
 -- Tijdens het terugzetten blijven "bijgewerkt op"-tijden zoals in de back-up
 alter table public.households disable trigger households_updated_at;
@@ -578,3 +589,5 @@ alter table public.households enable trigger households_updated_at;
 alter table public.task_recurrences enable trigger task_recurrences_updated_at;
 alter table public.tasks enable trigger tasks_updated_at;
 alter table public.user_preferences enable trigger user_preferences_updated_at;
+
+commit;

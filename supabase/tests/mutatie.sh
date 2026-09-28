@@ -15,6 +15,7 @@ import os, shutil, subprocess, sys
 root, work = sys.argv[1], sys.argv[2]
 R = '20260928000110_reeks_rpcs.sql'
 A = '20260928000100_rechten_actief_lid.sql'
+E = '20260928000200_scope_expand.sql'
 muts = {
   # B-01: reeks-RPC's zonder rechtencheck
   'reeks_rpc_zonder_rechtencheck': (R, """  if not private.can_manage_series(p_recurrence_id) then
@@ -90,8 +91,98 @@ create policy "push: bijwerken als actief lid\"""", """    user_id = (select aut
   );
 create policy "push: bijwerken als actief lid\""""),
   # AC-028 (B-04)
-  'private_functies_aanroepbaar': (R, "revoke execute on all functions in schema private from public, anon, authenticated;\ngrant execute on function",
-                                   "grant execute on function"),
+  # WP2a: …_200 herhaalt de revoke, dus de mutatie moet in beide migraties
+  'private_functies_aanroepbaar': [(R, "revoke execute on all functions in schema private from public, anon, authenticated;\ngrant execute on function",
+                                    "grant execute on function"),
+                                   (E, "revoke execute on all functions in schema private from public, anon, authenticated;\ngrant execute on function",
+                                    "grant execute on function")],
+  # ---- WP2a (…_200) ----
+  'afvinken_met_persoon': [(E, "duration_minutes, note, client_mutation_id\n  ) values (", "duration_minutes, note, client_mutation_id, member_id\n  ) values ("),
+                           (E, "nullif(trim(p_note), ''), p_mutation_id\n  )", "nullif(trim(p_note), ''), p_mutation_id, private.my_member_id(v_task.household_id)\n  )")],
+  'oude_signatuur_schrijft_persoon': (E, """  select * from public.complete_task(
+    p_task_id => p_task_id,
+    p_mutation_id => p_mutation_id,
+    p_note => p_note,
+    p_completed_at => p_completed_at
+  );
+$$;""", """  select * from public.complete_task(
+    p_task_id => p_task_id,
+    p_mutation_id => p_mutation_id,
+    p_note => p_note,
+    p_completed_at => p_completed_at
+  );
+  update public.task_completions set member_id = p_completed_by where client_mutation_id = p_mutation_id;
+  select * from public.task_completions where client_mutation_id = p_mutation_id;
+$$;"""),
+  'begrenzing_afvinkmoment_weg': (E, "v_at := least(greatest(coalesce(p_completed_at, now()), now() - interval '7 days'), now());",
+                                  "v_at := coalesce(p_completed_at, now());"),
+  'n2_vreemd_geeft_42501': (E, """  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then
+    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  end if;""", """  select * into v_task from public.tasks where id = p_task_id;
+  if found and not private.is_member(v_task.household_id) then
+    raise exception 'Geen toegang' using errcode = '42501';
+  end if;
+  if not found or v_task.deleted_at is not null then
+    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  end if;"""),
+  'undo_zonder_lidcheck': (E, """  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then
+    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id for update;
+  if v_task.status <> 'done' then""", """  select * into v_task from public.tasks where id = p_task_id;
+  if not found or v_task.deleted_at is not null then
+    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  end if;
+
+  select * into v_task from public.tasks where id = p_task_id for update;
+  if v_task.status <> 'done' then"""),
+  'schrijversnaam_van_client': (E, "  new.author_name := coalesce(\n", "  new.author_name := coalesce(new.author_name,\n"),
+  'guard_notitie_laat_alles_door': (E, "  raise exception 'Een notitie kan niet worden gewijzigd' using errcode = '42501';", "  return new;"),
+  'naam_sync_weg': (E, """create trigger household_members_sync_comment_author
+  after update of display_name on public.household_members
+  for each row execute function private.sync_comment_author();""", ""),
+  'gezinslid_standaard_aan': (E, "  v_on boolean := new.role = 'admin';", "  v_on boolean := true;"),
+  'migratie_zet_gezinsleden_niet_uit': (E, "where m.id = p.member_id and m.role = 'member';", "where m.id = p.member_id and false;"),
+  'migratie_raakt_beheerders': (E, "where m.id = p.member_id and m.role = 'member';", "where m.id = p.member_id;"),
+  'migratie_notitie_zonder_lid_leeg': (E, """  'Gezinslid'
+)
+where c.author_name is null;""", """  'Onbekend'
+)
+where c.author_name is null;"""),
+  'br44_create_household': (E, """  if exists (select 1 from public.household_members where user_id = v_user) then
+    raise exception 'Je hoort al bij een ander huishouden. Je kunt maar bij één huishouden horen.'
+      using errcode = 'P0001';
+  end if;
+
+  insert into public.users (id) values""", """  insert into public.users (id) values"""),
+  'br44_accept_invitation': (E, """  if exists (select 1 from public.household_members where user_id = v_user) then
+    raise exception 'Je hoort al bij een ander huishouden. Je kunt maar bij één huishouden horen.'
+      using errcode = 'P0001';
+  end if;
+
+  insert into public.users (id, email)""", """  insert into public.users (id, email)"""),
+  'uitnodiging_ander_adres': (E, "  if v_inv.email is not null and lower(v_inv.email) <> lower(coalesce(v_email, '')) then",
+                              "  if false then"),
+  'archiveren_niet_idempotent': (E, """  if v_list.archived_at is not null then
+    select * into v_new from public.shopping_lists""", """  if false then
+    select * into v_new from public.shopping_lists"""),
+  'geen_unieke_actieve_lijst': (E, """create unique index if not exists shopping_lists_one_active_idx
+  on public.shopping_lists (household_id) where archived_at is null;""", ""),
+  'oudere_lijst_terugzetten': (E, "    raise exception 'Deze lijst kan niet meer worden teruggezet' using errcode = 'P0001';", "    null;"),
+  'huishouden_verwijderen_zonder_naam': (E, "  if v_name is distinct from p_confirm_name then", "  if false then"),
+  'huishouden_verwijderen_door_lid': (E, "  if v_member.role <> 'admin' then", "  if false then"),
+  'account_verwijderen_laatste_beheerder': (E, """  if v_member.role = 'admin' and v_member.is_active and not exists (""", """  if false and not exists ("""),
+  'account_verwijderen_alleen_actief': (E, """  select * into v_member from public.household_members
+  where user_id = (select auth.uid())
+  for update;""", """  select * into v_member from public.household_members
+  where user_id = (select auth.uid()) and is_active
+  for update;"""),
+  'tijdzonecheck_weg': (E, """alter table public.households
+  add constraint households_timezone_amsterdam check (timezone = 'Europe/Amsterdam');""", ""),
+  'tijdzone_uit_invoer': (E, "  values (trim(p_name), 'Europe/Amsterdam', v_user)", "  values (trim(p_name), coalesce(p_timezone, 'Europe/Amsterdam'), v_user)"),
 }
 gevangen = 0
 for name, spec in muts.items():
@@ -121,6 +212,20 @@ for name, spec in muts.items():
             out = next((l[l.find('ERROR'):] for l in r.stderr.splitlines() if 'ERROR' in l), r.stderr.strip())
             break
     subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}'], capture_output=True)
+    if ok:
+        # Upgrade-test (AC-053, AC-179): oud schema + oude gegevens → …_200 → controles
+        subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}', '-c', f'create database {db}'], capture_output=True)
+        migs = sorted(os.path.join(d, x) for x in os.listdir(d))
+        stappen = ['supabase/tests/00_supabase_stub.sql'] + [m for m in migs if os.path.basename(m) < '20260928000200'] + \
+                  ['supabase/tests/upgrade/voor_200.sql'] + [m for m in migs if os.path.basename(m) >= '20260928000200'] + \
+                  ['supabase/tests/upgrade/na_200.sql']
+        for sql in stappen:
+            r = subprocess.run(psql + ['-d', db, '-f', sql], capture_output=True, text=True)
+            if r.returncode != 0:
+                ok = False
+                out = 'upgrade: ' + next((l[l.find('ERROR'):] for l in r.stderr.splitlines() if 'ERROR' in l), r.stderr.strip())
+                break
+        subprocess.run(psql + ['-d', 'postgres', '-c', f'drop database if exists {db}'], capture_output=True)
     if ok:
         print(f'{name}: NIET GEVANGEN')
     else:

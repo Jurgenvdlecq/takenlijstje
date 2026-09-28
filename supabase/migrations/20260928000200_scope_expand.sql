@@ -11,8 +11,11 @@
 --  * undo_complete_task: ieder actief lid (V-22)
 --  * notities: author_name + triggers (V-34)
 --  * standaardvoorkeuren per rol (V-23), ook eenmalig voor bestaande gezinsleden
---  * boodschappen: archive/unarchive als RPC + één actieve lijst per huishouden
---  * create_household / accept_invitation met BR-44; tijdzone vast (V-39)
+--  * boodschappen: archive/unarchive als RPC (de unieke index "één actieve
+--    lijst" volgt pas in …_210: de oude code maakt eerst een nieuwe lijst aan
+--    en zou anders falen bij terugrollen tussen M2 en M6)
+--  * create_household / accept_invitation met BR-44; tijdzone vast (V-39; de
+--    check op de tabel volgt pas in …_210, om dezelfde reden)
 --  * delete_household, delete_my_account
 -- =============================================================================
 
@@ -55,7 +58,7 @@ begin
   end if;
 
   select * into v_task from public.tasks where id = p_task_id for update;
-  if v_task.deleted_at is not null then
+  if not found or v_task.deleted_at is not null then
     raise exception 'Taak niet gevonden' using errcode = 'P0002';
   end if;
 
@@ -140,6 +143,9 @@ begin
   end if;
 
   select * into v_task from public.tasks where id = p_task_id for update;
+  if not found or v_task.deleted_at is not null then
+    raise exception 'Taak niet gevonden' using errcode = 'P0002';
+  end if;
   if v_task.status <> 'done' then
     return v_task;
   end if;
@@ -284,10 +290,9 @@ from public.household_members m
 where m.id = p.member_id and m.role = 'member';
 
 -- -----------------------------------------------------------------------------
--- Boodschappen: precies één actieve lijst; archiveren idempotent (BR-42, R-03)
+-- Boodschappen: archiveren idempotent (BR-42, R-03). De rijlock op p_list_id
+-- maakt dubbel archiveren veilig; de unieke index volgt in …_210.
 -- -----------------------------------------------------------------------------
-create unique index if not exists shopping_lists_one_active_idx
-  on public.shopping_lists (household_id) where archived_at is null;
 
 create or replace function public.archive_shopping_list(p_list_id uuid)
 returns public.shopping_lists
@@ -376,10 +381,10 @@ end;
 $$;
 
 -- -----------------------------------------------------------------------------
--- Eén huishouden per persoon (BR-44); tijdzone vast (V-39)
+-- Eén huishouden per persoon (BR-44); tijdzone vast (V-39). De advisory lock per
+-- gebruiker voorkomt dat een dubbeltik twee lidmaatschappen maakt, tot
+-- unique (user_id) in …_210 bestaat.
 -- -----------------------------------------------------------------------------
-alter table public.households
-  add constraint households_timezone_amsterdam check (timezone = 'Europe/Amsterdam');
 
 create or replace function public.create_household(
   p_name text,
@@ -401,6 +406,7 @@ begin
     raise exception 'Niet ingelogd' using errcode = '42501';
   end if;
 
+  perform pg_advisory_xact_lock(hashtext('takenlijstje.lid:' || v_user::text));
   if exists (select 1 from public.household_members where user_id = v_user) then
     raise exception 'Je hoort al bij een ander huishouden. Je kunt maar bij één huishouden horen.'
       using errcode = 'P0001';
@@ -437,6 +443,8 @@ begin
     raise exception 'Niet ingelogd' using errcode = '42501';
   end if;
 
+  perform pg_advisory_xact_lock(hashtext('takenlijstje.lid:' || v_user::text));
+
   select * into v_inv from public.household_invitations
   where token = p_token
   for update;
@@ -445,12 +453,17 @@ begin
     raise exception 'Uitnodiging is ongeldig of verlopen' using errcode = 'P0002';
   end if;
 
-  -- Al lid van dit huishouden? Dan alleen afronden (ook bij een tweede tik).
+  select email into v_email from auth.users where id = v_user;
+
+  -- Al lid van dit huishouden? Dan geen tweede lidrij. De uitnodiging wordt
+  -- alleen afgerond als hij voor deze persoon geldig is, zodat een beheerder
+  -- die zijn eigen link test, hem niet verbruikt voor de echte ontvanger.
   if exists (
     select 1 from public.household_members
     where household_id = v_inv.household_id and user_id = v_user
   ) then
-    if v_inv.accepted_at is null then
+    if v_inv.accepted_at is null and v_inv.expires_at >= now()
+       and (v_inv.email is null or lower(v_inv.email) = lower(coalesce(v_email, ''))) then
       update public.household_invitations
       set accepted_at = now(), accepted_by = v_user
       where id = v_inv.id;
@@ -462,7 +475,6 @@ begin
     raise exception 'Uitnodiging is ongeldig of verlopen' using errcode = 'P0002';
   end if;
 
-  select email into v_email from auth.users where id = v_user;
   if v_inv.email is not null and lower(v_inv.email) <> lower(coalesce(v_email, '')) then
     raise exception 'Deze uitnodiging is voor een ander e-mailadres. Log in met dat adres of vraag een nieuwe link.'
       using errcode = '42501';
@@ -548,6 +560,10 @@ begin
     return true;
   end if;
 
+  -- Het huishouden locken vóór de telling: twee beheerders die tegelijk hun
+  -- account opheffen, kunnen het huishouden zo niet zonder beheerder laten
+  perform 1 from public.households where id = v_member.household_id for update;
+
   if v_member.role = 'admin' and v_member.is_active and not exists (
     select 1 from public.household_members
     where household_id = v_member.household_id and role = 'admin' and is_active and id <> v_member.id
@@ -580,9 +596,13 @@ grant execute on function
   public.complete_task(uuid, uuid, uuid, text, timestamptz),
   public.archive_shopping_list(uuid),
   public.unarchive_shopping_list(uuid),
-  public.delete_household(text),
-  public.delete_my_account()
+  public.delete_household(text)
 to authenticated;
+
+-- delete_my_account hoort bij "Account verwijderen" (wachtwoordcheck + het
+-- account zelf, TECHNICAL_DESIGN §4.5) en gaat pas in WP7 open. Tot dan kan
+-- niemand via de API zijn lidmaatschap los opheffen (security-review WP2a, 3).
+revoke execute on function public.delete_my_account() from authenticated;
 
 -- Nieuwe functies in "private" (triggers) zijn niet aanroepbaar (B-04, AC-028)
 revoke execute on all functions in schema private from public, anon, authenticated;

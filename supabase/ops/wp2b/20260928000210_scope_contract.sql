@@ -10,7 +10,12 @@
 -- heen (en draait lokaal mee) in WP2b, na M6 op live.
 --
 -- Terugrollen: supabase/ops/restore_v2.sql (getest in M0).
+-- Het script staat in één transactie (begin … commit). Via een hulpmiddel dat
+-- zelf al een transactie opent (bijv. MCP apply_migration), laat je begin/commit
+-- weg; met psql gebruik je het bestand zoals het is.
 -- =============================================================================
+
+begin;
 
 -- -----------------------------------------------------------------------------
 -- 1. Gegevens wissen volgens BR-46.3
@@ -224,6 +229,18 @@ alter table public.household_members
   add constraint household_members_user_id_key unique (user_id),
   add constraint household_members_user_id_fkey foreign key (user_id) references public.users (id) on delete cascade;
 
+-- Leden zonder account bestaan niet meer: deze insert-policy is overbodig
+drop policy if exists "members: beheerder voegt toe" on public.household_members;
+
+-- Precies één actieve boodschappenlijst per huishouden (M1(c) = 0); pas hier,
+-- omdat de oude code eerst een nieuwe lijst maakte (terugrollen tot M6)
+create unique index shopping_lists_one_active_idx
+  on public.shopping_lists (household_id) where archived_at is null;
+
+-- Tijdzone vast (V-39; M1(f) = 0)
+alter table public.households
+  add constraint households_timezone_amsterdam check (timezone = 'Europe/Amsterdam');
+
 -- -----------------------------------------------------------------------------
 -- 4. Enums
 -- -----------------------------------------------------------------------------
@@ -251,3 +268,5 @@ grant execute on function
   private.can_manage_series(uuid),
   private.can_delete_task(uuid, uuid)
 to authenticated;
+
+commit;

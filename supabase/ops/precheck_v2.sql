@@ -47,6 +47,10 @@ select 'e_toewijzingen (task_assignments)' as soort, count(*) as aantal from pub
 union all select 'e_ruilverzoeken (task_swap_requests)', count(*) from public.task_swap_requests
 union all select 'e_afwezigheden (member_absences)', count(*) from public.member_absences
 union all select 'e_leden_zonder_account', count(*) from public.household_members where user_id is null
+union all select 'e_leden_met_email_in_ledenlijst', count(*) from public.household_members where email is not null
+union all select 'e_leden_met_avatar_url', count(*) from public.household_members where avatar_url is not null
+union all select 'e_eigen_standaardtaken_met_punten', count(*) from public.task_templates where household_id is not null and points is not null
+union all select 'e_taken_met_toewijzingsreden', count(*) from public.tasks where assignment_reason is not null
 union all select 'e_taken_met_toegewezen_persoon', count(*) from public.tasks where assigned_member_id is not null
 union all select 'e_taken_met_wie_afvinkte', count(*) from public.tasks where completed_by_member_id is not null
 union all select 'e_taken_met_punten', count(*) from public.tasks where points is not null

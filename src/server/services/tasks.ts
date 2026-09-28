@@ -35,7 +35,7 @@ export async function createTask(
   const tz = household.timezone;
 
   if (input.recurrence) {
-    const recurrenceId = input.recurrence.recurrenceId ?? crypto.randomUUID();
+    const recurrenceId = input.recurrence.recurrenceId;
     // Rechtenstap: insert met de gebruikersclient (RLS can_create_tasks);
     // bestaat de reeks al (tweede verzoek), dan verandert er niets
     check(
@@ -87,7 +87,7 @@ export async function createTask(
     tz,
   );
 
-  const id = input.id ?? crypto.randomUUID();
+  const id = input.id;
   const row = {
     id,
     household_id: household.id,

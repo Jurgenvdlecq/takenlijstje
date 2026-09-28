@@ -1,7 +1,10 @@
 -- =============================================================================
 -- M3 — Back-up vóór het wissen (TECHNICAL_DESIGN §12.4; V-33; AC-056)
 --
--- Vervang __BACKUP__ door backup_v2_<JJJJMMDD> (bijv. backup_v2_20261003).
+-- Vervang __BACKUP__ door backup_v2_<JJJJMMDD> (bijv. backup_v2_20261003),
+-- in KLEINE letters (create schema zet de naam om naar kleine letters, format('%I') niet).
+-- Eén transactie met één momentopname (repeatable read): de back-up is ook
+-- consistent tussen tabellen als het gezin de app intussen gebruikt.
 -- Kopieert ALLE tabellen van "public" 1-op-1 naar dat schema, binnen hetzelfde
 -- project. Geen los exportbestand; er verlaten geen gegevens het project.
 -- Het schema wordt niet via de API ontsloten en is dicht voor anon/authenticated.
@@ -9,6 +12,8 @@
 -- Enum-kolommen worden als tekst bewaard: zo blijft de back-up geldig nadat
 -- …_210 enumwaarden en -typen verwijdert, en kan restore_v2.sql ze terugzetten.
 -- =============================================================================
+
+begin transaction isolation level repeatable read;
 
 create schema __BACKUP__;
 revoke all on schema __BACKUP__ from public, anon, authenticated;
@@ -56,6 +61,8 @@ begin
   end if;
 end;
 $$;
+
+commit;
 
 select t.tablename as tabel,
        (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from public.%I', t.tablename), false, true, '')))[1]::text::bigint as live,

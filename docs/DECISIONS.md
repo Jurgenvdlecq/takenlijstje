@@ -101,3 +101,19 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - De tick roept `notify` alleen nog aan voor leden die die soort melding aan hebben (vooraf gefilterd met `recipientsFor`), en telt alleen die aanroepen.
   - Bij afvinken lopen `topUp` en `notify` tegelijk. Beide vangen hun eigen fouten op.
   - Punt 3 (`select("*")` in de snapshot) volgt in WP4. De push-time-out volgt in WP3.
+- **D-037: herstel na code-review en security-review van WP2a.**
+  - **Code-review 1 — expand blijft compatibel met de vorige code.** De unieke index "één actieve boodschappenlijst" en de tijdzonecheck staan niet in `…_200` maar in `…_210`. De oude code maakte eerst een nieuwe lijst aan en had een tijdzoneveld; terugrollen tussen M2 en M6 werkt zo, zoals TD §12.4 belooft. `restore_v2.sql` haalt ze weer weg. Archiveren is intussen al idempotent via de rijlock op `p_list_id` in de RPC.
+  - **Code-review 2.** De notities in de oude UI tonen altijd `author_name` (TD §3.1, AC-062). Kleur en emoji komen van het lid, als dat nog bestaat.
+  - **Code-review 3 / security 7.** `…_210` en `restore_v2.sql` staan in één transactie (`begin … commit`). De back-up en de restore-test gebruiken één momentopname (repeatable read).
+  - **Code-review 4.** M0 laadt de oude gegevens vóór `…_200` en controleert AC-053 en AC-179, en de uitvoer van de migraties is zichtbaar.
+  - **Code-review 5 / security 2.** Een advisory lock per gebruiker in `create_household` en `accept_invitation`: een dubbeltik geeft geen twee lidmaatschappen, ook vóór `unique (user_id)`.
+  - **Code-review 6.** In `complete_task`/`undo_complete_task` geeft een taak die tussen de twee reads verdwijnt, "Taak niet gevonden".
+  - **Code-review 7.** Het pad "al lid" in `accept_invitation` rondt de uitnodiging alleen af als die geldig is en voor dit e-mailadres bedoeld is (AC-047: "alleen afronden, zonder tweede lidrij"). Zo verbruikt een beheerder die zijn eigen link test, die link niet.
+  - **Code-review 9.** De voorcontroles tellen ook e-mail en avatar in de ledenlijst, eigen standaardtaken met punten, en taken met een toewijzingsreden.
+  - **Code-review 10.** `activeList` zoekt alleen opnieuw bij 23505 en meldt andere fouten gewoon.
+  - **Code-review 11.** De door de client gegenereerde id's (taak, nieuwe reeks, uitnodiging, standaardtaken) zijn verplicht in zod (TD §6.1).
+  - **Code-review 12.** "Ongedaan maken" na "Lijst afgerond" blijft in de oude UI. AC-051 hoort bij WP2 én WP8, en de RPC is er nu; zonder knop zou de nieuwe RPC ongebruikt en ongetest blijven. Het is klein en weg te laten als Jurgen dat wil.
+  - **Code-review 13 / security 4.** In `…_210` vervalt de insert-policy voor leden zonder account.
+  - **Security 1.** `delete_my_account` lockt eerst het huishouden en telt pas daarna de beheerders.
+  - **Security 3.** `delete_my_account` is niet aanroepbaar (`revoke … from authenticated`) tot WP7, waar "Account verwijderen" met wachtwoordcheck komt. Dit is geen nieuwe productkeuze: het houdt de app gelijk aan de spec, waarin "huishouden verlaten zonder account te verwijderen" niet voorkomt.
+  - **Security 5.** `activateTemplatesAction` plant alleen in wat de upsert werkelijk heeft aangemaakt.

@@ -105,6 +105,9 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - WP1, code-review r3 punt 1: een "weesreeks" (omzetten naar terugkerend half mislukt) blokkeert die omzetting voor anderen; de melding belooft dat opnieuw proberen helpt. Zeldzaam; tekst en afhandeling herzien in WP6 (splitsen `updateTaskAction`).
 - WP1, code-review r3 punt 2: na één keer herladen wordt een tweede "geen huishouden" stil genegeerd. Loggen of naar `/` sturen in WP4 (nieuwe store).
 - WP1, ESLint-omwegen met template literal, tekst-sleutel of variabele (`process.env[naam]`) worden niet gevangen; alleen opzettelijk misbruik. Eventueel een grep-controle in WP9.
+- WP2a, security 6: een ex-lid kan de omzetting "losse taak wordt terugkerend" voor één bekende taak-id blokkeren door vooraf een reeks met die id te maken (DoS, geen lek). Eventueel een afgeleide reeks-id (uuidv5) in WP6.
+- WP2a, security 8 (= WP1 N3): TD §4.1 noemt WP8 voor de script-CSP met nonce, D-018/§15 zeggen WP9. WP9 geldt.
+- WP2a, performance 3: `select("*")` in de snapshot neemt vervallen kolommen mee tot M6; expliciete kolommen in WP4.
 - WP1, security N3: TD §4.1 noemt WP8 voor de script-CSP met nonce; D-018 en TD §15 zeggen WP9. WP9 geldt, niet verder uitstellen.
 
 ## Technische schuld

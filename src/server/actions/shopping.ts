@@ -20,7 +20,11 @@ async function activeList(db: DbClient, householdId: string): Promise<ShoppingLi
   if (data) return data as ShoppingListRow;
   const inserted = await db.from("shopping_lists").insert({ household_id: householdId }).select("*").single();
   if (!inserted.error) return inserted.data as ShoppingListRow;
-  return check(await find()) as ShoppingListRow;
+  // Alleen "bestaat al" (race, 23505) opnieuw zoeken; elke andere fout gewoon melden
+  if (inserted.error.code !== "23505") throw inserted.error;
+  const existing = check(await find()) as ShoppingListRow | null;
+  if (!existing) throw inserted.error;
+  return existing;
 }
 
 export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInput>): Promise<ActionResult<ShoppingItemRow>> {

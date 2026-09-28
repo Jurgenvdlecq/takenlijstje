@@ -116,7 +116,7 @@ export async function removeMemberAction(memberId: string): Promise<ActionResult
 // Uitnodigingen
 // ---------------------------------------------------------------------------
 export async function createInvitationAction(raw: {
-  id?: string;
+  id: string;
   email?: string | null;
   role?: "admin" | "member";
 }): Promise<ActionResult<{ url: string; expiresAt: string }>> {
@@ -125,13 +125,13 @@ export async function createInvitationAction(raw: {
     const input = parse(
       z.object({
         /** Door de client gegenereerd: dubbel tikken geeft één uitnodiging (R-03) */
-        id: uuid.optional(),
+        id: uuid,
         email: z.email("Ongeldig e-mailadres").nullable().optional().or(z.literal("").transform(() => null)),
         role: z.enum(["admin", "member"]).default("member"),
       }),
       raw,
     );
-    const id = input.id ?? crypto.randomUUID();
+    const id = input.id;
     check(
       await supabase.from("household_invitations").upsert(
         {
@@ -183,7 +183,7 @@ export async function activateTemplatesAction(raw: z.input<typeof templateActiva
       const template = templates.find((t) => t.id === item.templateId);
       if (!template) throw new UserError("Onbekende standaardtaak.");
       return {
-        id: item.recurrenceId ?? crypto.randomUUID(),
+        id: item.recurrenceId,
         household_id: household.id,
         template_id: template.id,
         title: item.title ?? template.title,
@@ -199,8 +199,12 @@ export async function activateTemplatesAction(raw: z.input<typeof templateActiva
 
     // Met de gebruikersclient (RLS can_create_tasks); dubbel activeren met
     // dezelfde id's geeft geen extra reeksen (R-03)
-    check(await supabase.from("task_recurrences").upsert(rows, { onConflict: "id", ignoreDuplicates: true }));
-    await topUp(household.id, rows.map((r) => r.id));
+    const inserted = check(
+      await supabase.from("task_recurrences").upsert(rows, { onConflict: "id", ignoreDuplicates: true }).select("id"),
+    ) as { id: string }[];
+    // Alleen inplannen wat deze aanroep echt heeft aangemaakt (TD §5.3); bij een
+    // tweede verzoek is dat niets, en staat de planning er al
+    if (inserted.length) await topUp(household.id, inserted.map((r) => r.id));
     return rows.length;
   });
 }

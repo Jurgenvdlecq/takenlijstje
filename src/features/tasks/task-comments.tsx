@@ -87,14 +87,17 @@ export function TaskComments({ taskId }: { taskId: string }) {
       ) : (
         <ul className="grid gap-2">
           {comments.map((c) => {
-            const author = snapshot.members.find((m) => m.id === c.member_id);
+            // De naam komt altijd uit author_name (laatst bekende naam, V-34);
+            // member_id bepaalt alleen kleur/emoji en of je mag verwijderen
+            const member = snapshot.members.find((m) => m.id === c.member_id);
+            const author = { display_name: c.author_name, color: member?.color ?? "#9ca3af", icon: member?.icon ?? null };
             const mine = c.member_id === snapshot.me.id;
             return (
               <li key={c.id} className="flex gap-2.5 rounded-2xl bg-muted/60 p-3">
                 <MemberAvatar member={author} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{author?.display_name ?? "Onbekend"}</span> · {timeAgo(c.created_at)}
+                    <span className="font-medium text-foreground">{c.author_name}</span> · {timeAgo(c.created_at)}
                   </p>
                   <p className="mt-0.5 text-sm break-words whitespace-pre-wrap">{c.body}</p>
                   <div className="mt-1.5 flex gap-1">

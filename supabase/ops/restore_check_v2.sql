@@ -7,6 +7,8 @@
 -- weer verwijderd. Alles identiek → verder; anders STOPPEN.
 -- =============================================================================
 
+begin transaction isolation level repeatable read;
+
 drop schema if exists restore_check cascade;
 create schema restore_check;
 revoke all on schema restore_check from public, anon, authenticated;
@@ -52,3 +54,5 @@ from restore_resultaat
 order by identiek, tabel;
 
 drop schema restore_check cascade;
+
+commit;

@@ -13,11 +13,31 @@ T=("${PSQL[@]}" -d "$DB")
 sub() { sed "s/__BACKUP__/$BK/g" "$1"; }
 
 psql -q -X -d postgres -c "drop database if exists $DB" -c "create database $DB"
-"${T[@]}" -f supabase/tests/00_supabase_stub.sql 2>/dev/null
-for f in supabase/migrations/*.sql; do "${T[@]}" -f "$f" 2>/dev/null; done
-echo "→ schema tot en met expand toegepast"
+"${T[@]}" -f supabase/tests/00_supabase_stub.sql
+# Eerst het schema van vóór WP2a, dan de oude gegevens, dan pas expand (…_200):
+# zo wordt ook de omzetting van bestaande gegevens beproefd (AC-053, AC-179)
+for f in supabase/migrations/*.sql; do
+  [[ "$(basename "$f")" > "20260928000110_zzz" ]] && continue
+  "${T[@]}" -f "$f"
+done
+echo "→ schema tot en met WP1 (…_110) toegepast"
 "${T[@]}" -f supabase/ops/m0/seed_oud.sql
 echo "→ live-achtige testgegevens geladen"
+for f in supabase/migrations/*.sql; do
+  [[ "$(basename "$f")" > "20260928000110_zzz" ]] || continue
+  "${T[@]}" -f "$f"
+done
+echo "→ expand (…_200 en later) toegepast op de bestaande gegevens"
+"${PSQL[@]}" -d "$DB" -At <<'SQL'
+select 'AC-053 gezinsleden_met_meldingen_aan=' || count(*) from public.user_preferences p
+join public.household_members m on m.id = p.member_id
+where m.role = 'member' and (p.notify_reminders or p.notify_deadline_soon or p.notify_overdue
+  or p.daily_summary_enabled or p.evening_summary_enabled or p.notify_task_completed);
+select 'AC-053 beheerders_ongewijzigd=' || bool_and(p.notify_reminders and p.daily_summary_enabled) from public.user_preferences p
+join public.household_members m on m.id = p.member_id where m.role = 'admin';
+select 'AC-179 notities_zonder_schrijver=' || count(*) from public.task_comments where author_name is null;
+select 'AC-179 schrijvers=' || string_agg(author_name, ',' order by author_name) from public.task_comments;
+SQL
 
 echo "── M1 voorcontroles ──"
 sed "s/__DEPLOY_MOMENT__/2026-09-28T00:00:00Z/" supabase/ops/precheck_v2.sql | "${PSQL[@]}" -d "$DB" -P pager=off -f -
@@ -31,6 +51,7 @@ if grep -q " f$" /tmp/m0_restore_check.txt; then echo "✗ restore-test wijkt af
 
 echo "── M6 contract ──"
 "${T[@]}" -f supabase/ops/wp2b/20260928000210_scope_contract.sql
+echo "→ contract (…_210) uitgevoerd in één transactie"
 "${PSQL[@]}" -d "$DB" -P pager=off -At <<'SQL'
 select 'privacy_kolommen=' || count(*) from information_schema.columns
 where table_schema = 'public' and table_name in ('tasks', 'task_completions', 'shopping_items')
