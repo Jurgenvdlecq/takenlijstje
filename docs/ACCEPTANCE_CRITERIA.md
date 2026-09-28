@@ -858,10 +858,11 @@ DAN:
 - blijft een entry die een onbekend antwoord krijgt (bijvoorbeeld een HTML-foutpagina tijdens de deploy), een 5xx, 408, 429 of 401, staan en wordt die later opnieuw geprobeerd:
   - na 5 mislukte pogingen blijft hij staan, met de balk "N wijzigingen konden niet worden verstuurd · Opnieuw";
   - bij 401 staat er "Log opnieuw in om N wijzigingen te versturen";
-- verdwijnt een entry nooit uit de wachtrij zonder dat de gebruiker dat ziet.
+- verdwijnt een entry nooit uit de wachtrij zonder dat de gebruiker dat ziet;
+- geeft `POST /api/outbox` zonder geldige sessie een **HTTP 401 met een JSON-antwoord**. Dus geen redirect naar `/login` en geen HTML-pagina, want dan zou de client het als "onbekend antwoord" behandelen. `proxy.ts` stuurt dit pad niet door. De client laat de entry staan en toont "Log opnieuw in om N wijzigingen te versturen".
 
 Dit geldt vanaf de eerste deploy mét het stabiele wachtrij-endpoint (TECHNICAL_DESIGN §9.3.1). Het eenmalige restrisico bij de allereerste deploy (WP1) wordt vooraf aan Jurgen gemeld, samen met de beperkende maatregel (§9.3.1 punt 5)
-**Toets:** E2E (entry v0 in IndexedDB geïnjecteerd → online na de deploy → precies één registratie) + Int (`POST /api/outbox`: dubbele entry, CSRF-weigering, zonder sessie 401) + Unit (`migrateOutboxEntry`, alle v0-soorten) + Proces (melding aan Jurgen bij de WP1-deploy)
+**Toets:** E2E (entry v0 in IndexedDB geïnjecteerd → online na de deploy → precies één registratie) + Int (`POST /api/outbox`: dubbele entry, CSRF-weigering, zonder sessie 401 met JSON en zonder redirect) + Unit (`migrateOutboxEntry`, alle v0-soorten) + Proces (melding aan Jurgen bij de WP1-deploy)
 
 ---
 
