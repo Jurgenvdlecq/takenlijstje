@@ -52,7 +52,7 @@ Gericht bekeken: hoogwaardige takenapps, een huishoudapp en Apple's richtlijnen.
 Waarom Figtree en niet alleen de systeemletter:
 - Vergeleken op echte inhoud (Figtree, Instrument Sans, Hanken Grotesk, Onest, Inter; tijdelijke vergelijkingspagina, niet bewaard). Figtree heeft ronde, open vormen (warm, gezinsvriendelijk) zonder kinderachtig te worden, heldere cijfers met `tabular-nums` (de tijdkolom staat recht), en is met **20 KB** (latin, variabel) de lichtste van de vijf.
 - Het gezin gebruikt mogelijk niet allemaal een iPhone; de systeemletter zou dan per toestel anders zijn (SF Pro, Roboto, Samsung One). Eén eigen letter geeft één herkenbaar beeld.
-- Techniek: via `next/font/google` (Figtree) of `next/font/local`: wordt bij de build zelf gehost, dus geen verzoek naar Google bij het openen (privacy) en geen verspringende tekst (`font-display: swap` met aangepaste terugvalmaten). Alleen de subset `latin` (inclusief é, ë, ó, ü) en één variabel bestand.
+- Techniek: via **`next/font/local`**, met het bestand Figtree (variabel, subset `latin` inclusief é, ë, ó, ü, ca. 20 KB woff2) in de repository, bijvoorbeeld `src/app/fonts/figtree-latin-wght-normal.woff2`. Bron: het npm-pakket `@fontsource-variable/figtree` (OFL-licentie; licentietekst meeleveren). Geen verzoek naar een externe lettertypedienst, niet bij de build en niet bij het openen (privacy). `display: "swap"` met automatisch aangepaste terugvalmaten (`adjustFontFallback`), zodat de tekst niet verspringt. Het prototype gebruikt hetzelfde bestand (`docs/prototype/visueel/fonts/figtree.woff2`).
 - De terugvalletters worden alleen gebruikt zolang Figtree nog laadt of als het bestand onverhoopt ontbreekt.
 
 **Schaal** (px; 1 px = 1 pt op iPhone). Gewichten via de variabele as.
@@ -329,6 +329,6 @@ Geen open vragen. Besloten door Jurgen (2026-09-28, letterlijk in `docs/PROGRESS
 - `[AANNAME]` De + in de onderbalk heeft geen zichtbaar label, wel `aria-label` (wireframe toonde "Taak"); valt het in de UX-review tegen, dan komt het label terug zonder dat de balk verandert.
 
 **Voor de solution-architect (geen vraag voor Jurgen)**
-- Lettertype via `next/font` (self-hosted, `latin`, variabel) en tokens in één bron in `globals.css` (§4).
+- Lettertype via `next/font/local` (Figtree-woff2 in de repo, `latin`, variabel; §3) en tokens in één bron in `globals.css` (§4).
 - `sonner` naar `bottom-center` met offset boven de onderbalk; `richColors` uit (kleuren komen uit tokens).
 - Chip als gedeeld component; rondje en rij als twee knoppen (A-01).

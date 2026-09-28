@@ -51,7 +51,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 - **Nieuwe criteria na de plan-critic.** Die hebben de nummers AC-170 t/m AC-182 gekregen en staan in de sectie van hun work package. Zo blijven de bestaande verwijzingen kloppen.
 - **WP2 = WP2a + WP2b.** TECHNICAL_DESIGN splitst WP2 in WP2a (code en expand) en WP2b (draaiboek M2–M8).
   - Hier staat "WP2" voor beide.
-  - AC-054 en AC-178/AC-179 horen bij WP2a.
+  - AC-054, AC-073, AC-178 en AC-179 horen bij WP2a. AC-073 staat daarom in de sectie WP2, niet bij WP3 (plan-critic ronde 2, punt 2).
   - AC-055 t/m AC-061 horen bij WP2b.
 - **Regressie.** Elke bevinding uit een review krijgt een extra AC en een test. Die criteria worden na de freeze toegevoegd, via de bouwer in `docs/DECISIONS.md` en een testverwijzing.
 
@@ -260,7 +260,7 @@ DAN ziet de gebruiker een Nederlandse tekst zonder policynaam of stacktrace. De 
 ### AC-170 — Niemand verliest ongemerkt toegang bij de invoering van "uitgezet" (WP1; V-29; plan-critic punt 7)
 GEGEVEN de live database vóór de deploy van WP1
 WANNEER de bouwer met een alleen-lezen telling vaststelt hoeveel leden een account hebben en `is_active = false`
-DAN wordt WP1 alleen uitgerold bij 0. Is de telling groter dan 0, dan legt de bouwer eerst aan Jurgen voor welke leden het zijn, en wordt er niets uitgerold tot hij heeft beslist
+DAN wordt WP1 alleen uitgerold bij 0. Bij 1 of meer toont de bouwer Jurgen de namen, en kiest Jurgen per naam wat er gebeurt: weer aanzetten, uitgezet laten, of verwijderen. Er wordt niets uitgerold tot hij voor elke naam heeft beslist
 **Toets:** Proces + Live (alleen lezen)
 
 ---
@@ -404,6 +404,8 @@ GEGEVEN de voorcontroles op live, alleen lezend, uitgevoerd vóór de eerste mig
 - leden met een account en `is_active = false`.
 WANNEER een van die tellingen niet 0 is
 DAN stopt het draaiboek, wordt er niets gewist of gewijzigd, en legt de bouwer de opties voor aan Jurgen. Hij verzint zelf geen ontdubbelregel
+- **Uitgezette leden met een account:** stoppen bij **1 of meer**. De bouwer toont Jurgen de namen, en Jurgen kiest **per naam** wat er gebeurt: weer aanzetten, uitgezet laten, of verwijderen.
+- Pas daarna gaat de betreffende stap verder (zie ook AC-170 voor de telling vóór WP1).
 **Toets:** Proces
 
 ### AC-056 — Back-up is volledig (WP2; BR-46.1; V-33; M3)
@@ -494,6 +496,20 @@ WANNEER de expand-migratie draait
 DAN heeft elke notitie een `author_name`: de huidige weergavenaam van het lid als dat nog bestaat, en anders "Gezinslid". Geen notitie heeft een lege schrijver
 **Toets:** DB (op een kopie van het oude schema) + Live (alleen lezen: `count(*) where author_name is null` = 0)
 
+### AC-073 — "Taak gedaan" naar iedereen die hem aan heeft, ook de afvinker (WP2a; BR-31; V-21, V-38; plan-critic ronde 2, punt 2)
+GEGEVEN Ellen en Jurgen hebben "taak gedaan" aan staan, Lynn heeft hem uit, en Kai is uitgezet
+WANNEER Ellen "Vaatwasser uitruimen" afvinkt, en in een tweede geval Jurgen dezelfde soort taak afvinkt
+DAN:
+- krijgen **zowel Ellen als Jurgen** in beide gevallen precies één melding "Vaatwasser uitruimen is gedaan", zonder naam;
+- krijgen Lynn en Kai niets;
+- is de set ontvangers in beide gevallen gelijk, zodat uit tekst en ontvangers niet af te leiden is wie afvinkte (V-38, optie a);
+- wordt ook bij dubbel afvinken maar één melding per ontvanger opgeslagen.
+
+**Vanaf de livegang van WP2a** sluit geen enkele nieuw opgeslagen melding "taak gedaan" de afvinker nog uit, en bevat geen enkele nieuwe melding een naam.
+- Daarmee wordt het lek niet pas in WP3 gedicht. Zonder deze eis zou er tussen WP2a en WP3 op live opnieuw vastgelegd worden wie afvinkte, ná het wissen in WP2b.
+- **Controle op live**, na de WP2a-deploy: voor elke afvinking na het deploymoment is de set ontvangers van "taak gedaan" gelijk aan de set leden met deze voorkeur aan.
+**Toets:** Int + Unit (`recipientsFor` gebruikt de afvinker niet) + Live (controle na de WP2a-deploy)
+
 ---
 
 ## WP3 — Planner, tick, meldingen en bewaartermijnen
@@ -568,16 +584,6 @@ DAN krijgt de ontvanger:
 
 Bij 0 open taken komt er geen overzicht. Er staat nergens "voor jou"
 **Toets:** Unit + Int
-
-### AC-073 — "Taak gedaan" naar iedereen die hem aan heeft, ook de afvinker (WP3; BR-31; V-21, V-38)
-GEGEVEN Ellen en Jurgen hebben "taak gedaan" aan staan, Lynn heeft hem uit, en Kai is uitgezet
-WANNEER Ellen "Vaatwasser uitruimen" afvinkt, en in een tweede geval Jurgen dezelfde soort taak afvinkt
-DAN:
-- krijgen **zowel Ellen als Jurgen** in beide gevallen precies één melding "Vaatwasser uitruimen is gedaan", zonder naam;
-- krijgen Lynn en Kai niets;
-- is de set ontvangers in beide gevallen gelijk, zodat uit tekst en ontvangers niet af te leiden is wie afvinkte (V-38, optie a);
-- wordt ook bij dubbel afvinken maar één melding per ontvanger opgeslagen.
-**Toets:** Int + Unit (`recipientsFor` gebruikt de afvinker niet)
 
 ### AC-074 — Meldingsteksten bevatten geen namen van leden (WP3; V-21; UX §4.9)
 GEGEVEN alle meldingsbuilders
@@ -1093,7 +1099,7 @@ DAN:
 - zijn daarna alle gegevens van Familie weg: taken, reeksen, historie, boodschappen, leden, uitnodigingen en meldingen;
 - zijn alle andere huishoudens ongemoeid;
 - ziet Jurgen "Het huishouden is verwijderd.";
-- komt Ellen bij haar volgende gebruik in de onboarding, met haar lokale data gewist.
+- ziet Ellen bij haar volgende gebruik **eerst** het scherm "Je hoort niet meer bij ‘Familie’" (UX §4.14/§4.16, AC-177, TECHNICAL_DESIGN §4.6), en niet direct de onboarding. De onboarding volgt pas na "Een eigen huishouden starten" → "Toch starten". Haar lokale data zijn gewist. Alleen op een toestel zonder cache van Ellen verschijnt direct de onboarding (bewuste grens, AC-177).
 
 Lynn (gezinslid) ziet deze optie niet en de RPC weigert haar
 **Toets:** E2E + DB
