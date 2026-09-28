@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie ronde 2 (nieuwe scope) geschreven, wacht op V-23 t/m V-27
-Volgende stap: Antwoorden V-23 t/m V-27 vastleggen en laten verwerken door product-analyst; zodra V-23 en V-24 beantwoord zijn start de product-designer (UX_SPEC + wireframes). V-04 en V-20 open tot Jurgen Supabase nakijkt.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie afronden, daarna UX-ontwerp
+Volgende stap: product-analyst verwerkt V-23 t/m V-27 en V-04/V-20 in `docs/PRODUCT_SPEC.md`; daarna product-designer: `docs/UX_SPEC.md` + wireframes (telefoon 390x844).
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -20,7 +20,7 @@ Volgende stap: Antwoorden V-23 t/m V-27 vastleggen en laten verwerken door produ
 - V-01 (2026-09-27): Klopt niveau 3, of wil je bewust niveau 2? → `/niveau 2 bestaand project, meerdere gebruikers`
 - V-02 (2026-09-28): PLAN.md bestaat niet; mogen README.md en docs/ARCHITECTUUR.md als vastgelegde besluiten gelden? → "Dat is goed"
 - V-03 (2026-09-28): Hoe komen we aan screenshots van de ingelogde schermen? (a) lokale teststack starten, (b) eigen screenshots, (c) toegang live site → "Eerste optie"
-- V-04 (2026-09-28): Staat pg_cron aan in Supabase? → "Geen idee, hoe check ik dat?" (uitleg gegeven, antwoord nog open)
+- V-04 (2026-09-28): Staat pg_cron aan in Supabase? → "Geen idee, hoe check ik dat?" (zie hieronder: nagekeken)
 - V-05…V-20 (2026-09-28), letterlijk antwoord van Jurgen:
   > Eigen gezin.
   > Eigenlijk is het grotendeels voor Ellen en Jurgen, optioneel voor Lynn en Kai. Kai 13, Lynn 15
@@ -39,16 +39,13 @@ Volgende stap: Antwoorden V-23 t/m V-27 vastleggen en laten verwerken door produ
   - "Moet de app laten zien wie wat gedaan heeft?" → **"Nee"** (de app houdt niet bij wie iets deed).
   - "Wat doen we met de punten en het spaardoel?" → **"Weghalen"**.
 - V-22 (2026-09-28), tegenstrijdigheid V-11 ↔ V-21: "Wat wordt het bij terugdraaien?" → **"Iedereen mag terug"** (de app onthoudt niet wie afvinkte; iedereen mag een afvinking terugdraaien). Vervangt het antwoord op V-11.
-  - Nog open: V-04 (pg_cron) en V-20 (Supabase-regio): beide vragen dat Jurgen iets in Supabase nakijkt.
+- V-23…V-27 (2026-09-28): "Volg je voorstellen maar." → V-23 meldingen naar iedereen met account volgens eigen instellingen, standaard aan voor Ellen en Jurgen, uit voor Lynn en Kai · V-24 afwezigheid vervalt (bij gezinsvakantie reeksen pauzeren) · V-25 maker bewaren maar niet tonen, schrijver van notitie tonen, "toegevoegd/gekocht door" bij boodschappen weg, duur blijft als informatie · V-26 overgang: eerst back-up, daarna wissen zoals voorgesteld (afvinkhistorie blijft zonder personen); **vlak vóór het wissen wordt Jurgen nogmaals om bevestiging gevraagd** · V-27 succescriteria PRODUCT_SPEC §11 akkoord.
+- V-04 en V-20 (2026-09-28): "En kan je ook in supabase kijken" → door Claude nagekeken via de Supabase-koppeling, alleen lezen:
+  - V-20: project "takenlijstje" (ref nmorjuafndteklvobrmt) staat in regio **eu-central-1 (Frankfurt)**. ✓ EU.
+  - V-04: de extensies pg_cron en pg_net zijn **niet geïnstalleerd**. De planner van elk kwartier staat dus niet aan; de achtergrondtaak draait alleen via `vercel.json` één keer per dag (05:30 UTC). Bevestigt INVENTARIS R-01. Oplossing hoort in het technisch ontwerp.
 
 ## Open vragen
-- V-04 (uitleg gegeven op 2026-09-28, wacht op controle door Jurgen): Staat pg_cron (elke 15 minuten) aan in het Supabase-productieproject? Zo niet, dan draait de achtergrondtaak maar één keer per dag (INVENTARIS R-01). — gesteld op 2026-09-27 — blokkeert: niets direct; relevant voor het technisch ontwerp.
-- V-23: Wie krijgt herinneringen, deadline/verlopen-meldingen en dag-/avondoverzicht nu niemand eigenaar is? Voorstel: iedereen met account volgens eigen instellingen; standaard aan voor Ellen en Jurgen, uit voor Lynn en Kai — gesteld 2026-09-28 — blokkeert: UX-ontwerp.
-- V-24: Mag afwezigheid (vakantie) helemaal weg? Voorstel: ja; bij gezinsvakantie reeksen pauzeren — gesteld 2026-09-28 — blokkeert: UX-ontwerp.
-- V-25: Welke "wie"-gegevens blijven? Voorstel: maker bewaren maar niet tonen; schrijver van notitie tonen; "toegevoegd/gekocht door" bij boodschappen weg; duur blijft als informatie — gesteld 2026-09-28 — blokkeert: technisch ontwerp.
-- V-26: Overgang live database. Voorstel: eerst back-up; daarna wissen van toewijzingen, wie afvinkte, punten, ruilverzoeken, afwezigheid, vervallen meldingssoorten en leden zonder account; afvinkhistorie blijft zonder personen — gesteld 2026-09-28 — blokkeert: technisch ontwerp.
-- V-27: Kloppen de nieuwe succescriteria (PRODUCT_SPEC §11)? — gesteld 2026-09-28 — blokkeert: niets direct.
-- V-20: Staat het Supabase-productieproject in een EU-regio? — Jurgen kijkt na in Project Settings — blokkeert: technisch ontwerp.
+- (geen)
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
