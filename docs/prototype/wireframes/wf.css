@@ -1,0 +1,124 @@
+/* Wireframe-stijl: bewust grijs en schematisch. Geen visuele richting (dat doet de visual-designer). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: #fff; color: #222; font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { width: 390px; min-height: 844px; display: flex; flex-direction: column; }
+main { flex: 1; padding: 0 16px 24px; }
+.wf-note { font-size: 11px; color: #777; border: 1px dashed #aaa; padding: 4px 6px; margin: 8px 0; background: #fafafa; }
+
+/* Kop */
+.top { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 16px 8px; }
+.top h1 { font-size: 26px; font-weight: 700; }
+.top .sub { color: #666; font-size: 14px; margin-top: 2px; }
+.top .icons { display: flex; gap: 6px; }
+.ib { width: 40px; height: 40px; border: 1.5px solid #999; border-radius: 10px; display: grid; place-items: center; font-size: 13px; color: #444; position: relative; background: #fff; }
+.badge { position: absolute; top: -5px; right: -5px; background: #333; color: #fff; font-size: 10px; border-radius: 9px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 4px; }
+.back { display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px; color: #444; font-size: 15px; }
+
+/* Secties */
+.sec { margin-top: 18px; }
+.sec-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #555; margin-bottom: 6px; }
+.sec-h .act { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 14px; color: #333; text-decoration: underline; }
+.sec-h.alarm { color: #111; }
+.sec-h.alarm > span:first-child::before { content: "▲ "; }
+
+/* Takenrij */
+.row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px 8px 6px; border: 1.5px solid #bbb; border-radius: 12px; margin-bottom: 6px; background: #fff; }
+.row.alarm { border: 2.5px solid #222; background: #eee; }
+.row.done { background: #f3f3f3; border-color: #ddd; color: #888; }
+.row.done .t { text-decoration: line-through; }
+.row.ghost { border-style: dashed; color: #888; }
+.chk { flex: none; width: 44px; height: 44px; display: grid; place-items: center; }
+.chk::before { content: ""; width: 26px; height: 26px; border: 2px solid #555; border-radius: 50%; }
+.row.done .chk::before { background: #888; border-color: #888; }
+.row .body { flex: 1; min-width: 0; }
+.row .t { font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
+.row .m { font-size: 13px; color: #666; margin-top: 2px; }
+.row .when { flex: none; max-width: 92px; text-align: right; font-size: 13px; font-weight: 600; color: #333; }
+.row.alarm .when { color: #000; }
+.tag { display: inline-block; border: 1px solid #999; border-radius: 6px; padding: 0 5px; font-size: 11px; color: #444; margin-left: 4px; }
+.rep::before { content: "↻ "; }
+
+/* Samengevouwen regel */
+.fold { display: flex; justify-content: space-between; align-items: center; min-height: 48px; padding: 0 12px; border: 1.5px dashed #bbb; border-radius: 12px; color: #444; font-size: 15px; margin-bottom: 6px; }
+.fold b { font-weight: 600; }
+
+/* Kaart */
+.card { border: 1.5px solid #bbb; border-radius: 14px; padding: 14px; margin-top: 12px; }
+.card.soft { background: #f5f5f5; border-color: #ddd; }
+.card h3 { font-size: 16px; margin-bottom: 4px; }
+.card p { color: #555; font-size: 14px; }
+
+/* Knoppen */
+.btn { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 12px; border: 1.5px solid #555; font-weight: 600; font-size: 16px; background: #fff; color: #222; padding: 0 16px; }
+.btn.pri { background: #333; color: #fff; border-color: #333; }
+.btn.danger { border: 2px dashed #333; color: #111; }
+.btn.dis { background: #ddd; color: #999; border-color: #ddd; }
+.btn.sm { min-height: 36px; font-size: 14px; font-weight: 500; }
+.btn.link { border: none; text-decoration: underline; font-weight: 500; }
+.btns { display: flex; gap: 8px; margin-top: 12px; }
+.btns > * { flex: 1; }
+
+/* Chips en segmenten */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1.5px solid #aaa; border-radius: 18px; min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; font-size: 14px; color: #333; background: #fff; }
+.chip.on { background: #333; color: #fff; border-color: #333; }
+.seg { display: flex; border: 1.5px solid #aaa; border-radius: 10px; overflow: hidden; }
+.seg > * { flex: 1; text-align: center; padding: 8px 0; font-size: 14px; border-right: 1px solid #ccc; }
+.seg > *:last-child { border-right: 0; }
+.seg .on { background: #333; color: #fff; font-weight: 600; }
+
+/* Formulier */
+label.l { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+.inp { border: 1.5px solid #888; border-radius: 10px; min-height: 48px; padding: 12px; color: #999; font-size: 16px; background: #fff; }
+.inp.val { color: #111; }
+.inp.focus { border: 2.5px solid #222; }
+.hint { font-size: 13px; color: #666; margin-top: 4px; }
+.sw { display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
+.toggle { width: 48px; height: 28px; border-radius: 14px; background: #ccc; position: relative; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; }
+.toggle.on { background: #333; }
+.toggle.on::after { left: 23px; }
+
+/* Lijst (instellingen) */
+.list { border: 1.5px solid #bbb; border-radius: 14px; overflow: hidden; }
+.li { display: flex; justify-content: space-between; align-items: center; min-height: 52px; padding: 8px 14px; border-bottom: 1px solid #ddd; }
+.li:last-child { border-bottom: 0; }
+.li .v { color: #666; font-size: 14px; }
+.li .v::after { content: "  ›"; color: #999; }
+.li.nochev .v::after { content: ""; }
+.li small { display: block; color: #777; font-size: 13px; }
+
+/* Onderbalk */
+nav.bar { position: sticky; bottom: 0; display: flex; justify-content: space-around; padding-left: 4px; padding-right: 4px; align-items: center; height: 72px; border-top: 1.5px solid #bbb; background: #fff; padding-bottom: 8px; }
+nav.bar a { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: #666; gap: 3px; flex: 1; }
+nav.bar a i { width: 24px; height: 20px; border: 1.5px solid #999; border-radius: 5px; }
+nav.bar a.on { color: #111; font-weight: 700; }
+nav.bar a.on i { background: #333; border-color: #333; }
+nav.bar a.plus i { width: 52px; height: 52px; border-radius: 50%; background: #333; border: none; margin-top: -18px; position: relative; }
+nav.bar a.plus i::after { content: "+"; color: #fff; font-size: 30px; font-style: normal; position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* Venster van onderen (sheet) */
+.dim { position: fixed; inset: 0; background: rgba(0,0,0,.35); }
+.behind { filter: grayscale(1); opacity: .5; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 18px 18px 0 0; padding: 8px 16px 20px; box-shadow: 0 -2px 0 #999; }
+.sheet .grip { width: 40px; height: 5px; background: #bbb; border-radius: 3px; margin: 0 auto 10px; }
+.sheet h2 { font-size: 20px; }
+.sheetwrap { position: relative; min-height: 844px; }
+
+/* Toast en banners */
+.toast { position: sticky; bottom: 84px; margin: 0 12px; background: #222; color: #fff; border-radius: 12px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 15px; z-index: 3; }
+.toast u { font-weight: 700; }
+.banner { background: #e6e6e6; border-bottom: 1.5px solid #999; padding: 10px 16px; font-size: 14px; }
+.banner b { display: block; }
+
+/* Skeleton */
+.sk { background: #e5e5e5; border-radius: 8px; }
+.empty { text-align: center; padding: 28px 10px 8px; }
+.empty .ill { width: 72px; height: 72px; border-radius: 50%; border: 2px dashed #aaa; margin: 0 auto 12px; }
+.empty h2 { font-size: 20px; margin-bottom: 6px; }
+.empty p { color: #555; }
+.num { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.num div { border: 1.5px solid #bbb; border-radius: 12px; padding: 10px; }
+.num b { font-size: 24px; display: block; }
+.toast span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 12px; }
+.toast u { white-space: nowrap; }

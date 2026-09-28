@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie klaar (geen open vragen); UX-ontwerp gestart
-Volgende stap: product-designer levert `docs/UX_SPEC.md` + wireframes (telefoon 390x844) met screenshots in `docs/screenshots/prototype/`; hoofdsessie verzamelt eventuele vragen voor Jurgen; daarna visual-designer.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — UX-ontwerp ronde 1 klaar (UX_SPEC + 22 wireframes); visueel ontwerp gestart
+Volgende stap: antwoorden V-28/V-29 vastleggen en door product-designer laten verwerken; visual-designer levert DESIGN_SYSTEM.md + visueel prototype met screenshots; daarna solution-architect.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -45,7 +45,8 @@ Volgende stap: product-designer levert `docs/UX_SPEC.md` + wireframes (telefoon 
   - V-04: de extensies pg_cron en pg_net zijn **niet geïnstalleerd**. De planner van elk kwartier staat dus niet aan; de achtergrondtaak draait alleen via `vercel.json` één keer per dag (05:30 UTC). Bevestigt INVENTARIS R-01. Oplossing hoort in het technisch ontwerp.
 
 ## Open vragen
-- (geen)
+- V-28: Boodschappen naar de onderbalk en het Huishouden-overzicht als kaart onderaan Vandaag? Voorstel: ja (UX_SPEC §3) — gesteld 2026-09-28 — blokkeert: niets (alleen indeling onderbalk).
+- V-29: Wat betekent "uitzetten" van een gezinslid nog? Voorstel: uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles. Alternatief: uitzetten schrappen, alleen "verwijderen uit huishouden" (UX_SPEC §4.15, wireframe 16) — gesteld 2026-09-28 — blokkeert: niets (alleen ledenbeheer).
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
