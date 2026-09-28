@@ -407,6 +407,8 @@ DAN stopt het draaiboek, wordt er niets gewist of gewijzigd, en legt de bouwer d
 - **Uitgezette leden met een account (controle M1(d)):**
   - Er wordt alleen gestopt voor namen die Jurgen **nog niet eerder** beoordeelde, bij de telling vóór WP1 (AC-170). Voor die namen toont de bouwer ze aan Jurgen, en kiest Jurgen per naam uit twee mogelijkheden: **weer aanzetten** of **uitgezet laten**. Verwijderen kan hij daarna zelf via Gezinsleden.
   - Namen die Jurgen eerder al beoordeelde, en leden die na WP1 bewust via de app zijn uitgezet, worden **alleen gemeld**, zonder te stoppen.
+  - **Herkenregel (TECHNICAL_DESIGN §12.4, M1(d)):** "bewust via de app uitgezet" telt alleen als Jurgen of Ellen die uitzetting zelf aan de bouwer noemde. Is dat niet vast te stellen, dan geldt de naam als "nog niet beoordeeld" en stopt M1(d) voor die naam.
+  - Alle keuzes komen in dezelfde lijst in `docs/PROGRESS.md` als bij AC-170.
 - Pas daarna gaat de betreffende stap verder (zie ook AC-170 voor de telling vóór WP1).
 **Toets:** Proces
 
