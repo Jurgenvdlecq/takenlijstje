@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, MoreVertical, Pencil, Plus, Trash2, UserPlus, Users } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import * as React from "react";
 import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +20,7 @@ import { InviteForm } from "./invite-form";
 import { MemberForm } from "./member-form";
 import { SettingsSection } from "./shared";
 
-type DialogState =
-  | { kind: "add" }
-  | { kind: "edit"; member: MemberRow }
-  | { kind: "invite"; member: MemberRow | null }
-  | null;
+type DialogState = { kind: "edit"; member: MemberRow } | { kind: "invite" } | null;
 
 export function MembersSection() {
   const { snapshot, run } = useHousehold();
@@ -36,7 +32,7 @@ export function MembersSection() {
   async function remove(member: MemberRow) {
     if (
       !window.confirm(
-        `${member.display_name} verwijderen uit het huishouden? Taken van ${member.display_name} worden niet meer aan diegene toegewezen.`,
+        `${member.display_name} verwijderen uit het huishouden? Diegene kan daarna niet meer inloggen bij ${snapshot.household.name}.`,
       )
     )
       return;
@@ -61,18 +57,11 @@ export function MembersSection() {
               </span>
               <div className="flex flex-wrap gap-1">
                 <Badge variant={member.role === "admin" ? "primary" : "default"}>{member.role === "admin" ? "Beheerder" : "Gezinslid"}</Badge>
-                {!member.user_id && <Badge variant="outline">geen account</Badge>}
                 {!member.is_active && <Badge variant="outline">niet actief</Badge>}
               </div>
             </div>
             {isAdmin && (
               <>
-                {!member.user_id && (
-                  <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={() => setDialog({ kind: "invite", member })}>
-                    <Mail />
-                    Uitnodigen
-                  </Button>
-                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" aria-label={`Opties voor ${member.display_name}`}>
@@ -84,12 +73,6 @@ export function MembersSection() {
                       <Pencil />
                       Bewerken
                     </DropdownMenuItem>
-                    {!member.user_id && (
-                      <DropdownMenuItem onSelect={() => setDialog({ kind: "invite", member })}>
-                        <Mail />
-                        Uitnodigen om in te loggen
-                      </DropdownMenuItem>
-                    )}
                     {member.id !== snapshot.me.id && (
                       <>
                         <DropdownMenuSeparator />
@@ -109,11 +92,7 @@ export function MembersSection() {
 
       {isAdmin && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setDialog({ kind: "add" })}>
-            <Plus />
-            Gezinslid toevoegen
-          </Button>
-          <Button variant="ghost" onClick={() => setDialog({ kind: "invite", member: null })}>
+          <Button variant="outline" onClick={() => setDialog({ kind: "invite" })}>
             <UserPlus />
             Iemand uitnodigen
           </Button>
@@ -122,13 +101,8 @@ export function MembersSection() {
 
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent>
-          {dialog?.kind === "add" && (
-            <MemberForm
-              onDone={(created) => setDialog(created?.email && !created.user_id ? { kind: "invite", member: created } : null)}
-            />
-          )}
           {dialog?.kind === "edit" && <MemberForm member={dialog.member} onDone={() => setDialog(null)} />}
-          {dialog?.kind === "invite" && <InviteForm member={dialog.member} />}
+          {dialog?.kind === "invite" && <InviteForm />}
         </DialogContent>
       </Dialog>
     </SettingsSection>

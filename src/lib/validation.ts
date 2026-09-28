@@ -31,7 +31,6 @@ const optionalText = (max: number) =>
 
 export const taskCategory = z.enum(["cleaning", "laundry", "groceries", "kitchen", "outdoor", "pets", "admin", "other"]);
 export const taskPriority = z.enum(["low", "normal", "high", "urgent"]);
-export const assignmentStrategy = z.enum(["none", "fixed", "rotation", "random", "fair"]);
 export const shoppingCategory = z.enum([
   "produce", "meat", "dairy", "bread", "drinks", "frozen", "drugstore", "household", "other",
 ]);
@@ -39,10 +38,9 @@ export const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Ongeldige kleur")
 export const reminderList = z.array(z.number().int().min(0).max(10080)).max(5).default([]);
 
 export const recurrenceInput = z.object({
+  /** Door de client gegenereerd: dubbel versturen geeft één reeks (BR-10) */
+  recurrenceId: uuid.optional(),
   rule: recurrenceRuleSchema,
-  assignmentStrategy: assignmentStrategy.default("none"),
-  fixedMemberId: uuid.nullable().optional(),
-  rotationMemberIds: z.array(uuid).max(20).default([]),
   endsOn: isoDate.nullable().optional(),
 });
 
@@ -54,16 +52,12 @@ export const taskInput = z
     description: optionalText(1000),
     category: taskCategory.default("other"),
     priority: taskPriority.default("normal"),
-    assignedMemberId: uuid.nullable().optional(),
-    /** Eenmalige taak automatisch verdelen */
-    autoAssign: z.enum(["fair", "random"]).nullable().optional(),
     scheduledDate: isoDate,
     scheduledTime: timeOfDay.nullable().optional(),
     availableDaysBefore: z.number().int().min(0).max(30).default(0),
     dueDate: isoDate.nullable().optional(),
     dueTime: timeOfDay.nullable().optional(),
     durationMinutes: z.number().int().min(1).max(1440).nullable().optional(),
-    points: z.number().int().min(0).max(100).nullable().optional(),
     reminderMinutesBefore: reminderList,
     recurrence: recurrenceInput.nullable().optional(),
     templateId: uuid.nullable().optional(),
@@ -86,13 +80,11 @@ export const taskUpdateInput = z.object({
       description: optionalText(1000),
       category: taskCategory,
       priority: taskPriority,
-      assignedMemberId: uuid.nullable(),
       scheduledDate: isoDate,
       scheduledTime: timeOfDay.nullable(),
       dueDate: isoDate.nullable(),
       dueTime: timeOfDay.nullable(),
       durationMinutes: z.number().int().min(1).max(1440).nullable(),
-      points: z.number().int().min(0).max(100).nullable(),
       reminderMinutesBefore: z.array(z.number().int().min(0).max(10080)).max(5),
       recurrence: recurrenceInput.nullable(),
     })
@@ -105,7 +97,6 @@ export const completeInput = z.object({
   taskId: uuid,
   mutationId: uuid,
   completedAt: z.iso.datetime({ offset: true }).optional(),
-  completedBy: uuid.optional(),
   note: optionalText(500),
 });
 
@@ -131,29 +122,13 @@ export const memberInput = z.object({
   color: hexColor.default("#6366f1"),
   icon: z.string().max(16).nullable().optional(),
   role: z.enum(["admin", "member"]).default("member"),
-  email: z.email("Ongeldig e-mailadres").nullable().optional().or(z.literal("").transform(() => null)),
   isActive: z.boolean().default(true),
 });
 
 export const householdSettingsInput = z.object({
   name: trimmed(1, 80, "Naam huishouden").optional(),
-  timezone: z.string().min(1).max(64).optional(),
   membersCanCreateTasks: z.boolean().optional(),
-  membersCanAssignOthers: z.boolean().optional(),
-  pointsEnabled: z.boolean().optional(),
-  pointsGoal: z.number().int().min(1).max(100000).nullable().optional(),
-  pointsGoalReward: optionalText(120),
 });
-
-export const absenceInput = z
-  .object({
-    memberId: uuid,
-    startsOn: isoDate,
-    endsOn: isoDate,
-    strategy: z.enum(["reassign", "postpone", "unassign"]).default("reassign"),
-    note: optionalText(200),
-  })
-  .refine((a) => a.endsOn >= a.startsOn, { message: "De einddatum ligt vóór de begindatum", path: ["endsOn"] });
 
 export const shoppingItemInput = z.object({
   id: uuid.optional(),
@@ -165,12 +140,10 @@ export const shoppingItemInput = z.object({
 
 export const preferencesInput = z.object({
   pushEnabled: z.boolean(),
-  notifyTaskAssigned: z.boolean(),
   notifyReminders: z.boolean(),
   notifyDeadlineSoon: z.boolean(),
   notifyOverdue: z.boolean(),
   notifyTaskCompleted: z.boolean(),
-  notifySwapRequests: z.boolean(),
   dailySummaryEnabled: z.boolean(),
   dailySummaryTime: timeOfDay,
   eveningSummaryEnabled: z.boolean(),
@@ -187,13 +160,12 @@ export const templateActivationInput = z.object({
   items: z
     .array(
       z.object({
+        /** Door de client gegenereerd: dubbel activeren geeft één reeks (R-03) */
+        recurrenceId: uuid.optional(),
         templateId: uuid,
         title: trimmed(1, 80, "Naam taak").optional(),
         rule: recurrenceRuleSchema,
         timeOfDay: timeOfDay.nullable().optional(),
-        assignmentStrategy: assignmentStrategy.default("fair"),
-        fixedMemberId: uuid.nullable().optional(),
-        rotationMemberIds: z.array(uuid).max(20).default([]),
       }),
     )
     .min(1, "Kies minimaal één taak")

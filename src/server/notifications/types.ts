@@ -1,5 +1,7 @@
 import type { NotificationType, PreferencesRow } from "@/types/database";
 
+export { PREFERENCE_FOR_TYPE } from "@/domain/reminders";
+
 export interface NotificationMessage {
   type: NotificationType;
   title: string;
@@ -12,7 +14,7 @@ export interface NotificationMessage {
 
 export interface Recipient {
   memberId: string;
-  userId: string | null;
+  userId: string;
   householdId: string;
   preferences: PreferencesRow | null;
 }
@@ -27,16 +29,3 @@ export interface NotificationChannel {
   isEnabledFor(recipient: Recipient): boolean;
   deliver(recipients: Recipient[], message: NotificationMessage): Promise<void>;
 }
-
-/** Welke voorkeur bepaalt of iemand een type melding wil ontvangen */
-export const PREFERENCE_FOR_TYPE: Record<NotificationType, keyof PreferencesRow> = {
-  task_assigned: "notify_task_assigned",
-  reminder: "notify_reminders",
-  deadline_soon: "notify_deadline_soon",
-  overdue: "notify_overdue",
-  task_completed: "notify_task_completed",
-  daily_summary: "daily_summary_enabled",
-  evening_summary: "evening_summary_enabled",
-  swap_request: "notify_swap_requests",
-  swap_accepted: "notify_swap_requests",
-};

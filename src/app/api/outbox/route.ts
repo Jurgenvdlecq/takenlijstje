@@ -5,7 +5,6 @@ import { publicEnv } from "@/lib/env";
 import { markNotificationsReadAction } from "@/server/actions/notifications";
 import { addShoppingItemAction, deleteShoppingItemAction, toggleShoppingItemAction } from "@/server/actions/shopping";
 import {
-  assignTaskAction,
   completeTaskAction,
   moveTaskAction,
   setTaskStatusAction,
@@ -31,7 +30,6 @@ const handlers: Record<OutboxKind, (p: Payload) => Promise<ActionResult<unknown>
   undo: (p) => undoCompleteAction(p.taskId as string),
   setStatus: (p) => setTaskStatusAction(p.taskId as string, p.status as Parameters<typeof setTaskStatusAction>[1]),
   move: (p) => moveTaskAction(p.taskId as string, p.date as string),
-  assign: (p) => assignTaskAction(p.taskId as string, (p.memberId ?? null) as string | null),
   shoppingAdd: (p) => addShoppingItemAction(p as Parameters<typeof addShoppingItemAction>[0]),
   shoppingToggle: (p) => toggleShoppingItemAction(p.id as string, p.bought as boolean),
   shoppingDelete: (p) => deleteShoppingItemAction(p.id as string),

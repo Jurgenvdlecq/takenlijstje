@@ -4,7 +4,6 @@ import { AlertTriangle, CheckIcon, Clock, Loader2, Repeat, SkipForward } from "l
 import * as React from "react";
 import { shortTime, todayIn, zonedDate } from "@/domain/dates";
 import { deadlineText, relativeDayLabel } from "@/domain/status";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { useSnapshot } from "@/features/household/store";
 import { useNow } from "@/hooks/use-now";
@@ -68,7 +67,6 @@ export function TaskCard({
   const { openTask } = useTaskUi();
   const now = useNow();
   const tz = snapshot.household.timezone;
-  const assignee = snapshot.members.find((m) => m.id === task.assigned_member_id);
   const done = task.status === "done";
   const skipped = task.status === "skipped";
   const rawDeadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
@@ -80,8 +78,6 @@ export function TaskCard({
       (task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))
       ? rawDeadline
       : null;
-  const completedBy = done ? snapshot.members.find((m) => m.id === task.completed_by_member_id) : null;
-  const swapOpen = snapshot.swapRequests.some((r) => r.task_id === task.id);
 
   return (
     <div
@@ -117,7 +113,7 @@ export function TaskCard({
             </span>
           )}
           {task.recurring && <Repeat className="size-3" aria-label="Terugkerend" />}
-          {done && completedBy && <span>Gedaan door {completedBy.display_name}</span>}
+          {done && <span>Gedaan</span>}
           {skipped && (
             <span className="inline-flex items-center gap-1">
               <SkipForward className="size-3" />
@@ -137,10 +133,8 @@ export function TaskCard({
               {deadline}
             </Badge>
           )}
-          {swapOpen && <Badge variant="primary">Ruilen gevraagd</Badge>}
         </div>
       </div>
-      <MemberAvatar member={assignee} size="sm" />
     </div>
   );
 }

@@ -15,30 +15,31 @@ export function NewTaskDialog() {
   const { newTask, closeNewTask } = useTaskUi();
   const { snapshot, run } = useHousehold();
   const [busy, setBusy] = React.useState(false);
-  // Eén id per geopend venster: dubbel tikken op "Toevoegen" maakt geen twee taken
+  // Eén id per geopend venster: dubbel tikken op "Toevoegen" maakt geen twee taken of reeksen
   const idRef = React.useRef(newId());
+  const recurrenceIdRef = React.useRef(newId());
 
   const open = newTask !== null;
   const today = todayIn(snapshot.household.timezone);
   const initial: TaskFormValues = React.useMemo(
     () => ({
-      ...emptyValues(today, snapshot.me.id),
+      ...emptyValues(today),
       title: newTask?.title ?? "",
       date: newTask?.date ?? today,
       time: newTask?.time ?? "",
-      assignee: newTask?.memberId ?? snapshot.me.id,
     }),
-    [newTask, today, snapshot.me.id],
+    [newTask, today],
   );
 
   async function submit(values: TaskFormValues) {
     setBusy(true);
-    const created = await run(() => createTaskAction(toCreateInput(values, snapshot.members, idRef.current)), {
+    const created = await run(() => createTaskAction(toCreateInput(values, idRef.current, recurrenceIdRef.current)), {
       success: values.recurring ? "Terugkerende taak ingepland" : "Taak toegevoegd",
     });
     setBusy(false);
     if (created) {
       idRef.current = newId();
+      recurrenceIdRef.current = newId();
       closeNewTask();
     }
   }
@@ -48,7 +49,7 @@ export function NewTaskDialog() {
       <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Nieuwe taak</DialogTitle>
-          <DialogDescription className="sr-only">Vul in wat er moet gebeuren, door wie en wanneer.</DialogDescription>
+          <DialogDescription className="sr-only">Vul in wat er moet gebeuren en wanneer.</DialogDescription>
         </DialogHeader>
         <DialogBody>
           {open && (

@@ -128,10 +128,6 @@ export interface Projection {
   time: string | null;
   category: TaskCategory;
   rule: RecurrenceRule;
-  /** Vaste persoon (alleen bekend bij strategie "vast") */
-  memberId: string | null;
-  /** Wie aan de beurt kán zijn; null = iedereen */
-  candidateMemberIds: string[] | null;
 }
 
 export function seriesWindow(row: RecurrenceRow): SeriesWindow {
@@ -142,12 +138,6 @@ export function seriesWindow(row: RecurrenceRow): SeriesWindow {
     pausedFrom: row.paused_from,
     pausedUntil: row.paused_until,
   };
-}
-
-function candidates(row: RecurrenceRow): string[] | null {
-  if (row.assignment_strategy === "fixed") return row.fixed_member_id ? [row.fixed_member_id] : [];
-  if (row.assignment_strategy === "rotation" && row.rotation_member_ids.length) return row.rotation_member_ids;
-  return null;
 }
 
 /**
@@ -181,8 +171,6 @@ export function projectOccurrences(
         time: row.time_of_day,
         category: row.category,
         rule: row.rule,
-        memberId: row.assignment_strategy === "fixed" ? row.fixed_member_id : null,
-        candidateMemberIds: candidates(row),
       });
     }
   }

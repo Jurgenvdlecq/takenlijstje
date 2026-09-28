@@ -31,7 +31,7 @@ export function ProfileSection() {
     <SettingsSection id="profiel" icon={UserRound} title="Profiel" description="Zo zien de anderen jou in de app.">
       <form onSubmit={save} className="grid gap-5">
         <div className="flex items-center gap-3">
-          <MemberAvatar member={{ display_name: displayName || "?", color, icon: icon || null, avatar_url: me.avatar_url }} size="xl" />
+          <MemberAvatar member={{ display_name: displayName || "?", color, icon: icon || null}} size="xl" />
           <Field label="Jouw naam" htmlFor="profiel-naam" className="flex-1">
             <Input id="profiel-naam" value={displayName} maxLength={50} onChange={(e) => setDisplayName(e.target.value)} required />
           </Field>

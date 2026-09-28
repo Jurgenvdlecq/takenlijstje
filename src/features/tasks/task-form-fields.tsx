@@ -1,14 +1,9 @@
 "use client";
 
-/** Bouwstenen van het taakformulier: "Wie?" en "Wanneer?" als grote, tikbare keuzes. */
-import { Dices, Repeat2, Scale, UserX } from "lucide-react";
+/** Bouwstenen van het taakformulier: "Wanneer?" als grote, tikbare keuzes. */
 import * as React from "react";
 import { addDays, isoWeekday, type ISODate } from "@/domain/dates";
-import { MemberAvatar } from "@/components/member-avatar";
 import { cn } from "@/lib/utils";
-import type { MemberRow } from "@/types/database";
-
-export type AssigneeChoice = string | "none" | "fair" | "random" | "rotation";
 
 function Chip({
   active,
@@ -34,44 +29,6 @@ function Chip({
     >
       {children}
     </button>
-  );
-}
-
-export function WhoPicker({
-  members,
-  value,
-  onChange,
-  recurring,
-}: {
-  members: MemberRow[];
-  value: AssigneeChoice;
-  onChange: (value: AssigneeChoice) => void;
-  recurring: boolean;
-}) {
-  const active = members.filter((m) => m.is_active);
-  return (
-    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-      {active.map((m) => (
-        <Chip key={m.id} active={value === m.id} onClick={() => onChange(m.id)}>
-          <MemberAvatar member={m} size="xs" />
-          {m.display_name}
-        </Chip>
-      ))}
-      {recurring && (
-        <Chip active={value === "rotation"} onClick={() => onChange("rotation")}>
-          <Repeat2 className="size-4" /> Om en om
-        </Chip>
-      )}
-      <Chip active={value === "fair"} onClick={() => onChange("fair")}>
-        <Scale className="size-4" /> Eerlijk verdelen
-      </Chip>
-      <Chip active={value === "random"} onClick={() => onChange("random")}>
-        <Dices className="size-4" /> Willekeurig
-      </Chip>
-      <Chip active={value === "none"} onClick={() => onChange("none")}>
-        <UserX className="size-4" /> Niemand
-      </Chip>
-    </div>
   );
 }
 

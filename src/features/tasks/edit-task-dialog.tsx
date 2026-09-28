@@ -28,7 +28,7 @@ export function EditTaskDialog({ task, open, onOpenChange }: { task: TaskRow; op
   }
 
   function submit(values: TaskFormValues) {
-    const diff = toUpdateChanges(initial, values, snapshot.members);
+    const diff = toUpdateChanges(initial, values);
     if (diff.empty) {
       toast("Niets gewijzigd");
       onOpenChange(false);

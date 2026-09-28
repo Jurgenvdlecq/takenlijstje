@@ -2,6 +2,7 @@
 
 import { Archive, ChevronDown, MoreHorizontal, Plus, ShoppingBasket, Sparkles } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { EmptyState, Progress, SectionTitle } from "@/components/ui/misc";
 import { useHousehold } from "@/features/household/store";
 import { SHOPPING_CATEGORY_EMOJI, SHOPPING_CATEGORY_LABELS } from "@/lib/labels";
 import { cn, newId } from "@/lib/utils";
-import { archiveShoppingListAction } from "@/server/actions/shopping";
+import { archiveShoppingListAction, unarchiveShoppingListAction } from "@/server/actions/shopping";
 import type { ShoppingCategory, ShoppingItemRow } from "@/types/database";
 import { EditItemDialog } from "./edit-item-dialog";
 import { guessCategory, parseShoppingInput, SHOPPING_CATEGORY_ORDER } from "./parse";
@@ -46,10 +47,23 @@ export function ShoppingPage() {
   const add = (name: string, quantity: string | null, category: ShoppingCategory) =>
     mutate("shoppingAdd", { id: newId(), name, quantity, category, note: null });
 
+  // De database archiveert alleen als dit nog de actieve lijst is: dubbel
+  // tikken geeft één nieuwe lijst (R-03). Ongedaan maken zet hem terug (UX §4.8).
   const archive = async () => {
+    const listId = snapshot.shoppingList?.id;
+    if (!listId) return;
     setArchiving(true);
-    await run(() => archiveShoppingListAction(), { success: "Lijst afgerond" });
+    const next = await run(() => archiveShoppingListAction(listId));
     setArchiving(false);
+    if (next) {
+      toast.success("Lijst afgerond", {
+        duration: 8000,
+        action: {
+          label: "Ongedaan maken",
+          onClick: () => void run(() => unarchiveShoppingListAction(listId), { success: "Lijst teruggezet" }),
+        },
+      });
+    }
   };
 
   return (

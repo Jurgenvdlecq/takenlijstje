@@ -9,14 +9,14 @@ const SIZES = {
   xl: "size-16 text-xl",
 };
 
-/** Avatar: foto, emoji-icoon of initiaal in de kleur van het gezinslid. */
+/** Avatar: emoji-icoon of initiaal in de kleur van het gezinslid. */
 export function MemberAvatar({
   member,
   size = "sm",
   className,
   ring,
 }: {
-  member: Pick<MemberRow, "display_name" | "color" | "icon" | "avatar_url"> | null | undefined;
+  member: Pick<MemberRow, "display_name" | "color" | "icon"> | null | undefined;
   size?: keyof typeof SIZES;
   className?: string;
   ring?: boolean;
@@ -25,7 +25,7 @@ export function MemberAvatar({
     return (
       <span
         className={cn("inline-flex shrink-0 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30 text-muted-foreground", SIZES[size], className)}
-        title="Niet toegewezen"
+        title="Onbekend"
       >
         ?
       </span>
@@ -42,10 +42,7 @@ export function MemberAvatar({
       )}
       style={{ backgroundColor: member.color }}
     >
-      {member.avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element -- externe profielfoto, geen optimalisatie nodig
-        <img src={member.avatar_url} alt="" className="size-full object-cover" />
-      ) : member.icon ? (
+      {member.icon ? (
         <span aria-hidden>{member.icon}</span>
       ) : (
         member.display_name.charAt(0).toUpperCase()

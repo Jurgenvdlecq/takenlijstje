@@ -4,7 +4,7 @@
  * voorkomen via de dedupe-sleutel.
  */
 import { zonedDate, zonedInstant, zonedTime, type ISODate } from "./dates";
-import type { NotificationType } from "@/types/database";
+import type { MemberRow, NotificationType, PreferencesRow } from "@/types/database";
 
 export interface ReminderTask {
   id: string;
@@ -94,7 +94,7 @@ export function taskMessages(
     if (left <= 0 && left > -OVERDUE_WINDOW_MINUTES) {
       messages.push({
         type: "overdue",
-        title: `De taak “${task.title}” is nog niet gedaan`,
+        title: `${task.title} is verlopen`,
         taskId: task.id,
         dedupeKey: `overdue:${task.id}:${task.dueAt}`,
       });
@@ -112,37 +112,64 @@ function isTimeWindow(now: Date, timeZone: string, time: string): boolean {
 }
 
 /**
- * Dag- en avondoverzicht voor één gezinslid.
- * @param todayCount   taken vandaag voor het hele huishouden
- * @param mineToday    mijn taken vandaag
- * @param mineOpen     mijn nog openstaande taken (vandaag + verlopen)
+ * Dag- en avondoverzicht. Telt voor het huishouden als geheel en noemt geen
+ * namen (BR-31, V-21).
+ * @param todayOpen            open taken die vandaag gepland staan
+ * @param openIncludingOverdue open taken van vandaag plus verlopen taken
  */
 export function summaryMessages(
   prefs: ReminderPrefs,
   now: Date,
   timeZone: string,
-  counts: { todayCount: number; mineToday: number; mineOpen: number },
+  counts: { todayOpen: number; openIncludingOverdue: number },
 ): DueMessage[] {
   const today = zonedDate(now, timeZone);
   const messages: DueMessage[] = [];
 
-  if (prefs.dailySummaryEnabled && isTimeWindow(now, timeZone, prefs.dailySummaryTime) && counts.todayCount > 0) {
+  if (prefs.dailySummaryEnabled && isTimeWindow(now, timeZone, prefs.dailySummaryTime) && counts.todayOpen > 0) {
     messages.push({
       type: "daily_summary",
-      title: `Vandaag staan er ${counts.todayCount} ${counts.todayCount === 1 ? "taak" : "taken"} gepland`,
-      body: counts.mineToday ? `Waarvan ${counts.mineToday} voor jou.` : "Geen daarvan staat op jouw naam.",
+      title: `Vandaag ${counts.todayOpen === 1 ? "staat er 1 taak" : `staan er ${counts.todayOpen} taken`}`,
       dedupeKey: `daily:${today}`,
     });
   }
 
-  if (prefs.eveningSummaryEnabled && isTimeWindow(now, timeZone, prefs.eveningSummaryTime) && counts.mineOpen > 0) {
+  if (prefs.eveningSummaryEnabled && isTimeWindow(now, timeZone, prefs.eveningSummaryTime) && counts.openIncludingOverdue > 0) {
+    const n = counts.openIncludingOverdue;
     messages.push({
       type: "evening_summary",
-      title: `Er ${counts.mineOpen === 1 ? "staat" : "staan"} nog ${counts.mineOpen} ${counts.mineOpen === 1 ? "taak" : "taken"} open`,
-      body: "Kijk of je er nog eentje kunt afvinken.",
+      title: `Er ${n === 1 ? "staat nog 1 taak" : `staan nog ${n} taken`} open`,
       dedupeKey: `evening:${today}`,
     });
   }
 
   return messages;
+}
+
+/** Welke voorkeur bepaalt of iemand een soort melding wil ontvangen */
+export const PREFERENCE_FOR_TYPE: Record<NotificationType, keyof PreferencesRow> = {
+  reminder: "notify_reminders",
+  deadline_soon: "notify_deadline_soon",
+  overdue: "notify_overdue",
+  task_completed: "notify_task_completed",
+  daily_summary: "daily_summary_enabled",
+  evening_summary: "evening_summary_enabled",
+};
+
+/**
+ * Wie krijgt deze soort melding: ieder actief lid met een account dat de
+ * voorkeur aan heeft staan (V-23). Er is bewust geen parameter voor wie iets
+ * deed: "taak gedaan" gaat ook naar wie afvinkte, zodat uit de ontvangers niet
+ * is af te leiden wie het was (V-38a).
+ */
+export function recipientsFor(
+  type: NotificationType,
+  members: Pick<MemberRow, "id" | "user_id" | "is_active">[],
+  prefs: (Partial<PreferencesRow> & { member_id: string })[],
+): string[] {
+  const key = PREFERENCE_FOR_TYPE[type];
+  return members
+    .filter((m) => m.is_active && m.user_id)
+    .filter((m) => Boolean(prefs.find((p) => p.member_id === m.id)?.[key]))
+    .map((m) => m.id);
 }

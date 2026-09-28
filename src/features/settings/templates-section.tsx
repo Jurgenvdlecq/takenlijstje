@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Library } from "lucide-react";
+import { Library } from "lucide-react";
 import * as React from "react";
 import { todayIn } from "@/domain/dates";
 import type { RecurrenceRule } from "@/domain/recurrence/rule";
@@ -15,15 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useHousehold } from "@/features/household/store";
-import {
-  buildActivationItems,
-  DEFAULT_DISTRIBUTION,
-  DistributionPicker,
-  FrequencyList,
-  initialRule,
-  TemplateChecklist,
-  type Distribution,
-} from "@/features/onboarding/template-plan";
+import { buildActivationItems, FrequencyList, initialRule, TemplateChecklist } from "@/features/onboarding/template-plan";
+import { newId } from "@/lib/utils";
 import { activateTemplatesAction } from "@/server/actions/household";
 import type { TemplateRow } from "@/types/database";
 import { SettingsSection } from "./shared";
@@ -88,16 +81,16 @@ export function TemplatesSection() {
 function ActivateFlow({ templates, onDone }: { templates: TemplateRow[]; onDone: () => void }) {
   const { snapshot, run } = useHousehold();
   const today = todayIn(snapshot.household.timezone);
-  const [step, setStep] = React.useState<"frequency" | "distribution">("frequency");
   const [rules, setRules] = React.useState<Record<string, RecurrenceRule>>(() =>
     Object.fromEntries(templates.map((t) => [t.id, initialRule(t, today)])),
   );
-  const [distribution, setDistribution] = React.useState<Distribution>({ ...DEFAULT_DISTRIBUTION, fixedMemberId: snapshot.me.id });
   const [saving, setSaving] = React.useState(false);
+  // Vaste reeks-id's: dubbel tikken op "Activeren" maakt geen dubbele reeksen (R-03)
+  const [recurrenceIds] = React.useState(() => new Map(templates.map((t) => [t.id, newId()])));
 
   async function activate() {
     setSaving(true);
-    const items = buildActivationItems(templates, rules, distribution, snapshot.members, today);
+    const items = buildActivationItems(templates, rules, today, (id) => recurrenceIds.get(id) ?? newId());
     const count = await run(() => activateTemplatesAction({ items }), {
       success: templates.length === 1 ? "Taak toegevoegd" : `${templates.length} taken toegevoegd`,
     });
@@ -108,38 +101,21 @@ function ActivateFlow({ templates, onDone }: { templates: TemplateRow[]; onDone:
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{step === "frequency" ? "Hoe vaak?" : "Hoe verdelen jullie het?"}</DialogTitle>
-        <DialogDescription>
-          Stap {step === "frequency" ? 1 : 2} van 2 ·{" "}
-          {step === "frequency" ? "Kies per taak hoe vaak hij terugkomt." : "Wie is er aan de beurt?"}
-        </DialogDescription>
+        <DialogTitle>Hoe vaak?</DialogTitle>
+        <DialogDescription>Kies per taak hoe vaak hij terugkomt.</DialogDescription>
       </DialogHeader>
       <DialogBody>
-        {step === "frequency" ? (
-          <FrequencyList
-            templates={templates}
-            rules={rules}
-            startDate={today}
-            onChange={(id, rule) => setRules((r) => ({ ...r, [id]: rule }))}
-          />
-        ) : (
-          <DistributionPicker members={snapshot.members} templates={templates} value={distribution} onChange={setDistribution} />
-        )}
+        <FrequencyList
+          templates={templates}
+          rules={rules}
+          startDate={today}
+          onChange={(id, rule) => setRules((r) => ({ ...r, [id]: rule }))}
+        />
       </DialogBody>
       <DialogFooter>
-        {step === "frequency" ? (
-          <Button onClick={() => setStep("distribution")}>Volgende</Button>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={() => setStep("frequency")}>
-              <ArrowLeft />
-              Terug
-            </Button>
-            <Button onClick={() => void activate()} disabled={saving}>
-              {saving ? "Bezig…" : "Activeren"}
-            </Button>
-          </>
-        )}
+        <Button onClick={() => void activate()} disabled={saving}>
+          {saving ? "Bezig…" : "Activeren"}
+        </Button>
       </DialogFooter>
     </>
   );

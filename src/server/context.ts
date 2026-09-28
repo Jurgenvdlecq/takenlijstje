@@ -1,14 +1,11 @@
 import "server-only";
 
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient, type DbClient } from "@/lib/supabase/server";
 import type { HouseholdRow, MemberRow } from "@/types/database";
 import { UserError } from "./errors";
-
-export const HOUSEHOLD_COOKIE = "tl_household";
 
 export interface HouseholdContext {
   supabase: DbClient;
@@ -34,9 +31,10 @@ export const getUser = cache(async (): Promise<{ supabase: DbClient; user: User 
 });
 
 /**
- * Lidmaatschap van de gebruiker. Alleen een ACTIEF lid heeft toegang (V-29);
- * de database dwingt dat ook af (private.is_member). Een uitgezet lid kan zijn
- * eigen rij nog lezen, zodat de app het scherm "geen toegang" kan tonen.
+ * Lidmaatschap van de gebruiker. Iemand hoort bij precies één huishouden
+ * (BR-44). Alleen een ACTIEF lid heeft toegang (V-29); de database dwingt dat
+ * ook af (private.is_member). Een uitgezet lid kan zijn eigen rij nog lezen,
+ * zodat de app het scherm "geen toegang" kan tonen.
  */
 const getMembership = cache(async (): Promise<Membership> => {
   const { supabase, user } = await getUser();
@@ -46,14 +44,12 @@ const getMembership = cache(async (): Promise<Membership> => {
     .from("household_members")
     .select("*, households(*)")
     .eq("user_id", user.id)
-    .order("created_at");
-  if (!memberships?.length) return { kind: "none", supabase, user };
+    .order("created_at")
+    .limit(1);
+  const row = memberships?.[0];
+  if (!row) return { kind: "none", supabase, user };
+  if (!row.is_active || !row.households) return { kind: "inactive", supabase, user };
 
-  const active = memberships.filter((m) => m.is_active && m.households);
-  if (!active.length) return { kind: "inactive", supabase, user };
-
-  const preferred = (await cookies()).get(HOUSEHOLD_COOKIE)?.value;
-  const row = active.find((m) => m.household_id === preferred) ?? active[0];
   const { households, ...member } = row as unknown as MemberRow & { households: HouseholdRow };
   return { kind: "active", ctx: { supabase, user, household: households, member, isAdmin: member.role === "admin" } };
 });

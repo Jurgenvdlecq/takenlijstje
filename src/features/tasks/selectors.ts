@@ -39,8 +39,6 @@ export interface DashboardData {
   todayTasks: TaskView[];
   upcoming: TaskView[];
   overdue: TaskView[];
-  mine: TaskView[];
-  everyone: TaskView[];
   summary: {
     todayCount: number;
     doneToday: number;
@@ -59,9 +57,6 @@ export function dashboardData(snapshot: Snapshot, now: Date): DashboardData {
   const todayTasks = views.filter((t) => t.scheduled_date === today && t.display !== "overdue");
   const overdue = views.filter((t) => t.display === "overdue");
   const upcoming = views.filter((t) => t.scheduled_date > today && t.scheduled_date <= weekEnd && isOpen(t));
-  const relevant = (t: TaskView) => t.display === "overdue" || (t.scheduled_date >= today && t.scheduled_date <= weekEnd);
-  const mine = views.filter((t) => t.assigned_member_id === snapshot.me.id && relevant(t) && isOpen(t));
-  const everyone = views.filter((t) => t.scheduled_date === today || t.display === "overdue");
 
   const openWithDeadline = views
     .filter((t) => isOpen(t) && t.due_at && t.display !== "overdue")
@@ -72,8 +67,6 @@ export function dashboardData(snapshot: Snapshot, now: Date): DashboardData {
     todayTasks,
     upcoming,
     overdue,
-    mine,
-    everyone,
     summary: {
       todayCount: todayTasks.length,
       doneToday: todayTasks.filter((t) => t.status === "done").length,
@@ -90,7 +83,6 @@ export function memberMap(members: MemberRow[]): Map<string, MemberRow> {
 
 export interface TaskFilters {
   search: string;
-  memberId: string | "all" | "unassigned";
   category: string | "all";
   status: DisplayStatus | "all" | "open";
   priority: string | "all";
@@ -101,7 +93,6 @@ export interface TaskFilters {
 
 export const DEFAULT_FILTERS: TaskFilters = {
   search: "",
-  memberId: "all",
   category: "all",
   status: "open",
   priority: "all",
@@ -114,8 +105,6 @@ export function filterTasks(views: TaskView[], f: TaskFilters): TaskView[] {
   const needle = f.search.trim().toLowerCase();
   return views.filter((t) => {
     if (needle && !t.title.toLowerCase().includes(needle) && !(t.description ?? "").toLowerCase().includes(needle)) return false;
-    if (f.memberId === "unassigned" && t.assigned_member_id) return false;
-    if (f.memberId !== "all" && f.memberId !== "unassigned" && t.assigned_member_id !== f.memberId) return false;
     if (f.category !== "all" && t.category !== f.category) return false;
     if (f.status === "open" && !(t.display === "todo" || t.display === "in_progress" || t.display === "overdue")) return false;
     if (f.status !== "all" && f.status !== "open" && t.display !== f.status) return false;

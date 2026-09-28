@@ -2,7 +2,6 @@
 
 import { CheckIcon, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import * as React from "react";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useHousehold } from "@/features/household/store";
@@ -11,10 +10,9 @@ import type { ShoppingItemRow } from "@/types/database";
 
 /** Eén product op de lijst: tik om af te vinken, menu voor bewerken/verwijderen. */
 export function ShoppingItem({ item, onEdit }: { item: ShoppingItemRow; onEdit: (item: ShoppingItemRow) => void }) {
-  const { snapshot, mutate } = useHousehold();
+  const { mutate } = useHousehold();
   const [popping, setPopping] = React.useState(false);
   const bought = item.is_bought;
-  const addedBy = snapshot.members.find((m) => m.id === item.added_by_member_id);
 
   const toggle = () => {
     if (!bought) setPopping(true);
@@ -75,7 +73,6 @@ export function ShoppingItem({ item, onEdit }: { item: ShoppingItemRow; onEdit: 
             </span>
           )}
         </span>
-        {addedBy && <MemberAvatar member={addedBy} size="xs" className={cn(bought && "opacity-50")} />}
       </button>
 
       <DropdownMenu>

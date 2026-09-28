@@ -63,7 +63,7 @@ export function DayList({
       <div className="grid gap-2">
         {tasks.map((task) => (draggable ? <DraggableTaskCard key={task.id} task={task} /> : <TaskCard key={task.id} task={task} />))}
         {projections.map((p) => (
-          <ProjectionRow key={p.key} projection={p} member={p.memberId ? data.memberById.get(p.memberId) : undefined} />
+          <ProjectionRow key={p.key} projection={p} />
         ))}
       </div>
     </div>

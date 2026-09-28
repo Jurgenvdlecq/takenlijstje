@@ -1,44 +1,30 @@
 "use client";
 
 /**
- * Welkomstwizard: huishouden aanmaken, gezinsleden toevoegen, standaardtaken
- * kiezen, hoe vaak, en hoe ze verdeeld worden. Draait buiten de
- * HouseholdProvider, dus acties worden hier direct aangeroepen.
+ * Welkomstwizard: huishouden aanmaken, standaardtaken kiezen en hoe vaak.
+ * Er wordt niets verdeeld (V-21); gezinsleden komen erbij via een uitnodiging.
+ * Draait buiten de HouseholdProvider, dus acties worden hier direct aangeroepen.
  */
-import { ArrowLeft, ArrowRight, Loader2, PartyPopper, Plus, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, PartyPopper } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { todayIn } from "@/domain/dates";
 import type { RecurrenceRule } from "@/domain/recurrence/rule";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { Progress } from "@/components/ui/misc";
-import { ColorSwatches, EmojiPicker } from "@/features/settings/shared";
+import { ColorSwatches } from "@/features/settings/shared";
 import { MEMBER_COLORS } from "@/lib/labels";
-import { cn } from "@/lib/utils";
-import {
-  activateTemplatesAction,
-  addMemberAction,
-  completeOnboardingAction,
-  createHouseholdAction,
-  removeMemberAction,
-} from "@/server/actions/household";
+import { newId } from "@/lib/utils";
+import { activateTemplatesAction, completeOnboardingAction, createHouseholdAction } from "@/server/actions/household";
 import type { ActionResult } from "@/server/errors";
-import type { MemberRow, TemplateRow } from "@/types/database";
-import {
-  buildActivationItems,
-  DEFAULT_DISTRIBUTION,
-  DistributionPicker,
-  FrequencyList,
-  TemplateChecklist,
-  type Distribution,
-} from "./template-plan";
+import type { TemplateRow } from "@/types/database";
+import { buildActivationItems, FrequencyList, TemplateChecklist } from "./template-plan";
 
-type Step = "household" | "members" | "tasks" | "frequency" | "distribution" | "done";
-const STEPS: Step[] = ["household", "members", "tasks", "frequency", "distribution"];
+type Step = "household" | "tasks" | "frequency" | "done";
+const STEPS: Step[] = ["household", "tasks", "frequency"];
 
 /** Server action aanroepen en fouten netjes tonen */
 async function call<T>(action: () => Promise<ActionResult<T>>): Promise<T | null> {
@@ -57,25 +43,26 @@ async function call<T>(action: () => Promise<ActionResult<T>>): Promise<T | null
 
 export function OnboardingWizard({
   household,
-  meId,
-  members,
   templates,
   suggestedName,
 }: {
   household: { id: string; name: string; timezone: string } | null;
-  meId: string | null;
-  members: MemberRow[];
   templates: TemplateRow[];
   suggestedName: string;
 }) {
   const router = useRouter();
   const [refreshing, startRefresh] = React.useTransition();
-  const [step, setStep] = React.useState<Step>(household ? "members" : "household");
+  const [step, setStep] = React.useState<Step>(household ? "tasks" : "household");
   const [busy, setBusy] = React.useState(false);
 
   const [selected, setSelected] = React.useState<Set<string>>(() => new Set(templates.filter((t) => t.popular).map((t) => t.id)));
   const [rules, setRules] = React.useState<Record<string, RecurrenceRule>>({});
-  const [distribution, setDistribution] = React.useState<Distribution>(DEFAULT_DISTRIBUTION);
+  // Vaste reeks-id's per standaardtaak: dubbel tikken op "Klaar" maakt geen dubbele reeksen
+  const recurrenceIds = React.useRef(new Map<string, string>());
+  const idFor = (templateId: string) => {
+    if (!recurrenceIds.current.has(templateId)) recurrenceIds.current.set(templateId, newId());
+    return recurrenceIds.current.get(templateId)!;
+  };
 
   const today = todayIn(household?.timezone ?? "Europe/Amsterdam");
   const chosen = templates.filter((t) => selected.has(t.id));
@@ -94,7 +81,7 @@ export function OnboardingWizard({
   async function finish() {
     setBusy(true);
     if (chosen.length > 0) {
-      const items = buildActivationItems(chosen, rules, { ...distribution, fixedMemberId: distribution.fixedMemberId ?? meId }, members, today);
+      const items = buildActivationItems(chosen, rules, today, idFor);
       const count = await call(() => activateTemplatesAction({ items }));
       if (count === null) {
         setBusy(false);
@@ -152,18 +139,8 @@ export function OnboardingWizard({
           suggestedName={suggestedName}
           onCreated={() => {
             refresh();
-            go("members");
+            go("tasks");
           }}
-        />
-      )}
-
-      {step === "members" && (
-        <MembersStep
-          members={members}
-          meId={meId}
-          loading={refreshing || !household}
-          onChanged={refresh}
-          onNext={() => go("tasks")}
         />
       )}
 
@@ -171,7 +148,6 @@ export function OnboardingWizard({
         <StepLayout
           title="Welke taken wil je bijhouden?"
           subtitle="We hebben alvast wat populaire klusjes aangevinkt. Je kunt later altijd meer toevoegen."
-          back={() => go("members")}
           next={
             chosen.length > 0 ? (
               <Button size="lg" className="flex-1" onClick={() => go("frequency")}>
@@ -206,9 +182,9 @@ export function OnboardingWizard({
           subtitle="We stellen per taak iets voor. Pas het aan als het bij jullie anders gaat."
           back={() => go("tasks")}
           next={
-            <Button size="lg" className="flex-1" onClick={() => go("distribution")}>
-              Volgende
-              <ArrowRight />
+            <Button size="lg" className="flex-1" disabled={busy} onClick={() => void finish()}>
+              {busy ? <Loader2 className="animate-spin" /> : null}
+              {busy ? "Taken inplannen…" : "Klaar!"}
             </Button>
           }
         >
@@ -221,26 +197,6 @@ export function OnboardingWizard({
         </StepLayout>
       )}
 
-      {step === "distribution" && (
-        <StepLayout
-          title="Hoe verdelen jullie de taken?"
-          subtitle="De app houdt bij wie wat doet en wie aan de beurt is."
-          back={() => go("frequency")}
-          next={
-            <Button size="lg" className="flex-1" disabled={busy} onClick={() => void finish()}>
-              {busy ? <Loader2 className="animate-spin" /> : null}
-              {busy ? "Taken inplannen…" : "Klaar!"}
-            </Button>
-          }
-        >
-          <DistributionPicker
-            members={members}
-            templates={chosen}
-            value={{ ...distribution, fixedMemberId: distribution.fixedMemberId ?? meId }}
-            onChange={setDistribution}
-          />
-        </StepLayout>
-      )}
     </Shell>
   );
 }
@@ -350,120 +306,3 @@ function HouseholdStep({ suggestedName, onCreated }: { suggestedName: string; on
 
 // ---------------------------------------------------------------------------
 // Stap 2: gezinsleden
-// ---------------------------------------------------------------------------
-function MembersStep({
-  members,
-  meId,
-  loading,
-  onChanged,
-  onNext,
-}: {
-  members: MemberRow[];
-  meId: string | null;
-  loading: boolean;
-  onChanged: () => void;
-  onNext: () => void;
-}) {
-  const usedColors = new Set(members.map((m) => m.color));
-  const nextColor = MEMBER_COLORS.find((c) => !usedColors.has(c)) ?? MEMBER_COLORS[members.length % MEMBER_COLORS.length];
-  const [name, setName] = React.useState("");
-  const [color, setColor] = React.useState<string | null>(null);
-  const [icon, setIcon] = React.useState("");
-  const [showMore, setShowMore] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  const others = members.filter((m) => m.id !== meId);
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setBusy(true);
-    const created = await call(() =>
-      addMemberAction({ displayName: name, color: color ?? nextColor, icon: icon || null, role: "member" }),
-    );
-    setBusy(false);
-    if (!created) return;
-    setName("");
-    setIcon("");
-    setColor(null);
-    setShowMore(false);
-    onChanged();
-    inputRef.current?.focus();
-  }
-
-  async function remove(member: MemberRow) {
-    const ok = await call(() => removeMemberAction(member.id));
-    if (ok !== null) onChanged();
-  }
-
-  return (
-    <StepLayout
-      title="Wie wonen er nog meer?"
-      subtitle="Voeg je partner, kinderen of huisgenoten toe. Later kun je ze uitnodigen om zelf in te loggen – dat hoeft niet, ook kinderen zonder telefoon kunnen meedoen."
-      next={
-        <Button size="lg" className="flex-1" disabled={loading} onClick={onNext}>
-          {others.length === 0 ? "Overslaan" : "Volgende"}
-          <ArrowRight />
-        </Button>
-      }
-    >
-      <div className="grid gap-4">
-        <ul className="grid gap-2">
-          {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 rounded-2xl border bg-card p-3">
-              <MemberAvatar member={m} size="md" />
-              <span className="flex-1 font-medium">
-                {m.display_name}
-                {m.id === meId && <span className="font-normal text-muted-foreground"> (jij)</span>}
-              </span>
-              {m.id !== meId && (
-                <Button variant="ghost" size="icon" aria-label={`${m.display_name} verwijderen`} onClick={() => void remove(m)}>
-                  <X />
-                </Button>
-              )}
-            </li>
-          ))}
-          {loading && members.length === 0 && (
-            <li className="flex items-center gap-2 rounded-2xl border border-dashed p-3 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" /> Even laden…
-            </li>
-          )}
-        </ul>
-
-        <form onSubmit={add} className="grid gap-3 rounded-2xl bg-muted/50 p-3">
-          <div className="flex gap-2">
-            <MemberAvatar member={{ display_name: name || "?", color: color ?? nextColor, icon: icon || null, avatar_url: null }} size="lg" />
-            <Input
-              ref={inputRef}
-              value={name}
-              maxLength={50}
-              placeholder="Naam, bijv. Sanne"
-              aria-label="Naam van gezinslid"
-              className="h-12 flex-1 text-base"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          {showMore ? (
-            <div className="grid gap-3">
-              <ColorSwatches value={color ?? nextColor} onChange={setColor} />
-              <EmojiPicker value={icon} onChange={setIcon} />
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="justify-self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
-              onClick={() => setShowMore(true)}
-            >
-              Kleur of emoji kiezen
-            </button>
-          )}
-          <Button type="submit" variant="outline" disabled={busy || loading || !name.trim()} className={cn(busy && "opacity-70")}>
-            {busy ? <Loader2 className="animate-spin" /> : <Plus />}
-            Toevoegen
-          </Button>
-        </form>
-      </div>
-    </StepLayout>
-  );
-}

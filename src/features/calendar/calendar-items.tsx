@@ -7,12 +7,10 @@ import { toast } from "sonner";
 import { shortTime } from "@/domain/dates";
 import { describeRule } from "@/domain/recurrence/rule";
 import { isOpen } from "@/domain/status";
-import { MemberAvatar } from "@/components/member-avatar";
 import { TaskCard } from "@/features/tasks/task-card";
 import type { TaskView } from "@/features/tasks/selectors";
 import { useTaskUi } from "@/features/tasks/task-ui-context";
 import { cn } from "@/lib/utils";
-import type { MemberRow } from "@/types/database";
 import type { Projection } from "./calendar-model";
 
 export interface DragData {
@@ -52,11 +50,9 @@ export function DraggableTaskCard({ task }: { task: TaskView }) {
 /** Kleine taakregel voor kolommen en maandvakjes. */
 export function TaskChip({
   task,
-  member,
   overlay = false,
 }: {
   task: TaskView;
-  member: MemberRow | undefined;
   overlay?: boolean;
 }) {
   const { openTask } = useTaskUi();
@@ -76,7 +72,7 @@ export function TaskChip({
         finished && "opacity-60",
         overlay && "rotate-1 shadow-lg ring-primary/40",
       )}
-      style={{ borderLeftColor: member?.color ?? "var(--color-border)" }}
+      style={{ borderLeftColor: "var(--color-border)" }}
     >
       <span className="min-w-0 flex-1">
         {task.scheduled_time && (
@@ -89,10 +85,10 @@ export function TaskChip({
   );
 }
 
-export function DraggableTaskChip({ task, member }: { task: TaskView; member: MemberRow | undefined }) {
+export function DraggableTaskChip({ task }: { task: TaskView }) {
   return (
     <Draggable task={task}>
-      <TaskChip task={task} member={member} />
+      <TaskChip task={task} />
     </Draggable>
   );
 }
@@ -104,7 +100,7 @@ function explainProjection(p: Projection) {
 }
 
 /** Geprojecteerde herhaling: gedimd en gestippeld, niet sleepbaar. */
-export function ProjectionRow({ projection, member }: { projection: Projection; member: MemberRow | undefined }) {
+export function ProjectionRow({ projection }: { projection: Projection }) {
   return (
     <button
       type="button"
@@ -132,12 +128,11 @@ export function ProjectionRow({ projection, member }: { projection: Projection; 
           </span>
         </span>
       </span>
-      {member && <MemberAvatar member={member} size="sm" className="opacity-60" />}
     </button>
   );
 }
 
-export function ProjectionChip({ projection, member }: { projection: Projection; member: MemberRow | undefined }) {
+export function ProjectionChip({ projection }: { projection: Projection }) {
   return (
     <button
       type="button"
@@ -147,7 +142,6 @@ export function ProjectionChip({ projection, member }: { projection: Projection;
       }}
       title={`${projection.title} (wordt automatisch ingepland)`}
       className="flex min-h-9 w-full items-center gap-1.5 rounded-lg border border-dashed border-muted-foreground/35 px-1.5 py-1 text-left text-xs text-muted-foreground transition outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
-      style={member ? { borderLeftColor: member.color, borderLeftStyle: "solid", borderLeftWidth: 3 } : undefined}
     >
       <span className="min-w-0 flex-1">
         {projection.time && <span className="block text-[10px] leading-tight tabular-nums">{shortTime(projection.time)}</span>}

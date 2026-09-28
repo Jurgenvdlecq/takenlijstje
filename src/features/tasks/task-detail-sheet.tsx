@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeftRight,
   CalendarClock,
   CheckIcon,
   Clock,
@@ -14,14 +13,11 @@ import {
   RotateCcw,
   SkipForward,
   Trash2,
-  Trophy,
-  UserRound,
 } from "lucide-react";
 import * as React from "react";
 import { todayIn, zonedDate } from "@/domain/dates";
 import { describeRule } from "@/domain/recurrence/rule";
 import { deadlineText, displayStatus, PRIORITY_LABELS, relativeDayLabel, STATUS_LABELS } from "@/domain/status";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -32,13 +28,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NativeSelect } from "@/components/ui/input";
 import { useHousehold } from "@/features/household/store";
 import { useNow } from "@/hooks/use-now";
 import { CATEGORY_ICONS, CATEGORY_LABELS } from "@/lib/labels";
-import { acceptSwapAction, cancelSwapAction, deleteTaskAction } from "@/server/actions/tasks";
+import { deleteTaskAction } from "@/server/actions/tasks";
 import type { TaskRow } from "@/types/database";
-import { CannotDoDialog } from "./cannot-do-dialog";
 import { EditTaskDialog } from "./edit-task-dialog";
 import { PauseDialog } from "./pause-dialog";
 import { ScopeDialog } from "./scope-dialog";
@@ -90,16 +84,11 @@ function TaskDetail({ task }: { task: TaskRow }) {
 
   const [editing, setEditing] = React.useState(false);
   const [pausing, setPausing] = React.useState(false);
-  const [cannotDo, setCannotDo] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
 
   const series = snapshot.recurrences.find((r) => r.id === task.recurrence_id);
-  const assignee = snapshot.members.find((m) => m.id === task.assigned_member_id);
-  const completedBy = snapshot.members.find((m) => m.id === task.completed_by_member_id);
   const status = displayStatus({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
   const deadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
-  const swap = snapshot.swapRequests.find((r) => r.task_id === task.id);
-  const swapBy = swap && snapshot.members.find((m) => m.id === swap.requested_by_member_id);
   const done = task.status === "done";
   const open = task.status === "todo" || task.status === "in_progress";
   const CategoryIcon = CATEGORY_ICONS[task.category];
@@ -184,11 +173,6 @@ function TaskDetail({ task }: { task: TaskRow }) {
                   <RotateCcw /> Toch nog doen
                 </DropdownMenuItem>
               )}
-              {open && (
-                <DropdownMenuItem onSelect={() => setCannotDo(true)}>
-                  <ArrowLeftRight /> Ik kan deze taak niet doen
-                </DropdownMenuItem>
-              )}
               {series && (
                 <DropdownMenuItem onSelect={() => setPausing(true)}>
                   <Pause /> Reeks pauzeren
@@ -205,53 +189,7 @@ function TaskDetail({ task }: { task: TaskRow }) {
           </DropdownMenu>
         </div>
 
-        {swap && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-accent p-3 text-sm">
-            <ArrowLeftRight className="size-4 text-accent-foreground" />
-            <p className="flex-1">
-              <strong>{swapBy?.display_name ?? "Iemand"}</strong> wil deze taak ruilen
-              {swap.message ? `: “${swap.message}”` : "."}
-            </p>
-            {swap.requested_by_member_id === snapshot.me.id ? (
-              <Button size="sm" variant="outline" onClick={() => void run(() => cancelSwapAction(swap.id), { success: "Ruilverzoek ingetrokken" })}>
-                Intrekken
-              </Button>
-            ) : (
-              <Button size="sm" onClick={() => void run(() => acceptSwapAction(swap.id), { success: "Je hebt de taak overgenomen" })}>
-                Overnemen
-              </Button>
-            )}
-          </div>
-        )}
-
         <div className="divide-y rounded-2xl border px-3.5">
-          <InfoRow icon={UserRound} label="Wie">
-            {open ? (
-              <div className="flex items-center gap-2">
-                <MemberAvatar member={assignee} size="xs" />
-                <NativeSelect
-                  aria-label="Toewijzen aan"
-                  className="h-9 border-none bg-transparent px-0 pr-7 shadow-none"
-                  value={task.assigned_member_id ?? ""}
-                  onChange={(e) => void actions.assign(task.id, e.target.value || null)}
-                >
-                  <option value="">Niet toegewezen</option>
-                  {snapshot.members
-                    .filter((m) => m.is_active || m.id === task.assigned_member_id)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.display_name}
-                      </option>
-                    ))}
-                </NativeSelect>
-              </div>
-            ) : (
-              <span className="flex items-center gap-2">
-                <MemberAvatar member={assignee} size="xs" />
-                {assignee?.display_name ?? "Niet toegewezen"}
-              </span>
-            )}
-          </InfoRow>
           <InfoRow icon={CalendarClock} label="Wanneer">
             {open ? (
               <label className="relative inline-flex cursor-pointer items-center gap-1 text-primary">
@@ -291,17 +229,12 @@ function TaskDetail({ task }: { task: TaskRow }) {
               ± {task.duration_minutes} minuten
             </InfoRow>
           )}
-          {snapshot.household.points_enabled && (
-            <InfoRow icon={Trophy} label="Punten">
-              {task.points ?? Math.max(1, Math.round((task.duration_minutes ?? 10) / 10))}
-            </InfoRow>
-          )}
           <InfoRow icon={CategoryIcon} label="Categorie">
             {CATEGORY_LABELS[task.category]}
           </InfoRow>
           {done && task.completed_at && (
             <InfoRow icon={CheckIcon} label="Gedaan">
-              {fmt(task.completed_at)} door {completedBy?.display_name ?? "onbekend"}
+              {fmt(task.completed_at)}
             </InfoRow>
           )}
           {series?.paused_from && series.paused_until && series.paused_until >= today && (
@@ -317,7 +250,6 @@ function TaskDetail({ task }: { task: TaskRow }) {
 
       <EditTaskDialog task={task} open={editing} onOpenChange={setEditing} />
       {series && <PauseDialog series={series} open={pausing} onOpenChange={setPausing} />}
-      <CannotDoDialog task={task} open={cannotDo} onOpenChange={setCannotDo} />
       <ScopeDialog open={deleting} onOpenChange={setDeleting} title="Wat wil je verwijderen?" destructive onChoose={(scope) => void remove(scope)} />
     </>
   );

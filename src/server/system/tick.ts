@@ -19,9 +19,9 @@ import { notify } from "./dispatcher";
 function toPrefs(row: PreferencesRow | undefined): ReminderPrefs {
   return {
     deadlineWarningMinutes: row?.deadline_warning_minutes ?? 120,
-    dailySummaryEnabled: row?.daily_summary_enabled ?? true,
+    dailySummaryEnabled: row?.daily_summary_enabled ?? false,
     dailySummaryTime: row?.daily_summary_time?.slice(0, 5) ?? "07:30",
-    eveningSummaryEnabled: row?.evening_summary_enabled ?? true,
+    eveningSummaryEnabled: row?.evening_summary_enabled ?? false,
     eveningSummaryTime: row?.evening_summary_time?.slice(0, 5) ?? "20:00",
   };
 }
@@ -67,14 +67,14 @@ async function sendDueMessages(household: HouseholdRow, now: Date): Promise<numb
       .lte("scheduled_date", today)
       .then(check),
   ]);
-  const admins = (members as MemberRow[]).filter((m) => m.role === "admin").map((m) => m.id);
+  const withAccount = (members as MemberRow[]).filter((m) => m.user_id);
   const prefsFor = (memberId: string) => toPrefs((prefs as PreferencesRow[]).find((p) => p.member_id === memberId));
   let sent = 0;
 
+  // Iedereen met een account krijgt de meldingen die hij aan heeft staan
+  // (V-23); welke soort iemand wil, filtert de dispatcher (recipientsFor)
   for (const task of tasks as TaskRow[]) {
-    // Niet toegewezen → beheerders krijgen alleen de verlopen-melding
-    const recipients = task.assigned_member_id ? [task.assigned_member_id] : admins;
-    for (const memberId of recipients) {
+    for (const member of withAccount) {
       const messages = taskMessages(
         {
           id: task.id,
@@ -85,28 +85,27 @@ async function sendDueMessages(household: HouseholdRow, now: Date): Promise<numb
           dueAt: task.due_at,
           reminderMinutesBefore: task.reminder_minutes_before ?? [],
         },
-        prefsFor(memberId),
+        prefsFor(member.id),
         now,
         tz,
-      ).filter((m) => task.assigned_member_id || m.type === "overdue");
+      );
       for (const message of messages) {
-        await notify({ householdId: household.id, memberIds: [memberId], message });
+        await notify({ householdId: household.id, memberIds: [member.id], message });
         sent++;
       }
     }
   }
 
-  const todayTasks = (tasks as TaskRow[]).filter((t) => t.scheduled_date === today);
-  for (const member of members as MemberRow[]) {
-    if (!member.user_id) continue;
-    const mine = (tasks as TaskRow[]).filter((t) => t.assigned_member_id === member.id);
-    const messages = summaryMessages(prefsFor(member.id), now, tz, {
-      todayCount: todayTasks.length,
-      mineToday: mine.filter((t) => t.scheduled_date === today).length,
-      mineOpen: mine.filter(
-        (t) => t.scheduled_date === today || isOverdue({ status: t.status, scheduledDate: t.scheduled_date, dueAt: t.due_at }, now, tz),
-      ).length,
-    });
+  // Dag- en avondoverzicht tellen voor het hele huishouden (BR-31)
+  const open = tasks as TaskRow[];
+  const counts = {
+    todayOpen: open.filter((t) => t.scheduled_date === today).length,
+    openIncludingOverdue: open.filter(
+      (t) => t.scheduled_date === today || isOverdue({ status: t.status, scheduledDate: t.scheduled_date, dueAt: t.due_at }, now, tz),
+    ).length,
+  };
+  for (const member of withAccount) {
+    const messages = summaryMessages(prefsFor(member.id), now, tz, counts);
     for (const message of messages) {
       await notify({ householdId: household.id, memberIds: [member.id], message: { ...message, url: "/" } });
       sent++;

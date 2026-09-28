@@ -13,12 +13,10 @@ import { SettingsSection } from "./shared";
 
 export interface PreferencesForm {
   pushEnabled: boolean;
-  notifyTaskAssigned: boolean;
   notifyReminders: boolean;
   notifyDeadlineSoon: boolean;
   notifyOverdue: boolean;
   notifyTaskCompleted: boolean;
-  notifySwapRequests: boolean;
   dailySummaryEnabled: boolean;
   dailySummaryTime: string;
   eveningSummaryEnabled: boolean;
@@ -30,12 +28,10 @@ export interface PreferencesForm {
 function toForm(p: PreferencesRow | null): PreferencesForm {
   return {
     pushEnabled: p?.push_enabled ?? false,
-    notifyTaskAssigned: p?.notify_task_assigned ?? true,
     notifyReminders: p?.notify_reminders ?? true,
     notifyDeadlineSoon: p?.notify_deadline_soon ?? true,
     notifyOverdue: p?.notify_overdue ?? true,
     notifyTaskCompleted: p?.notify_task_completed ?? false,
-    notifySwapRequests: p?.notify_swap_requests ?? true,
     dailySummaryEnabled: p?.daily_summary_enabled ?? true,
     dailySummaryTime: (p?.daily_summary_time ?? "07:30").slice(0, 5),
     eveningSummaryEnabled: p?.evening_summary_enabled ?? true,
@@ -53,12 +49,10 @@ const WARNING_OPTIONS = [
 ];
 
 const TOGGLES: { key: keyof PreferencesForm; label: string; description: string }[] = [
-  { key: "notifyTaskAssigned", label: "Nieuwe taak voor mij", description: "Als iemand je een taak geeft" },
   { key: "notifyReminders", label: "Herinneringen", description: "Op het tijdstip dat je bij een taak kiest" },
   { key: "notifyDeadlineSoon", label: "Deadline nadert", description: "Een seintje vlak voor de deadline" },
-  { key: "notifyOverdue", label: "Te laat", description: "Als een taak van jou over tijd is" },
-  { key: "notifyTaskCompleted", label: "Taak afgerond door een ander", description: "Zie wanneer iemand iets heeft gedaan" },
-  { key: "notifySwapRequests", label: "Ruilverzoeken", description: "Als iemand een taak met je wil ruilen" },
+  { key: "notifyOverdue", label: "Te laat", description: "Als een taak over tijd is" },
+  { key: "notifyTaskCompleted", label: "Taak gedaan", description: "Zie wanneer een taak is afgevinkt" },
 ];
 
 export function NotificationsSection() {

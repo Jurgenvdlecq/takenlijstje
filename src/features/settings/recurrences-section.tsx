@@ -4,7 +4,6 @@ import { MoreVertical, Pause, Play, Repeat, Square } from "lucide-react";
 import * as React from "react";
 import { addDays, todayIn } from "@/domain/dates";
 import { describeRule } from "@/domain/recurrence/rule";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,9 +27,9 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { EmptyState } from "@/components/ui/misc";
 import { useHousehold } from "@/features/household/store";
-import { CATEGORY_ICONS, STRATEGY_LABELS } from "@/lib/labels";
+import { CATEGORY_ICONS } from "@/lib/labels";
 import { pauseSeriesAction, stopSeriesAction } from "@/server/actions/tasks";
-import type { MemberRow, RecurrenceRow } from "@/types/database";
+import type { RecurrenceRow } from "@/types/database";
 import { formatDate, SettingsSection } from "./shared";
 
 function pauseLabel(r: RecurrenceRow, today: string): string | null {
@@ -44,24 +43,6 @@ function pauseLabel(r: RecurrenceRow, today: string): string | null {
   return r.paused_until ? `Gepauzeerd t/m ${formatDate(r.paused_until)}` : "Gepauzeerd";
 }
 
-function assigneeInfo(r: RecurrenceRow, members: MemberRow[]): { text: string; people: MemberRow[] } {
-  const byId = (id: string) => members.find((m) => m.id === id);
-  switch (r.assignment_strategy) {
-    case "fixed": {
-      const m = r.fixed_member_id ? byId(r.fixed_member_id) : undefined;
-      return { text: m?.display_name ?? "Onbekend", people: m ? [m] : [] };
-    }
-    case "rotation": {
-      const people = r.rotation_member_ids.map(byId).filter((m): m is MemberRow => Boolean(m));
-      return { text: people.map((m) => m.display_name).join(" → ") || "Iedereen", people };
-    }
-    case "none":
-      return { text: "Wie tijd heeft", people: [] };
-    default:
-      return { text: "Iedereen", people: members.filter((m) => m.is_active) };
-  }
-}
-
 export function RecurrencesSection() {
   const { snapshot, run } = useHousehold();
   const isAdmin = snapshot.me.role === "admin";
@@ -71,8 +52,8 @@ export function RecurrencesSection() {
   const series = [...snapshot.recurrences].sort(
     (a, b) => Number(b.is_active) - Number(a.is_active) || a.title.localeCompare(b.title, "nl"),
   );
-  const canManage = (r: RecurrenceRow) =>
-    isAdmin || r.created_by_member_id === snapshot.me.id || snapshot.household.members_can_create_tasks;
+  // Zelfde regel als de database (BR-22): beheerder of wie de reeks maakte
+  const canManage = (r: RecurrenceRow) => isAdmin || r.created_by_member_id === snapshot.me.id;
 
   async function resume(r: RecurrenceRow) {
     await run(() => pauseSeriesAction({ recurrenceId: r.id, pausedFrom: null, pausedUntil: null }), {
@@ -100,7 +81,6 @@ export function RecurrencesSection() {
           {series.map((r) => {
             const Icon = CATEGORY_ICONS[r.category];
             const paused = r.is_active ? pauseLabel(r, today) : null;
-            const who = assigneeInfo(r, snapshot.members);
             return (
               <li key={r.id} className={r.is_active ? "flex items-center gap-3 rounded-2xl border p-3" : "flex items-center gap-3 rounded-2xl border border-dashed p-3 opacity-60"}>
                 <div className="rounded-xl bg-muted p-2 text-muted-foreground">
@@ -109,17 +89,9 @@ export function RecurrencesSection() {
                 <div className="grid min-w-0 flex-1 gap-1">
                   <span className="truncate font-medium">{r.title}</span>
                   <span className="text-xs text-muted-foreground">
-                    {describeRule(r.rule)} · {STRATEGY_LABELS[r.assignment_strategy].label}
+                    {describeRule(r.rule)}
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {who.people.length > 0 && (
-                      <span className="flex -space-x-1.5">
-                        {who.people.slice(0, 5).map((m) => (
-                          <MemberAvatar key={m.id} member={m} size="xs" ring />
-                        ))}
-                      </span>
-                    )}
-                    <span className="truncate text-xs text-muted-foreground">{who.text}</span>
                     {!r.is_active && <Badge variant="outline">Gestopt</Badge>}
                     {paused && <Badge variant="today">{paused}</Badge>}
                   </div>

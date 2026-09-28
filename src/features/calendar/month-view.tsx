@@ -50,7 +50,6 @@ export function MonthView({ anchor, selected, data, wide, onSelect, onOpenDay }:
                   today={date === data.today}
                   tasks={data.tasksByDate.get(date) ?? []}
                   projections={data.projectionsByDate.get(date) ?? []}
-                  data={data}
                   wide={wide}
                   onSelect={onSelect}
                 />
@@ -81,12 +80,11 @@ interface MonthCellProps {
   today: boolean;
   tasks: TaskView[];
   projections: Projection[];
-  data: CalendarData;
   wide: boolean;
   onSelect: (date: ISODate) => void;
 }
 
-function MonthCell({ date, outside, selected, today, tasks, projections, data, wide, onSelect }: MonthCellProps) {
+function MonthCell({ date, outside, selected, today, tasks, projections, wide, onSelect }: MonthCellProps) {
   const open = tasks.filter((t) => t.display !== "done" && t.display !== "skipped");
   const overdue = tasks.some((t) => t.display === "overdue");
   const allDone = tasks.length > 0 && open.length === 0;
@@ -133,7 +131,7 @@ function MonthCell({ date, outside, selected, today, tasks, projections, data, w
       {wide ? (
         <>
           {tasks.slice(0, MAX_CHIPS).map((task) => (
-            <DraggableTaskChip key={task.id} task={task} member={task.assigned_member_id ? data.memberById.get(task.assigned_member_id) : undefined} />
+            <DraggableTaskChip key={task.id} task={task} />
           ))}
           {tasks.length > MAX_CHIPS && (
             <span className="px-1 text-[11px] text-muted-foreground">+{tasks.length - MAX_CHIPS} meer</span>
@@ -146,23 +144,21 @@ function MonthCell({ date, outside, selected, today, tasks, projections, data, w
           )}
         </>
       ) : (
-        <Dots tasks={open} projections={projections} allDone={allDone} data={data} />
+        <Dots tasks={open} projections={projections} allDone={allDone} />
       )}
     </DroppableDay>
   );
 }
 
-/** Mobiel: gekleurde puntjes per taak (kleur van het gezinslid). */
+/** Mobiel: een puntje per taak. */
 function Dots({
   tasks,
   projections,
   allDone,
-  data,
 }: {
   tasks: TaskView[];
   projections: Projection[];
   allDone: boolean;
-  data: CalendarData;
 }) {
   if (allDone && !projections.length) return <span className="size-1.5 rounded-full bg-done" aria-hidden />;
   const shown = tasks.slice(0, MAX_DOTS);
@@ -174,7 +170,7 @@ function Dots({
         <span
           key={t.id}
           className={cn("size-1.5 rounded-full", t.display === "overdue" && "ring-1 ring-overdue")}
-          style={{ backgroundColor: (t.assigned_member_id && data.memberById.get(t.assigned_member_id)?.color) || "var(--color-muted-foreground)" }}
+          style={{ backgroundColor: "var(--color-muted-foreground)" }}
         />
       ))}
       {Array.from({ length: ghosts }, (_, i) => (

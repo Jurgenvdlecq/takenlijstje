@@ -28,14 +28,10 @@ function patchTask(s: Snapshot, taskId: string, patch: Partial<Snapshot["tasks"]
 export const mutations = {
   complete: {
     offline: true,
-    optimistic: (s, p, ctx) => {
+    optimistic: (s, p) => {
       const task = s.tasks.find((t) => t.id === p.taskId);
       if (!task) return s;
-      const next = patchTask(s, p.taskId, {
-        status: "done",
-        completed_at: p.completedAt,
-        completed_by_member_id: p.completedBy ?? ctx.meId,
-      });
+      const next = patchTask(s, p.taskId, { status: "done", completed_at: p.completedAt });
       return {
         ...next,
         completions: [
@@ -46,13 +42,11 @@ export const mutations = {
             recurrence_id: task.recurrence_id,
             title: task.title,
             category: task.category,
-            member_id: p.completedBy ?? ctx.meId,
             completed_at: p.completedAt,
             scheduled_date: task.scheduled_date,
             due_at: task.due_at,
             was_late: !!task.due_at && p.completedAt > task.due_at,
             minutes_late: 0,
-            points: task.points ?? Math.max(1, Math.round((task.duration_minutes ?? 10) / 10)),
             duration_minutes: task.duration_minutes,
             note: p.note ?? null,
             client_mutation_id: p.mutationId,
@@ -63,12 +57,12 @@ export const mutations = {
       };
     },
     send: (p) => postOutbox("complete", p),
-  } satisfies MutationDef<{ taskId: string; mutationId: string; completedAt: string; completedBy?: string; note?: string | null }>,
+  } satisfies MutationDef<{ taskId: string; mutationId: string; completedAt: string; note?: string | null }>,
 
   undo: {
     offline: true,
     optimistic: (s, p) => ({
-      ...patchTask(s, p.taskId, { status: "todo", completed_at: null, completed_by_member_id: null }),
+      ...patchTask(s, p.taskId, { status: "todo", completed_at: null }),
       completions: removeLatestCompletion(s.completions, p.taskId),
     }),
     send: (p) => postOutbox("undo", p),
@@ -85,12 +79,6 @@ export const mutations = {
     optimistic: (s, p) => patchTask(s, p.taskId, { scheduled_date: p.date }),
     send: (p) => postOutbox("move", p),
   } satisfies MutationDef<{ taskId: string; date: string }>,
-
-  assign: {
-    offline: true,
-    optimistic: (s, p) => patchTask(s, p.taskId, { assigned_member_id: p.memberId }),
-    send: (p) => postOutbox("assign", p),
-  } satisfies MutationDef<{ taskId: string; memberId: string | null }>,
 
   shoppingAdd: {
     offline: true,
@@ -111,8 +99,6 @@ export const mutations = {
                 note: p.note ?? null,
                 is_bought: false,
                 bought_at: null,
-                added_by_member_id: ctx.meId,
-                bought_by_member_id: null,
                 created_at: ctx.now,
               },
             ],
@@ -126,7 +112,7 @@ export const mutations = {
       ...s,
       shoppingItems: s.shoppingItems.map((i) =>
         i.id === p.id
-          ? { ...i, is_bought: p.bought, bought_at: p.bought ? ctx.now : null, bought_by_member_id: p.bought ? ctx.meId : null }
+          ? { ...i, is_bought: p.bought, bought_at: p.bought ? ctx.now : null }
           : i,
       ),
     }),

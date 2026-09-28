@@ -26,10 +26,9 @@ import { TaskChip, type DragData } from "./calendar-items";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { DayList } from "./day-view";
 import type { DropData } from "./droppable-day";
-import { MemberFilterChips } from "./member-filter";
 import { MonthView } from "./month-view";
 import { MousePointerSensor } from "./sensors";
-import { ALL_MEMBERS, useCalendarData, type MemberFilter } from "./use-calendar-data";
+import { useCalendarData } from "./use-calendar-data";
 import { useIsWide } from "./use-media-query";
 import { WeekView } from "./week-view";
 
@@ -62,11 +61,10 @@ export function CalendarView() {
 
   const [mode, setMode] = React.useState<CalendarMode>("week");
   const [anchor, setAnchor] = React.useState<ISODate>(() => todayIn(tz));
-  const [filter, setFilter] = React.useState<MemberFilter>(ALL_MEMBERS);
   const [dragging, setDragging] = React.useState<TaskView | null>(null);
 
   const range = visibleRange(mode, anchor);
-  const data = useCalendarData(range, filter);
+  const data = useCalendarData(range);
   const { today } = data;
   const { title, subtitle } = headerTitles(mode, anchor);
 
@@ -108,7 +106,6 @@ export function CalendarView() {
     }
   }
 
-  const draggingMember = dragging?.assigned_member_id ? data.memberById.get(dragging.assigned_member_id) : undefined;
 
   return (
     <div className="pb-6">
@@ -124,7 +121,6 @@ export function CalendarView() {
       />
 
       <div className="mb-5">
-        <MemberFilterChips members={data.members} value={filter} onChange={setFilter} />
       </div>
 
       <DndContext
@@ -156,7 +152,7 @@ export function CalendarView() {
         )}
 
         <DragOverlay dropAnimation={null}>
-          {dragging ? <TaskChip task={dragging} member={draggingMember} overlay /> : null}
+          {dragging ? <TaskChip task={dragging} overlay /> : null}
         </DragOverlay>
       </DndContext>
     </div>

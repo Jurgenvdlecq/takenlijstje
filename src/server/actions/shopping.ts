@@ -8,27 +8,26 @@ import { check, expectRows, runAction, type ActionResult } from "../errors";
 import { parse } from "../parse";
 import type { DbClient } from "@/lib/supabase/server";
 
-/** Actieve (niet gearchiveerde) lijst; maakt er een aan als die ontbreekt. */
-async function activeList(db: DbClient, householdId: string, memberId: string): Promise<ShoppingListRow> {
-  const { data } = await db
-    .from("shopping_lists")
-    .select("*")
-    .eq("household_id", householdId)
-    .is("archived_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/**
+ * Actieve (niet gearchiveerde) lijst; maakt er een aan als die ontbreekt. De
+ * database staat maar één actieve lijst per huishouden toe; verliest deze
+ * aanroep de race, dan wordt de lijst van de ander gebruikt.
+ */
+async function activeList(db: DbClient, householdId: string): Promise<ShoppingListRow> {
+  const find = () =>
+    db.from("shopping_lists").select("*").eq("household_id", householdId).is("archived_at", null).maybeSingle();
+  const { data } = await find();
   if (data) return data as ShoppingListRow;
-  return check(
-    await db.from("shopping_lists").insert({ household_id: householdId, created_by_member_id: memberId }).select("*").single(),
-  ) as ShoppingListRow;
+  const inserted = await db.from("shopping_lists").insert({ household_id: householdId }).select("*").single();
+  if (!inserted.error) return inserted.data as ShoppingListRow;
+  return check(await find()) as ShoppingListRow;
 }
 
 export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInput>): Promise<ActionResult<ShoppingItemRow>> {
   return runAction("addShoppingItem", async () => {
-    const { supabase, household, member } = await requireMember();
+    const { supabase, household } = await requireMember();
     const input = parse(shoppingItemInput, raw);
-    const list = await activeList(supabase, household.id, member.id);
+    const list = await activeList(supabase, household.id);
     const row = {
       ...(input.id ? { id: input.id } : {}),
       household_id: household.id,
@@ -37,7 +36,6 @@ export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInpu
       quantity: input.quantity,
       category: input.category,
       note: input.note,
-      added_by_member_id: member.id,
     };
     // Idempotent: offline toegevoegd item met dezelfde id wordt niet dubbel aangemaakt
     const { data, error } = await supabase.from("shopping_items").upsert(row, { onConflict: "id", ignoreDuplicates: true }).select("*");
@@ -48,14 +46,13 @@ export async function addShoppingItemAction(raw: z.input<typeof shoppingItemInpu
 
 export async function toggleShoppingItemAction(itemId: string, bought: boolean): Promise<ActionResult<true>> {
   return runAction("toggleShoppingItem", async () => {
-    const { supabase, household, member } = await requireMember();
+    const { supabase, household } = await requireMember();
     expectRows(
       await supabase
         .from("shopping_items")
         .update({
           is_bought: parse(z.boolean(), bought),
           bought_at: bought ? new Date().toISOString() : null,
-          bought_by_member_id: bought ? member.id : null,
         })
         .eq("id", parse(uuid, itemId))
         .eq("household_id", household.id)
@@ -105,23 +102,24 @@ export async function deleteShoppingItemAction(itemId: string): Promise<ActionRe
   });
 }
 
-/** Lijst archiveren; nog niet gekochte items gaan mee naar de nieuwe lijst. */
-export async function archiveShoppingListAction(): Promise<ActionResult<ShoppingListRow>> {
+/**
+ * Lijst afronden: de database archiveert alleen als `listId` nog de actieve
+ * lijst is, maakt een nieuwe lijst en verplaatst de niet-gekochte producten, in
+ * één transactie. Dubbel versturen geeft dezelfde nieuwe lijst (R-03).
+ */
+export async function archiveShoppingListAction(listId: string): Promise<ActionResult<ShoppingListRow>> {
   return runAction("archiveShoppingList", async () => {
-    const { supabase, household, member } = await requireMember();
-    const current = await activeList(supabase, household.id, member.id);
-    const next = check(
-      await supabase.from("shopping_lists").insert({ household_id: household.id, created_by_member_id: member.id }).select("*").single(),
+    const { supabase } = await requireMember();
+    return check(await supabase.rpc("archive_shopping_list", { p_list_id: parse(uuid, listId) })) as ShoppingListRow;
+  });
+}
+
+/** "Lijst afgerond · Ongedaan maken" (UX §4.8) */
+export async function unarchiveShoppingListAction(archivedListId: string): Promise<ActionResult<ShoppingListRow>> {
+  return runAction("unarchiveShoppingList", async () => {
+    const { supabase } = await requireMember();
+    return check(
+      await supabase.rpc("unarchive_shopping_list", { p_archived_list_id: parse(uuid, archivedListId) }),
     ) as ShoppingListRow;
-    check(
-      await supabase
-        .from("shopping_items")
-        .update({ list_id: next.id })
-        .eq("list_id", current.id)
-        .eq("household_id", household.id)
-        .eq("is_bought", false),
-    );
-    expectRows(await supabase.from("shopping_lists").update({ archived_at: new Date().toISOString() }).eq("id", current.id).select("id"));
-    return next;
   });
 }

@@ -12,7 +12,6 @@ export function AccountSection() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="grid gap-0.5">
           <span className="text-sm font-medium">Ingelogd als {me.display_name}</span>
-          {me.email && <span className="text-xs text-muted-foreground">{me.email}</span>}
         </div>
         <SignOutButton />
       </div>

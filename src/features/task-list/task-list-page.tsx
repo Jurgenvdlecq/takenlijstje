@@ -17,7 +17,6 @@ import { TaskFiltersButton } from "./task-filters";
 
 const QUICK = [
   { key: "open", label: "Open" },
-  { key: "mine", label: "Mijn taken" },
   { key: "overdue", label: "Verlopen" },
   { key: "done", label: "Voltooid" },
   { key: "all", label: "Alles" },
@@ -25,13 +24,11 @@ const QUICK = [
 
 type QuickKey = (typeof QUICK)[number]["key"];
 
-function quickFilters(key: QuickKey, meId: string, search: string): TaskFilters {
+function quickFilters(key: QuickKey, search: string): TaskFilters {
   const base = { ...DEFAULT_FILTERS, search };
   switch (key) {
     case "open":
       return base;
-    case "mine":
-      return { ...base, memberId: meId };
     case "overdue":
       return { ...base, status: "overdue" };
     case "done":
@@ -94,7 +91,6 @@ export function TaskListPage() {
           </label>
           <TaskFiltersButton
             filters={filters}
-            members={snapshot.members}
             onChange={(f) => {
               setFilters(f);
               setQuick(null);
@@ -109,7 +105,7 @@ export function TaskListPage() {
               aria-pressed={quick === q.key}
               onClick={() => {
                 setQuick(q.key);
-                setFilters((f) => quickFilters(q.key, snapshot.me.id, f.search));
+                setFilters((f) => quickFilters(q.key, f.search));
               }}
               className={cn(
                 "h-9 shrink-0 rounded-full border px-3.5 text-sm font-medium transition",

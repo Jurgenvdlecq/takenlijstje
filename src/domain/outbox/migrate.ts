@@ -9,8 +9,13 @@
  * Puur: geen I/O, volledig testbaar.
  */
 
-/** Huidige versie van het wachtrijformaat */
-export const OUTBOX_VERSION = 1;
+/**
+ * Huidige versie van het wachtrijformaat.
+ *  0: vóór WP1 (geen versieveld)
+ *  1: WP1
+ *  2: WP2a — geen toewijzen meer, afvinken zonder persoon (V-21)
+ */
+export const OUTBOX_VERSION = 2;
 
 /** Soorten die de huidige server kent */
 export const OUTBOX_KINDS = [
@@ -18,7 +23,6 @@ export const OUTBOX_KINDS = [
   "undo",
   "setStatus",
   "move",
-  "assign",
   "shoppingAdd",
   "shoppingToggle",
   "shoppingDelete",
@@ -28,7 +32,9 @@ export const OUTBOX_KINDS = [
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
 
 /** Leesbare naam van een vervallen functie, voor de melding aan de gebruiker */
-const OBSOLETE_LABELS: Record<string, string> = {};
+const OBSOLETE_LABELS: Record<string, string> = {
+  assign: "toewijzen",
+};
 
 export type MigrationResult =
   | { status: "ok"; kind: OutboxKind; payload: Record<string, unknown> }
@@ -70,6 +76,11 @@ export function migrateOutboxEntry(
   // v0: een boodschap zonder eigen id krijgt er alsnog een (idempotent opnieuw versturen)
   if (version === 0 && kind === "shoppingAdd" && typeof next.id !== "string") {
     next.id = generateId();
+  }
+
+  // v0/v1: afvinken "namens" iemand bestaat niet meer; de persoon vervalt (V-21)
+  if (version < 2 && kind === "complete") {
+    delete next.completedBy;
   }
 
   return { status: "ok", kind, payload: next };

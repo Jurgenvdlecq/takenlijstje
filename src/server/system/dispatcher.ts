@@ -9,8 +9,8 @@ import "server-only";
  * gebruikersclient (TECHNICAL_DESIGN §5.3).
  */
 import type { DbClient } from "@/lib/supabase/server";
+import { recipientsFor } from "@/domain/reminders";
 import {
-  PREFERENCE_FOR_TYPE,
   type NotificationChannel,
   type NotificationMessage,
   type Recipient,
@@ -21,7 +21,8 @@ import { WebPushChannel } from "./channels/web-push";
 
 export interface NotifyOptions {
   householdId: string;
-  memberIds: string[];
+  /** Beperk tot deze leden; zonder lijst: het hele huishouden */
+  memberIds?: string[];
   message: NotificationMessage;
 }
 
@@ -29,9 +30,14 @@ function channelsFor(db: DbClient): NotificationChannel[] {
   return [new WebPushChannel(db)];
 }
 
+/**
+ * Ontvangers bepaalt de server uit de database: ieder actief lid met account
+ * dat deze soort aan heeft staan (recipientsFor, V-23). Wie de actie deed,
+ * speelt geen rol (V-38a).
+ */
 export async function notify({ householdId, memberIds, message }: NotifyOptions): Promise<void> {
-  const unique = [...new Set(memberIds)];
-  if (!unique.length) return;
+  const only = memberIds ? new Set(memberIds) : null;
+  if (only && !only.size) return;
 
   try {
     if (!hasAdminClient()) {
@@ -41,19 +47,20 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
 
     const db = createAdminClient();
     const [{ data: members }, { data: prefs }] = await Promise.all([
-      db.from("household_members").select("*").eq("household_id", householdId).in("id", unique),
-      db.from("user_preferences").select("*").eq("household_id", householdId).in("member_id", unique),
+      db.from("household_members").select("id, user_id, is_active").eq("household_id", householdId),
+      db.from("user_preferences").select("*").eq("household_id", householdId),
     ]);
+    const memberRows = (members ?? []) as Pick<MemberRow, "id" | "user_id" | "is_active">[];
+    const prefRows = (prefs ?? []) as PreferencesRow[];
 
-    const recipients: Recipient[] = ((members ?? []) as MemberRow[])
-      .filter((m) => m.is_active && m.user_id)
-      .map((m) => ({
-        memberId: m.id,
-        userId: m.user_id,
+    const recipients: Recipient[] = recipientsFor(message.type, memberRows, prefRows)
+      .filter((id) => !only || only.has(id))
+      .map((id) => ({
+        memberId: id,
+        userId: memberRows.find((m) => m.id === id)!.user_id,
         householdId,
-        preferences: ((prefs ?? []) as PreferencesRow[]).find((p) => p.member_id === m.id) ?? null,
-      }))
-      .filter((r) => wants(r, message));
+        preferences: prefRows.find((p) => p.member_id === id) ?? null,
+      }));
     if (!recipients.length) return;
 
     const { data: inserted } = await db
@@ -86,12 +93,6 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
     // Een mislukte melding mag de eigenlijke actie nooit laten falen
     console.error(`[notify] ${message.type} mislukt: ${(error as Error)?.name ?? "fout"}`);
   }
-}
-
-function wants(recipient: Recipient, message: NotificationMessage): boolean {
-  const prefs = recipient.preferences;
-  if (!prefs) return true;
-  return Boolean(prefs[PREFERENCE_FOR_TYPE[message.type]]);
 }
 
 function toRow(householdId: string, memberId: string, message: NotificationMessage) {

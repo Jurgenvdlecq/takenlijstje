@@ -3,19 +3,15 @@
 import { AlertTriangle, CalendarRange, PartyPopper, Plus, Sparkles, Sun } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
-import { startOfMonth } from "@/domain/dates";
 import { greeting } from "@/domain/status";
 import { Button } from "@/components/ui/button";
 import { EmptyState, SectionTitle } from "@/components/ui/misc";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSnapshot } from "@/features/household/store";
 import { QuickAddBar } from "@/features/tasks/quick-add-bar";
 import { dashboardData } from "@/features/tasks/selectors";
 import { TaskList } from "@/features/tasks/task-card";
 import { useTaskUi } from "@/features/tasks/task-ui-context";
 import { useNow } from "@/hooks/use-now";
-import { EveryoneOverview } from "./everyone";
-import { PointsGoal } from "./points-goal";
 import { DashboardSummary } from "./summary";
 
 export function Dashboard() {
@@ -91,8 +87,6 @@ export function Dashboard() {
         />
       </section>
 
-      <PointsGoal snapshot={snapshot} since={`${startOfMonth(data.today)}T00:00:00`} />
-
       <section>
         <SectionTitle count={data.upcoming.length}>
           <CalendarRange className="size-4" /> Binnenkort
@@ -105,25 +99,6 @@ export function Dashboard() {
         />
       </section>
 
-      <section>
-        <Tabs defaultValue="mine">
-          <TabsList className="mb-3 w-full">
-            <TabsTrigger value="mine">Mijn taken ({data.mine.length})</TabsTrigger>
-            <TabsTrigger value="everyone">Iedereen</TabsTrigger>
-          </TabsList>
-          <TabsContent value="mine">
-            <TaskList
-              tasks={data.mine}
-              showDate
-              limit={8}
-              empty={<p className="px-1 text-sm text-muted-foreground">Je hebt deze week geen open taken. Lekker bezig!</p>}
-            />
-          </TabsContent>
-          <TabsContent value="everyone">
-            <EveryoneOverview tasks={data.everyone} members={snapshot.members} />
-          </TabsContent>
-        </Tabs>
-      </section>
     </div>
   );
 }

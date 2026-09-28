@@ -8,18 +8,15 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { CATEGORY_LABELS } from "@/lib/labels";
-import type { MemberRow } from "@/types/database";
 import { activeFilterCount, DEFAULT_FILTERS, type TaskFilters } from "@/features/tasks/selectors";
 
 /** Filtervenster: persoon, categorie, status, prioriteit, terugkerend en periode. */
 export function TaskFiltersButton({
   filters,
   onChange,
-  members,
 }: {
   filters: TaskFilters;
   onChange: (f: TaskFilters) => void;
-  members: MemberRow[];
 }) {
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(filters);
@@ -51,17 +48,6 @@ export function TaskFiltersButton({
             <DialogTitle>Filters</DialogTitle>
           </DialogHeader>
           <DialogBody className="grid grid-cols-2 gap-3">
-            <Field label="Persoon" className="col-span-2">
-              <NativeSelect value={draft.memberId} onChange={(e) => set("memberId", e.target.value)}>
-                <option value="all">Iedereen</option>
-                <option value="unassigned">Niet toegewezen</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.display_name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
             <Field label="Status">
               <NativeSelect value={draft.status} onChange={(e) => set("status", e.target.value as TaskFilters["status"])}>
                 <option value="open">Open (incl. verlopen)</option>

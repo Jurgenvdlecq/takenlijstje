@@ -29,7 +29,7 @@ import { requireMember } from "../context";
 import { check, expectRows, runAction, UserError, type ActionResult } from "../errors";
 import { loadOwnSeries, loadOwnTask } from "../guards";
 import { parse } from "../parse";
-import { createTask as createTaskService, notifyAssigned, taskUrl } from "../services/tasks";
+import { createTask as createTaskService } from "../services/tasks";
 import { notify } from "../system/dispatcher";
 import { topUp } from "../system/planner";
 
@@ -43,7 +43,7 @@ export async function createTaskAction(raw: TaskInput): Promise<ActionResult<Tas
 
 export async function completeTaskAction(raw: z.input<typeof completeInput>): Promise<ActionResult<CompletionRow>> {
   return runAction("completeTask", async () => {
-    const { supabase, household, member } = await requireMember();
+    const { supabase, household } = await requireMember();
     const input = parse(completeInput, raw);
     const completion = check(
       await supabase.rpc("complete_task", {
@@ -51,7 +51,6 @@ export async function completeTaskAction(raw: z.input<typeof completeInput>): Pr
         p_mutation_id: input.mutationId,
         p_note: input.note,
         p_completed_at: input.completedAt ?? null,
-        p_completed_by: input.completedBy ?? null,
       }),
     ) as CompletionRow;
 
@@ -60,22 +59,13 @@ export async function completeTaskAction(raw: z.input<typeof completeInput>): Pr
       await topUp(household.id, [completion.recurrence_id]);
     }
 
-    // Andere gezinsleden informeren ("De boodschappen zijn gedaan door Ellen")
-    const { data: others } = await supabase
-      .from("household_members")
-      .select("id, display_name")
-      .eq("household_id", household.id)
-      .neq("id", member.id);
-    const doer =
-      completion.member_id === member.id
-        ? member.display_name
-        : (others?.find((o) => o.id === completion.member_id)?.display_name ?? member.display_name);
+    // Iedereen die "taak gedaan" aan heeft, ook wie afvinkte; zonder naam,
+    // zodat tekst en ontvangers niet verraden wie het deed (V-21, V-38a)
     await notify({
       householdId: household.id,
-      memberIds: (others ?? []).map((o) => o.id),
       message: {
         type: "task_completed",
-        title: `“${completion.title}” is gedaan door ${doer}`,
+        title: `${completion.title} is gedaan`,
         taskId: completion.task_id,
         dedupeKey: `completed:${completion.id}`,
       },
@@ -135,38 +125,6 @@ export async function moveTaskAction(taskId: string, newDate: string): Promise<A
   });
 }
 
-export async function assignTaskAction(taskId: string, memberId: string | null): Promise<ActionResult<TaskRow>> {
-  return runAction("assignTask", async () => {
-    const ctx = await requireMember();
-    const { supabase, household, member } = ctx;
-    const id = parse(uuid, taskId);
-    const target = parse(uuid.nullable(), memberId);
-    const task = await loadOwnTask(ctx, id);
-    if (task.assigned_member_id === target) return task;
-
-    const [updated] = expectRows(
-      await supabase
-        .from("tasks")
-        .update({
-          assigned_member_id: target,
-          assignment_reason: target ? "manual" : null,
-          is_exception: task.recurrence_id ? true : task.is_exception,
-        })
-        .eq("id", id)
-        .select("*"),
-    ) as TaskRow[];
-    await supabase.from("task_assignments").insert({
-      household_id: household.id,
-      task_id: id,
-      member_id: target,
-      assigned_by_member_id: member.id,
-      reason: target ? "manual" : "unassigned",
-    });
-    await notifyAssigned(updated, member.id);
-    return updated;
-  });
-}
-
 export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResult<TaskRow>> {
   return runAction("updateTask", async () => {
     const ctx = await requireMember();
@@ -201,17 +159,11 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
       ...(changes.priority !== undefined && { priority: changes.priority }),
       ...(changes.scheduledTime !== undefined && { scheduled_time: changes.scheduledTime }),
       ...(changes.durationMinutes !== undefined && { duration_minutes: changes.durationMinutes }),
-      ...(changes.points !== undefined && { points: changes.points }),
       ...(changes.reminderMinutesBefore !== undefined && { reminder_minutes_before: changes.reminderMinutesBefore }),
       scheduled_date: scheduledDate,
       available_from: shiftInstant(task.available_from, shift, tz),
       due_at: dueAt,
     };
-    const assigneeChanged = changes.assignedMemberId !== undefined && changes.assignedMemberId !== task.assigned_member_id;
-    if (assigneeChanged) {
-      patch.assigned_member_id = changes.assignedMemberId ?? null;
-      patch.assignment_reason = changes.assignedMemberId ? "manual" : null;
-    }
 
     // --- losse taak wordt terugkerend -------------------------------------
     if (!task.recurrence_id && changes.recurrence) {
@@ -227,19 +179,12 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
             category: patch.category ?? task.category,
             priority: patch.priority ?? task.priority,
             duration_minutes: patch.duration_minutes ?? task.duration_minutes,
-            points: patch.points ?? task.points,
             rule: changes.recurrence.rule,
             time_of_day: patch.scheduled_time ?? task.scheduled_time,
             due_time: changes.dueTime ?? null,
             due_days_after: changes.dueDate ? diffDays(scheduledDate, changes.dueDate) : 0,
             starts_on: scheduledDate,
             ends_on: changes.recurrence.endsOn ?? null,
-            assignment_strategy:
-              changes.recurrence.assignmentStrategy === "none" && (patch.assigned_member_id ?? task.assigned_member_id)
-                ? "fixed"
-                : changes.recurrence.assignmentStrategy,
-            fixed_member_id: changes.recurrence.fixedMemberId ?? patch.assigned_member_id ?? task.assigned_member_id,
-            rotation_member_ids: changes.recurrence.rotationMemberIds,
             reminder_minutes_before: patch.reminder_minutes_before ?? task.reminder_minutes_before,
             generated_until: scheduledDate,
             created_by_member_id: member.id,
@@ -275,7 +220,6 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
         category: patch.category ?? task.category,
         priority: patch.priority ?? task.priority,
         duration_minutes: patch.duration_minutes ?? task.duration_minutes,
-        points: patch.points ?? task.points,
         reminder_minutes_before: patch.reminder_minutes_before ?? task.reminder_minutes_before,
         time_of_day: patch.scheduled_time ?? task.scheduled_time,
       };
@@ -287,13 +231,6 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
         seriesPatch.rule = changes.recurrence.rule;
         seriesPatch.starts_on = scheduledDate;
         seriesPatch.ends_on = changes.recurrence.endsOn ?? null;
-        seriesPatch.assignment_strategy = changes.recurrence.assignmentStrategy;
-        seriesPatch.fixed_member_id = changes.recurrence.fixedMemberId ?? null;
-        seriesPatch.rotation_member_ids = changes.recurrence.rotationMemberIds;
-      } else if (assigneeChanged) {
-        const assignee = patch.assigned_member_id ?? null;
-        seriesPatch.assignment_strategy = assignee ? "fixed" : "none";
-        seriesPatch.fixed_member_id = assignee;
       }
       expectRows(
         await supabase.from("task_recurrences").update(seriesPatch).eq("id", series.id).select("id"),
@@ -305,17 +242,6 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
     }
 
     const [updated] = expectRows(await supabase.from("tasks").update(patch).eq("id", taskId).select("*")) as TaskRow[];
-
-    if (assigneeChanged) {
-      await supabase.from("task_assignments").insert({
-        household_id: household.id,
-        task_id: taskId,
-        member_id: patch.assigned_member_id ?? null,
-        assigned_by_member_id: member.id,
-        reason: patch.assigned_member_id ? "manual" : "unassigned",
-      });
-      await notifyAssigned(updated, member.id);
-    }
 
     // Losse taak werd terugkerend: planning aanvullen
     if (!task.recurrence_id && updated.recurrence_id) {
@@ -417,87 +343,6 @@ export async function deleteCommentAction(commentId: string): Promise<ActionResu
     expectRows(
       await supabase.from("task_comments").delete().eq("id", parse(uuid, commentId)).eq("household_id", household.id).select("id"),
       "Je kunt alleen je eigen notities verwijderen.",
-    );
-    return true as const;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Ruilen: "Ik kan deze taak niet doen"
-// ---------------------------------------------------------------------------
-export async function requestSwapAction(taskId: string, message?: string | null): Promise<ActionResult<true>> {
-  return runAction("requestSwap", async () => {
-    const ctx = await requireMember();
-    const { supabase, household, member } = ctx;
-    const id = parse(uuid, taskId);
-    const note = parse(z.string().trim().max(300).nullable().optional(), message ?? null) || null;
-    const task = await loadOwnTask(ctx, id);
-    if (task.status === "done") throw new UserError("Deze taak is al gedaan.");
-    check(
-      await supabase.from("task_swap_requests").insert({
-        household_id: household.id,
-        task_id: id,
-        requested_by_member_id: member.id,
-        message: note,
-      }),
-    );
-    const { data: others } = await supabase
-      .from("household_members")
-      .select("id")
-      .eq("household_id", household.id)
-      .eq("is_active", true)
-      .neq("id", member.id);
-    await notify({
-      householdId: household.id,
-      memberIds: (others ?? []).map((o) => o.id),
-      message: {
-        type: "swap_request",
-        title: `${member.display_name} wil “${task.title}” ruilen`,
-        body: note ?? "Tik om de taak over te nemen.",
-        taskId: id,
-        url: taskUrl(id),
-        dedupeKey: `swap:${id}:${Date.now()}`,
-      },
-    });
-    return true as const;
-  });
-}
-
-export async function acceptSwapAction(requestId: string): Promise<ActionResult<TaskRow>> {
-  return runAction("acceptSwap", async () => {
-    const { supabase, household, member } = await requireMember();
-    const id = parse(uuid, requestId);
-    const { data: request } = await supabase.from("task_swap_requests").select("*").eq("id", id).maybeSingle();
-    const task = check(await supabase.rpc("accept_swap_request", { p_request_id: id })) as TaskRow;
-    if (request) {
-      await notify({
-        householdId: household.id,
-        memberIds: [request.requested_by_member_id],
-          message: {
-          type: "swap_accepted",
-          title: `${member.display_name} neemt “${task.title}” over`,
-          taskId: task.id,
-          dedupeKey: `swap-accepted:${id}`,
-        },
-      });
-    }
-    return task;
-  });
-}
-
-export async function cancelSwapAction(requestId: string): Promise<ActionResult<true>> {
-  return runAction("cancelSwap", async () => {
-    const { supabase, household } = await requireMember();
-    expectRows(
-      await supabase
-        .from("task_swap_requests")
-        .update({ status: "cancelled", resolved_at: new Date().toISOString() })
-        .eq("id", parse(uuid, requestId))
-        .eq("household_id", household.id)
-        .eq("status", "open")
-        .select("id"),
-      "Dit ruilverzoek is niet meer open.",
-      "NOT_FOUND",
     );
     return true as const;
   });

@@ -12,13 +12,15 @@ import { newId } from "@/lib/utils";
 import { createTaskAction } from "@/server/actions/tasks";
 
 /**
- * Snelle invoerbalk: "Badkamer zaterdag Jurgen" + Enter en klaar.
+ * Snelle invoerbalk: "Badkamer zaterdag" + Enter en klaar.
  * Toont vooraf hoe de invoer begrepen wordt.
  */
 export function QuickAddBar() {
   const { snapshot, run } = useHousehold();
   const [text, setText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  // Vaste id's tot het toevoegen lukt: dubbel tikken maakt geen twee taken
+  const ids = React.useRef({ task: newId(), recurrence: newId() });
   const tz = snapshot.household.timezone;
   const today = todayIn(tz);
 
@@ -27,11 +29,12 @@ export function QuickAddBar() {
       text.trim()
         ? parseQuickAdd(text, {
             today,
-            members: snapshot.members.filter((m) => m.is_active).map((m) => ({ id: m.id, displayName: m.display_name })),
+            // Geen personen herkennen: taken horen bij het huishouden (V-21)
+            members: [],
             templates: snapshot.templates.map((t) => ({ id: t.id, title: t.title, keywords: t.keywords })),
           })
         : null,
-    [text, today, snapshot.members, snapshot.templates],
+    [text, today, snapshot.templates],
   );
 
   async function submit(e: React.FormEvent) {
@@ -42,25 +45,24 @@ export function QuickAddBar() {
     const created = await run(
       () =>
         createTaskAction({
-          id: newId(),
+          id: ids.current.task,
           title: parsed.title,
           category: template?.category ?? "other",
           priority: parsed.priority ?? "normal",
-          assignedMemberId: parsed.memberId ?? snapshot.me.id,
           scheduledDate: parsed.date ?? today,
           scheduledTime: parsed.time,
           durationMinutes: template?.duration_minutes ?? null,
-          points: template?.points ?? null,
           templateId: template?.id ?? null,
-          recurrence: parsed.rule ? { rule: parsed.rule, assignmentStrategy: parsed.memberId ? "fixed" : "fair" } : null,
+          recurrence: parsed.rule ? { recurrenceId: ids.current.recurrence, rule: parsed.rule } : null,
         }),
       { success: `“${parsed.title}” toegevoegd` },
     );
     setBusy(false);
-    if (created) setText("");
+    if (created) {
+      setText("");
+      ids.current = { task: newId(), recurrence: newId() };
+    }
   }
-
-  const member = parsed?.memberId ? snapshot.members.find((m) => m.id === parsed.memberId) : null;
 
   return (
     <form onSubmit={submit} className="grid gap-2">
@@ -71,7 +73,7 @@ export function QuickAddBar() {
           onChange={(e) => setText(e.target.value)}
           maxLength={120}
           enterKeyHint="send"
-          placeholder="Snel toevoegen: badkamer zaterdag Jurgen"
+          placeholder="Snel toevoegen: badkamer zaterdag"
           aria-label="Snel een taak toevoegen"
           className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground md:text-sm"
         />
@@ -90,7 +92,6 @@ export function QuickAddBar() {
           <Badge variant="primary">{parsed.title}</Badge>
           <Badge>{relativeDayLabel(parsed.date ?? today, today)}</Badge>
           {parsed.time && <Badge>{parsed.time}</Badge>}
-          <Badge>{member?.display_name ?? snapshot.me.display_name}</Badge>
           {parsed.rule && <Badge variant="progress">{describeRule(parsed.rule)}</Badge>}
         </p>
       )}

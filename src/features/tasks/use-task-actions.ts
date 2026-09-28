@@ -7,20 +7,15 @@ import type { TaskRow } from "@/types/database";
 
 /** Veelgebruikte taakacties met passende feedback. */
 export function useTaskActions() {
-  const { mutate, snapshot } = useHousehold();
+  const { mutate } = useHousehold();
 
   /** Afvinken met één tik, plus "Ongedaan maken" gedurende enkele seconden. */
-  async function complete(task: Pick<TaskRow, "id" | "title" | "assigned_member_id">, options?: { onBehalfOf?: string }) {
-    // Taak van een gezinslid zonder account (bijv. een kind)? Dan namens hem/haar afvinken.
-    const assignee = snapshot.members.find((m) => m.id === task.assigned_member_id);
-    const completedBy = options?.onBehalfOf ?? (assignee && !assignee.user_id ? assignee.id : undefined);
-
+  async function complete(task: Pick<TaskRow, "id" | "title">) {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate?.(12);
     const ok = await mutate("complete", {
       taskId: task.id,
       mutationId: newId(),
       completedAt: new Date().toISOString(),
-      completedBy,
     });
     if (ok) {
       toast.success("Taak voltooid", {
@@ -43,6 +38,5 @@ export function useTaskActions() {
       return ok;
     },
     move: (taskId: string, date: string) => mutate("move", { taskId, date }),
-    assign: (taskId: string, memberId: string | null) => mutate("assign", { taskId, memberId }),
   };
 }

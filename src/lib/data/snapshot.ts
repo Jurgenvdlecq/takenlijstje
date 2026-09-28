@@ -6,7 +6,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addDays, todayIn } from "@/domain/dates";
 import type {
-  AbsenceRow,
   CompletionRow,
   Database,
   HouseholdRow,
@@ -16,7 +15,6 @@ import type {
   RecurrenceRow,
   ShoppingItemRow,
   ShoppingListRow,
-  SwapRequestRow,
   TaskRow,
   TemplateRow,
 } from "@/types/database";
@@ -29,8 +27,6 @@ export interface Snapshot {
   tasks: TaskRow[];
   recurrences: RecurrenceRow[];
   completions: CompletionRow[];
-  swapRequests: SwapRequestRow[];
-  absences: AbsenceRow[];
   templates: TemplateRow[];
   shoppingList: ShoppingListRow | null;
   shoppingItems: ShoppingItemRow[];
@@ -57,9 +53,16 @@ export async function loadSnapshot(
   const from = addDays(today, -SNAPSHOT_PAST_DAYS);
   const to = addDays(today, SNAPSHOT_FUTURE_DAYS);
 
-  const [members, preferences, tasks, recurrences, completions, swaps, absences, templates, lists, notifications] =
+  const [members, preferences, tasks, recurrences, completions, templates, lists, notifications] =
     await Promise.all([
-      db.from("household_members").select("*").eq("household_id", householdId).order("sort_order").order("created_at"),
+      // Alleen leden met een account; leden zonder account vervallen (V-21, BR-46)
+      db
+        .from("household_members")
+        .select("*")
+        .eq("household_id", householdId)
+        .not("user_id", "is", null)
+        .order("sort_order")
+        .order("created_at"),
       db.from("user_preferences").select("*").eq("member_id", memberId).maybeSingle(),
       db
         .from("tasks")
@@ -78,8 +81,6 @@ export async function loadSnapshot(
         .gte("completed_at", `${from}T00:00:00Z`)
         .order("completed_at", { ascending: false })
         .limit(3000),
-      db.from("task_swap_requests").select("*").eq("household_id", householdId).eq("status", "open"),
-      db.from("member_absences").select("*").eq("household_id", householdId).gte("ends_on", addDays(today, -30)),
       db.from("task_templates").select("*").or(`household_id.is.null,household_id.eq.${householdId}`).order("sort_order"),
       db
         .from("shopping_lists")
@@ -107,8 +108,6 @@ export async function loadSnapshot(
     tasks: unwrap(tasks, [] as TaskRow[]),
     recurrences: unwrap(recurrences, [] as RecurrenceRow[]),
     completions: unwrap(completions, [] as CompletionRow[]),
-    swapRequests: unwrap(swaps, [] as SwapRequestRow[]),
-    absences: unwrap(absences, [] as AbsenceRow[]),
     templates: unwrap(templates, [] as TemplateRow[]),
     shoppingList,
     shoppingItems,

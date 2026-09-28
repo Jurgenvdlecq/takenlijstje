@@ -53,7 +53,6 @@ const REALTIME_TABLES = [
   "tasks",
   "task_completions",
   "task_comments",
-  "task_swap_requests",
   "shopping_items",
   "shopping_lists",
   "household_members",
@@ -367,11 +366,6 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   }, [flushOutbox, scheduleRefresh]);
 
   // --- realtime: wijzigingen van andere gezinsleden ----------------------------------
-  const membersRef = React.useRef(snapshot.members);
-  React.useEffect(() => {
-    membersRef.current = snapshot.members;
-  }, [snapshot.members]);
-
   React.useEffect(() => {
     const db = getBrowserClient();
     let channel = db.channel(`household:${householdId}`);
@@ -383,8 +377,8 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
           if (table === "task_completions" && payload.eventType === "INSERT") {
             const completion = payload.new as CompletionRow;
             if (!completion.client_mutation_id || !ownMutationIds.current.has(completion.client_mutation_id)) {
-              const who = membersRef.current.find((m) => m.id === completion.member_id)?.display_name ?? "iemand";
-              toast(`“${completion.title}” gedaan door ${who}`, { icon: "✅" });
+              // Zonder naam: de app legt niet vast wie afvinkte (V-21)
+              toast(`${completion.title} is gedaan`, { icon: "✅" });
             }
           }
           scheduleRefresh();

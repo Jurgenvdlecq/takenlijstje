@@ -66,7 +66,7 @@ function WeekList({ days, data }: { days: ISODate[]; data: CalendarData }) {
                   <DraggableTaskCard key={task.id} task={task} />
                 ))}
                 {projections.map((p) => (
-                  <ProjectionRow key={p.key} projection={p} member={p.memberId ? data.memberById.get(p.memberId) : undefined} />
+                  <ProjectionRow key={p.key} projection={p} />
                 ))}
               </div>
             )}
@@ -109,10 +109,10 @@ function WeekColumns({ days, data }: { days: ISODate[]; data: CalendarData }) {
               </span>
             </div>
             {tasks.map((task) => (
-              <DraggableTaskChip key={task.id} task={task} member={task.assigned_member_id ? data.memberById.get(task.assigned_member_id) : undefined} />
+              <DraggableTaskChip key={task.id} task={task} />
             ))}
             {projections.map((p) => (
-              <ProjectionChip key={p.key} projection={p} member={p.memberId ? data.memberById.get(p.memberId) : undefined} />
+              <ProjectionChip key={p.key} projection={p} />
             ))}
             <button
               type="button"

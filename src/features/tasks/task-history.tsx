@@ -2,7 +2,6 @@
 
 import { History } from "lucide-react";
 import * as React from "react";
-import { MemberAvatar } from "@/components/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { useSnapshot } from "@/features/household/store";
 import { getBrowserClient } from "@/lib/supabase/client";
@@ -52,14 +51,12 @@ export function TaskHistory({ taskId, recurrenceId }: { taskId: string; recurren
       ) : (
         <ol className="grid gap-1">
           {rows.map((c) => {
-            const member = snapshot.members.find((m) => m.id === c.member_id);
             return (
               <li key={c.id} className="flex items-center gap-3 rounded-xl px-1 py-2">
-                <MemberAvatar member={member} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{date.format(new Date(c.completed_at))}</p>
                   <p className="text-xs text-muted-foreground">
-                    {member?.display_name ?? "Onbekend"} · {time.format(new Date(c.completed_at))}
+                    {time.format(new Date(c.completed_at))}
                     {c.note ? ` · “${c.note}”` : ""}
                   </p>
                 </div>

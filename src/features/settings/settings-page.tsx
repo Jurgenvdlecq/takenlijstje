@@ -3,7 +3,6 @@
 import * as React from "react";
 import { PageHeader } from "@/components/page-header";
 import { useSnapshot } from "@/features/household/store";
-import { AbsenceSection } from "./absence-section";
 import { AccountSection } from "./account-section";
 import { HouseholdSection } from "./household-section";
 import { MembersSection } from "./members-section";
@@ -15,7 +14,6 @@ import { TemplatesSection } from "./templates-section";
 const JUMP_LINKS = [
   { href: "#profiel", label: "Profiel" },
   { href: "#meldingen", label: "Meldingen" },
-  { href: "#afwezigheid", label: "Afwezigheid" },
   { href: "#huishouden", label: "Huishouden" },
   { href: "#gezinsleden", label: "Gezinsleden" },
   { href: "#terugkerend", label: "Terugkerend" },
@@ -49,7 +47,6 @@ export function SettingsPage() {
         <React.Fragment key={`${snapshot.household.id}:${snapshot.me.id}`}>
           <ProfileSection />
           <NotificationsSection />
-          <AbsenceSection />
           <HouseholdSection />
           <MembersSection />
           <RecurrencesSection />

@@ -4,44 +4,34 @@ import { Check, Copy, Share2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { DialogBody, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { useHousehold } from "@/features/household/store";
 import { createInvitationAction } from "@/server/actions/household";
-import type { MemberRole, MemberRow } from "@/types/database";
+import { newId } from "@/lib/utils";
+import type { MemberRole } from "@/types/database";
 
-/**
- * Uitnodiging maken voor een bestaand gezinslid zonder account
- * of voor een nieuw persoon. Toont daarna de link om te delen.
- */
-export function InviteForm({ member }: { member: MemberRow | null }) {
+/** Uitnodiging maken voor een nieuw gezinslid. Toont daarna de link om te delen (UX §4.11). */
+export function InviteForm() {
   const { snapshot, run } = useHousehold();
-  const [email, setEmail] = React.useState(member?.email ?? "");
-  const [role, setRole] = React.useState<MemberRole>(member?.role ?? "member");
-  const [sendEmail, setSendEmail] = React.useState(Boolean(member?.email));
+  const [email, setEmail] = React.useState("");
+  const [role, setRole] = React.useState<MemberRole>("member");
   const [busy, setBusy] = React.useState(false);
-  const [result, setResult] = React.useState<{ url: string; emailed: boolean } | null>(null);
+  const [result, setResult] = React.useState<{ url: string; expiresAt: string } | null>(null);
   const [copied, setCopied] = React.useState(false);
+  // Eén id per formulier: dubbel tikken maakt geen twee uitnodigingen
+  const idRef = React.useRef(newId());
 
-  const hasEmail = email.trim().length > 0;
   const shareText = `${snapshot.me.display_name} nodigt je uit voor ${snapshot.household.name}`;
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const data = await run(() =>
-      createInvitationAction({ memberId: member?.id ?? null, email: email.trim() || null, role, sendEmail: sendEmail && hasEmail }),
-    );
+    const data = await run(() => createInvitationAction({ id: idRef.current, email: email.trim() || null, role }));
     setBusy(false);
-    if (!data) return;
-    setResult(data);
-    if (sendEmail && hasEmail) {
-      if (data.emailed) toast.success(`Inloglink gemaild naar ${email.trim()}`);
-      else toast.error("De e-mail kon niet worden verstuurd. Deel de link hieronder zelf.");
-    }
+    if (data) setResult(data);
   }
 
   async function copy() {
@@ -65,7 +55,7 @@ export function InviteForm({ member }: { member: MemberRow | null }) {
     }
   }
 
-  const title = member ? `${member.display_name} uitnodigen` : "Iemand uitnodigen";
+  const title = "Iemand uitnodigen";
 
   if (result) {
     return (
@@ -73,7 +63,7 @@ export function InviteForm({ member }: { member: MemberRow | null }) {
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Stuur deze link via WhatsApp, sms of mail. Met de link kan {member?.display_name ?? "diegene"} inloggen en meedoen.
+            Stuur deze link via WhatsApp, sms of mail. Met de link kan diegene een account maken en meedoen.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-3">
@@ -97,7 +87,13 @@ export function InviteForm({ member }: { member: MemberRow | null }) {
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">De link is een tijdje geldig en werkt maar één keer.</p>
+          <p className="text-xs text-muted-foreground">
+            Geldig tot{" "}
+            {new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", timeZone: snapshot.household.timezone }).format(
+              new Date(result.expiresAt),
+            )}{" "}
+            · werkt maar één keer.
+          </p>
         </DialogBody>
         <DialogFooter>
           <DialogClose asChild>
@@ -114,7 +110,7 @@ export function InviteForm({ member }: { member: MemberRow | null }) {
     <form onSubmit={create} className="flex min-h-0 flex-1 flex-col">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>Je krijgt een link die je kunt delen. Het e-mailadres is optioneel.</DialogDescription>
+        <DialogDescription>Je krijgt een link die je kunt delen. Met een e-mailadres kan alleen dat adres de link gebruiken.</DialogDescription>
       </DialogHeader>
       <DialogBody className="grid gap-4">
         <Field label="E-mailadres (optioneel)" htmlFor="uitn-email">
@@ -128,20 +124,12 @@ export function InviteForm({ member }: { member: MemberRow | null }) {
             onChange={(e) => setEmail(e.target.value)}
           />
         </Field>
-        {!member && (
-          <Field label="Rol" htmlFor="uitn-rol">
-            <NativeSelect id="uitn-rol" value={role} onChange={(e) => setRole(e.target.value as MemberRole)}>
-              <option value="member">Gezinslid</option>
-              <option value="admin">Beheerder</option>
-            </NativeSelect>
-          </Field>
-        )}
-        {hasEmail && (
-          <label className="flex min-h-11 items-center gap-3 rounded-xl border p-3 text-sm">
-            <Checkbox checked={sendEmail} onCheckedChange={(v) => setSendEmail(v === true)} />
-            Stuur ook een inloglink per e-mail
-          </label>
-        )}
+        <Field label="Rol" htmlFor="uitn-rol">
+          <NativeSelect id="uitn-rol" value={role} onChange={(e) => setRole(e.target.value as MemberRole)}>
+            <option value="member">Gezinslid</option>
+            <option value="admin">Beheerder</option>
+          </NativeSelect>
+        </Field>
       </DialogBody>
       <DialogFooter>
         <DialogClose asChild>

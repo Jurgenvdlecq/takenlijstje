@@ -1,60 +1,17 @@
 import "server-only";
 
 /**
- * Inplannen van terugkerende taken en verwerken van afwezigheid.
- * topUpSeries en skipSupersededTasks draaien als systeemhandeling via
- * src/server/system (planner en tick; alleen invoegen en overslaan).
- * applyAbsence draait met de gebruikersclient (RLS beslist; vervalt in WP2a).
- * Iedere query filtert expliciet op household_id.
+ * Inplannen van terugkerende taken. topUpSeries en skipSupersededTasks draaien
+ * als systeemhandeling via src/server/system (planner en tick; alleen invoegen
+ * en overslaan). Iedere query filtert expliciet op household_id.
  */
 import { addDays, todayIn, type ISODate } from "@/domain/dates";
-import { postponeTarget } from "@/domain/assignment/absence";
-import { buildLoadMap, taskPoints } from "@/domain/assignment/load";
-import { addLoad, availableMembers, pickFair, type AssignmentContext } from "@/domain/assignment/strategies";
 import { planSeries } from "@/domain/scheduling/plan";
 import { findSupersededTasks } from "@/domain/scheduling/supersede";
-import { shiftInstant } from "@/domain/recurrence/window";
 import type { DbClient } from "@/lib/supabase/server";
-import type { AbsenceRow, RecurrenceRow, TaskRow } from "@/types/database";
+import type { RecurrenceRow, TaskRow } from "@/types/database";
 import { check } from "../errors";
-import { toAbsence, toAssignable, toSeries } from "../mappers";
-
-/** Periode waarover taakbelasting meetelt voor eerlijke verdeling */
-const LOAD_WINDOW_DAYS = 28;
-
-async function loadAssignmentContext(db: DbClient, householdId: string, today: ISODate): Promise<AssignmentContext> {
-  const [members, absences, completions, openTasks] = await Promise.all([
-    db.from("household_members").select("*").eq("household_id", householdId).then(check),
-    db.from("member_absences").select("*").eq("household_id", householdId).gte("ends_on", today).then(check),
-    db
-      .from("task_completions")
-      .select("member_id, points")
-      .eq("household_id", householdId)
-      .gte("completed_at", new Date(Date.now() - LOAD_WINDOW_DAYS * 86_400_000).toISOString())
-      .then(check),
-    db
-      .from("tasks")
-      .select("assigned_member_id, points, duration_minutes")
-      .eq("household_id", householdId)
-      .in("status", ["todo", "in_progress"])
-      .is("deleted_at", null)
-      .gte("scheduled_date", today)
-      .then(check),
-  ]);
-
-  const loads = buildLoadMap(
-    [
-      ...completions.map((c) => ({ memberId: c.member_id, points: c.points })),
-      ...openTasks.map((t) => ({
-        memberId: t.assigned_member_id,
-        points: taskPoints({ points: t.points, durationMinutes: t.duration_minutes }),
-      })),
-    ],
-    members.map((m) => m.id),
-  );
-
-  return { members: members.map(toAssignable), absences: absences.map(toAbsence), loads };
-}
+import { toSeries } from "../mappers";
 
 async function householdTimezone(db: DbClient, householdId: string): Promise<string> {
   const { timezone } = check(await db.from("households").select("timezone").eq("id", householdId).single());
@@ -68,10 +25,7 @@ export interface TopUpOptions {
   now?: Date;
 }
 
-/**
- * Vul de planning van reeksen aan tot de horizon. Geeft de nieuw aangemaakte
- * taken terug (bijv. om toegewezen personen te informeren).
- */
+/** Vul de planning van reeksen aan tot de horizon. Geeft de nieuw aangemaakte taken terug. */
 export async function topUpSeries(db: DbClient, householdId: string, options: TopUpOptions = {}): Promise<TaskRow[]> {
   const now = options.now ?? new Date();
   const timeZone = await householdTimezone(db, householdId);
@@ -82,7 +36,6 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
   const series = check(await query) as RecurrenceRow[];
   if (series.length === 0) return [];
 
-  const ctx = await loadAssignmentContext(db, householdId, today);
   const created: TaskRow[] = [];
 
   for (const row of series) {
@@ -107,7 +60,6 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
       timeZone,
       existingOccurrenceDates: existingDates,
       hasOpenUpcoming,
-      assignment: ctx,
       from: options.from,
     });
 
@@ -120,14 +72,11 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
         description: row.description,
         category: row.category,
         priority: row.priority,
-        assigned_member_id: o.assignedMemberId,
-        assignment_reason: o.assignmentReason,
         scheduled_date: o.scheduledDate,
         scheduled_time: o.scheduledTime,
         available_from: o.availableFrom,
         due_at: o.dueAt,
         duration_minutes: row.duration_minutes,
-        points: row.points,
         reminder_minutes_before: row.reminder_minutes_before,
         created_by_member_id: row.created_by_member_id,
       }));
@@ -139,15 +88,6 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
       ) as TaskRow[];
       created.push(...inserted);
 
-      const assignments = inserted
-        .filter((t) => t.assigned_member_id && t.assignment_reason)
-        .map((t) => ({
-          household_id: householdId,
-          task_id: t.id,
-          member_id: t.assigned_member_id,
-          reason: t.assignment_reason!,
-        }));
-      if (assignments.length) check(await db.from("task_assignments").insert(assignments));
     }
 
     if (plan.generatedUntil !== row.generated_until) {
@@ -156,77 +96,6 @@ export async function topUpSeries(db: DbClient, householdId: string, options: To
   }
 
   return created;
-}
-
-/**
- * Verwerk een (nieuwe) afwezigheid: open taken van die persoon in de periode
- * worden opnieuw verdeeld, doorgeschoven of op "niet toegewezen" gezet.
- * Geeft de taken terug die een nieuwe eigenaar kregen.
- */
-export async function applyAbsence(db: DbClient, absence: AbsenceRow): Promise<TaskRow[]> {
-  const timeZone = await householdTimezone(db, absence.household_id);
-  const today = todayIn(timeZone);
-  const tasks = check(
-    await db
-      .from("tasks")
-      .select("*")
-      .eq("household_id", absence.household_id)
-      .eq("assigned_member_id", absence.member_id)
-      .in("status", ["todo", "in_progress"])
-      .is("deleted_at", null)
-      .gte("scheduled_date", absence.starts_on)
-      .lte("scheduled_date", absence.ends_on),
-  ) as TaskRow[];
-  if (!tasks.length) return [];
-
-  const ctx = await loadAssignmentContext(db, absence.household_id, today);
-  ctx.absences.push(toAbsence(absence));
-  const reassigned: TaskRow[] = [];
-
-  for (const task of tasks) {
-    if (absence.strategy === "postpone") {
-      const { date, shiftDays } = postponeTarget(toAbsence(absence), task.scheduled_date);
-      check(
-        await db
-          .from("tasks")
-          .update({
-            scheduled_date: date,
-            available_from: shiftInstant(task.available_from, shiftDays, timeZone),
-            due_at: shiftInstant(task.due_at, shiftDays, timeZone),
-            is_exception: true,
-          })
-          .eq("id", task.id),
-      );
-      continue;
-    }
-
-    let newMember: string | null = null;
-    if (absence.strategy === "reassign") {
-      const candidates = availableMembers(ctx, task.scheduled_date).filter((m) => m.id !== absence.member_id);
-      newMember = pickFair(candidates, ctx.loads)?.id ?? null;
-      addLoad(ctx.loads, newMember, taskPoints({ points: task.points, durationMinutes: task.duration_minutes }));
-    }
-
-    const updated = check(
-      await db
-        .from("tasks")
-        .update({ assigned_member_id: newMember, assignment_reason: newMember ? "absence" : null, is_exception: true })
-        .eq("id", task.id)
-        .select("*")
-        .single(),
-    ) as TaskRow;
-    check(
-      await db.from("task_assignments").insert({
-        household_id: task.household_id,
-        task_id: task.id,
-        member_id: newMember,
-        reason: newMember ? "absence" : "unassigned",
-      }),
-    );
-    if (newMember) reassigned.push(updated);
-  }
-
-  return reassigned;
 }
 
 /** Zet verlopen taken op "overgeslagen" als de volgende uitvoering al beschikbaar is. */
