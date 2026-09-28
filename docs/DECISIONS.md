@@ -96,3 +96,4 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - **Terugzetten (`restore_v2.sql`).** "Bijgewerkt op"-tijden blijven gelijk: het wissen en het terugzetten zetten de `updated_at`-triggers tijdelijk uit. Zo is het resultaat na terugzetten exact gelijk aan de back-up (M0).
   - **Back-up.** Enumkolommen worden als tekst bewaard, zodat de back-up geldig blijft nadat `…_210` enumtypen verwijdert.
   - **Scripts met `__BACKUP__`.** Die tekst vervang je door de naam van het back-upschema. `precheck_v2.sql` deel g gebruikt `__DEPLOY_MOMENT__` op dezelfde manier.
+- **D-035: geen Vercel-previews van `v2-ui` en van de werkbranches `claude/**`** (TD §12.3.1). Previews gebruiken de productievariabelen en dus de live database. Voor de werkbranch geldt dat ook: een preview van nieuwe code tegen het live schema kan fouten of ongewenste schrijfacties geven.
