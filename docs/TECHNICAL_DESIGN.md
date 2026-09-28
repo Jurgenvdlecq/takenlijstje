@@ -533,7 +533,7 @@ Het probleem: server-action-id's veranderen per build. Een open PWA met een oude
 
 ### 9.4 Logging
 
-- `runAction` logt `[action:<naam>] <ErrorName> <pgcode>`, zoals nu. **Nooit** invoer, titels, e-mailadressen, namen, tokens of `user_id`.
+- `runAction` logt `[action:{actienaam}] {ErrorName} {pgcode}`, zoals nu. **Nooit** invoer, titels, e-mailadressen, namen, tokens of `user_id`.
 - De tick en de dispatcher loggen alleen tellingen en statuscodes (bestaand in `web-push.ts`).
 - **Nieuw:** `console.error` in de client alleen met een foutcode. Geen externe errortracking (geen extra verwerker; PRODUCT_SPEC §8).
 - De eigen logs van de app zijn de enige logbron die de app beheert (Vercel-functielogs).
@@ -699,7 +699,7 @@ Verwijderen hoort niet bij dit draaiboek; dat kan Jurgen later zelf via Gezinsle
 - reeksen: `assignment_strategy`, `fixed_member_id`, `rotation_member_ids`, `points`;
 - `households.members_can_assign_others`, `points_*`;
 - `notifications` van het type `task_assigned`, `swap_request` en `swap_accepted`;
-- **bestaande `notifications` van het type `task_completed`, `daily_summary` en `evening_summary`** (plan-critic 1). Hun opgeslagen tekst noemt wie afvinkte ("… is gedaan door <naam>") of is afgeleid van toewijzing ("waarvan N voor jou", "van jou nog open"). Dat botst met V-21 en succescriterium 7. Filteren op tekst is foutgevoelig; deze soorten zijn kortlevend (90 dagen) en hebben geen historische waarde, dus de hele soort vóór M6 gaat weg. Nieuwe meldingen van deze soorten krijgen **vanaf WP2a** teksten zonder naam. "Taak gedaan" gaat vanaf WP2a naar alle leden die hem aan hebben staan, **ook naar wie afvinkte** (V-38a). Zo ontstaan na M6 nooit meldingen waaruit af te leiden is wie afvinkte (plan-critic r2, punt 2). De controle van de ontvangers van `task_completed`-meldingen van na de WP2a-deploy gebeurt **vóór M5** (zie M5), zodat Jurgen niet toestemt terwijl er nog een lek is. **De product-analyst neemt dit op in BR-46.3.** Jurgen ziet het aantal bij M5;
+- **bestaande `notifications` van het type `task_completed`, `daily_summary` en `evening_summary`** (plan-critic 1). Hun opgeslagen tekst noemt wie afvinkte ("… is gedaan door {naam}") of is afgeleid van toewijzing ("waarvan N voor jou", "van jou nog open"). Dat botst met V-21 en succescriterium 7. Filteren op tekst is foutgevoelig; deze soorten zijn kortlevend (90 dagen) en hebben geen historische waarde, dus de hele soort vóór M6 gaat weg. Nieuwe meldingen van deze soorten krijgen **vanaf WP2a** teksten zonder naam. "Taak gedaan" gaat vanaf WP2a naar alle leden die hem aan hebben staan, **ook naar wie afvinkte** (V-38a). Zo ontstaan na M6 nooit meldingen waaruit af te leiden is wie afvinkte (plan-critic r2, punt 2). De controle van de ontvangers van `task_completed`-meldingen van na de WP2a-deploy gebeurt **vóór M5** (zie M5), zodat Jurgen niet toestemt terwijl er nog een lek is. **De product-analyst neemt dit op in BR-46.3.** Jurgen ziet het aantal bij M5;
 - `shopping_items.added_by_member_id`, `bought_by_member_id`; `shopping_lists.created_by_member_id`;
 - `household_members` zonder `user_id` (leden zonder account), plus de technisch vervallen kolommen `email` en `avatar_url`;
 - `user_preferences.notify_task_assigned`, `notify_swap_requests`;

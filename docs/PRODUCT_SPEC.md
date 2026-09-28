@@ -360,7 +360,7 @@ Jurgen heeft per gegeven besloten (V-25):
      - ruilverzoeken;
      - afwezigheden;
      - meldingen van soorten die vervallen (toegewezen, ruilverzoek, ruil geaccepteerd);
-     - **alle bestaande meldingen "taak gedaan" van vóór de overgang.** Hun tekst noemt letterlijk wie afvinkte ("… is gedaan door <naam>");
+     - **alle bestaande meldingen "taak gedaan" van vóór de overgang.** Hun tekst noemt letterlijk wie afvinkte ("… is gedaan door {naam}");
      - **alle bestaande dag- en avondoverzichten van vóór de overgang.** Hun tekst is een afgeleide van toewijzing ("Waarvan N voor jou", "van jou nog open", "op jouw naam");
      - "toegevoegd door" en "gekocht door" bij boodschappen;
      - leden zonder account.
