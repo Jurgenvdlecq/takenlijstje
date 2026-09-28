@@ -251,6 +251,6 @@ In `docs/screenshots/bestaand/`, op 390×844 (telefoon) en 1440×900. Lokaal ged
 ## 8. Behouden / Herwerken / Vervangen
 
 Uitgewerkt per onderdeel, met reden, in `docs/TECHNICAL_DESIGN.md` §16 (voorstel van de solution-architect, 2026-09-28), op basis van het nieuwe product-, UX- en visuele ontwerp. Kort:
-- **Behouden:** datamodel-basis en RLS-aanpak, pure domeinlogica (`src/domain`, herhalingsregels), offline-wachtrij en idempotent afvinken, Next.js/Supabase/Tailwind 4/Radix, snelle invoer.
-- **Herwerken:** rechten rond de systeemsleutel (B-01…B-03), tick en planner (R-01, R-02), snapshot (P-01), laad/fout/offline-states (S-01…S-04), schermindeling (Vandaag, Instellingen, onderbalk), toegankelijkheid (A-01…A-03).
+- **Behouden:** datamodel-basis en RLS-aanpak, pure domeinlogica (`src/domain`, herhalingsregels), idempotent afvinken, Next.js/Supabase/Tailwind 4/Radix, het principe van de slimme invoer.
+- **Herwerken:** offline-wachtrij (vast endpoint `/api/outbox`, versienummers, nooit stil weggooien; TD §9.3.1), snelle invoer (verhuist van een balk op Vandaag naar het venster Nieuwe taak, zonder personen), rechten rond de systeemsleutel (B-01…B-03), tick en planner (R-01, R-02), snapshot (P-01), laad/fout/offline-states (S-01…S-04), schermindeling (Vandaag, Instellingen, onderbalk), toegankelijkheid (A-01…A-03).
 - **Vervangen of vervallen:** de visuele laag (nieuw design system), toewijzing/verdeling/ruilen/punten/afwezigheid en leden zonder account (scopewijziging van Jurgen).

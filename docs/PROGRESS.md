@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — herstel na planreview ronde 1 klaar; alle vragen beantwoord (V-01…V-39); laatste verwerking en planreview ronde 2
-Volgende stap: analyst, designer en architect verwerken V-36…V-39 (laatste [OPEN]-markeringen); daarna plan-critic ronde 2 tot "DESIGN FREEZE MOGELIJK: JA"; dan totaalvoorstel aan Jurgen.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — planreview ronde 2: DESIGN FREEZE MOGELIJK: NEE (2 kleine moet-punten, door herstel ontstaan); herstel loopt, ronde 3 volgt
+Volgende stap: herstel ronde-2-punten (AC-138, ontvangers "taak gedaan" naar WP2a, aanbevelingen 3–6); plan-critic ronde 3; bij JA het totaalvoorstel aan Jurgen met verzoek om /design-go.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -70,6 +70,7 @@ Volgende stap: analyst, designer en architect verwerken V-36…V-39 (laatste [OP
 Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 
 ## Bevindingen per work package
+- Planreview: `docs/reviews/plan-critic.md` — ronde 1 (2026-09-28) NEE: 0 blokkerend, 14 moet, 8 aanbevelingen, alle 14 opgelost; ronde 2 NEE: 2 moet-punten (door herstel ontstaan).
 - Inventarisatie (2026-09-27): zie `docs/INVENTARIS.md` §7. Open BLOKKEREND: B-01 (gezinslid kan open taken van andermans reeks laten verwijderen). GEMIDDELD: B-02, B-03, R-01, R-02, S-01, S-02, A-01, A-02, P-01. Worden na de Design Freeze als eerste work packages behandeld (werkwijze §15 stap 6); geen code gewijzigd.
 
 ## Wijzigingsverzoeken (op bevroren documenten)
