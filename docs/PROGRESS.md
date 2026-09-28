@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP1 (rechtenmodel en securityfixes op live)
-Volgende stap: WP1 rooktest op live door Jurgen (de sandbox kan takenlijstje.vercel.app niet bereiken): inloggen, Vandaag, afvinken + ongedaan maken. Daarna WP1 afgerond en door naar WP2a.
+Volgende stap: wijzigingsverzoek W-03 (afvalkalender) uitwerken met Jurgen; daarna WP2a.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -53,6 +53,7 @@ Volgende stap: WP1 rooktest op live door Jurgen (de sandbox kan takenlijstje.ver
 - Totaalvoorstel en toestemmingen (2026-09-28): "Dat is allemaal akkoord .  /design-go" → akkoord met het totaalvoorstel én toestemming voor: pushen naar `main` (live-deploys WP1–WP3) en naar een nieuwe branch `v2-ui`, en wijzigingen aan de live Supabase-database via de koppeling (planner, migraties, inloginstellingen). Let op: `/design-go` stond midden in de zin en is daardoor niet door de poort geregistreerd; Jurgen is gevraagd het als los bericht te typen.
 - Stap 0 WP1 — uitgezette leden (2026-09-28): telling op live (alleen lezen) → 0 leden met account op `is_active = false`. Controle url-check (code-review 19): 0 van 5 meldingen op live hebben een afwijkende url. Geen keuze nodig. Context live: 1 huishouden, 2 leden (1 met account), 69 taken, 1 afvinking.
 - Onderhoud poort (2026-09-28, na `/onderhoud-go` van Jurgen): test-writer mag `supabase/tests/**` schrijven; de poort analyseert nu ook `su`/`runuser -c "…"` (gat gemeld door de test-writer). Poorttest: 101 geslaagd, 0 mislukt.
+- Rooktest WP1 op live (2026-09-28): "Het werk goed."
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
 ## Open vragen
@@ -64,7 +65,7 @@ Volgende stap: WP1 rooktest op live door Jurgen (de sandbox kan takenlijstje.ver
 ## Work packages
 | WP | Omschrijving | Acceptatiecriteria | Checkpoint | Status |
 | --- | --- | --- | --- | --- |
-| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | code-review GO (r3), security GO (r2), test-writer GO (r4) | live gezet 2026-09-28 ~23:00; rooktest door Jurgen open |
+| WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | code-review GO (r3), security GO (r2), test-writer GO (r4) | live 2026-09-28; rooktest Jurgen OK → **afgerond** |
 | WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | open |
 | WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | open |
 | WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | open |
@@ -86,6 +87,7 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 ## Wijzigingsverzoeken (op bevroren documenten)
 - W-01 (2026-09-28): AC-014 noemt `occurrence_date` onveranderlijk; TD §5.2 ("Reekskoppeling") staat het toe voor beheerder/maker van de reeks (nodig voor "deze en volgende"). Voorstel: AC-014 formeel gelijktrekken met TD §5.2 (gebouwd volgens TD, D-013). Gevolg: geen functionele wijziging. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); doorgevoerd in ACCEPTANCE_CRITERIA AC-014 na `/design-go intrekken` (2026-09-28); Design Freeze opnieuw gegeven door Jurgen (2026-09-28)
 - W-02 (2026-09-28): TD §4.1 zegt dat `@supabase/ssr` Secure zelf zet; dat klopt niet. De app zet het nu zelf (D-019). Voorstel: tekst in TD corrigeren. Gevolg: geen. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); doorgevoerd in TECHNICAL_DESIGN §4.1 na `/design-go intrekken` (2026-09-28); Design Freeze opnieuw gegeven door Jurgen (2026-09-28)
+- W-03 (2026-09-28): nieuwe wens van Jurgen: "Onze bakken verschillen wanneer deze buitengezet en opgehaald moeten worden. Deze staan in onze agenda via zo'n gemeente agenda. Hoe krijgen we dit goed in de tool ?" Valt buiten het bevroren ontwerp (nieuwe functie: externe kalender inlezen). Gevonden: in de Google-agenda van jxvdlecq@gmail.com staat geen afvalkalender (niet in de agendalijst, zoeken op afval/container/bak leverde niets op). Voorstel: (A) nu meteen met gewone terugkerende taken per bak, zonder bouwwerk; (B) als nieuwe functie de agenda-link (iCal) van de gemeente of Mijn Afvalwijzer inlezen en automatisch taken "… buitenzetten" (avond ervoor) maken; niet via Google-agenda (vraagt extra inlogkoppeling). Discovery-vragen uitgezet bij Jurgen (V-41…V-44). — status: open; WP2a gaat door, want die hangt hier niet van af
 
 ## Bewust geaccepteerde open punten (alleen met besluit van Jurgen)
 - (geen)
