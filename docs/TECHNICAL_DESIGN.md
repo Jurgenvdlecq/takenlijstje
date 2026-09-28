@@ -12,7 +12,7 @@ Auteur: solution-architect. Document voor de bouwer (Claude); technische termen 
 4. laden, fouten, offline en sheets krijgen een vaste structuur (S-01…S-04, UX §12);
 5. de visuele laag wordt vervangen volgens `DESIGN_SYSTEM.md`.
 
-Ronde 2 (2026-09-28): Jurgen heeft V-30 t/m V-35 beantwoord met "Volg je voorstellen" (letterlijk in `docs/PROGRESS.md`). Het document bevat geen open plekken meer (zie §17).
+Ronde 2 (2026-09-28): Jurgen heeft V-30 t/m V-35 beantwoord met "Volg je voorstellen" (letterlijk in `docs/PROGRESS.md`). Ronde 3 (2026-09-28): de bevindingen van de plan-critic (ronde 1) die bij het technisch ontwerp horen, zijn verwerkt. Open blijven alleen `[OPEN: V-36]` en `[OPEN: V-38]` (zie §17).
 
 ---
 
@@ -47,7 +47,7 @@ Telefoon (PWA)                         Vercel (Next.js, server)                 
 Service worker (public/sw.js)          proxy.ts: sessie verversen, /login-redirect     PostgreSQL + RLS (laatste verdediging)
   • statisch: cache-first                                                                • RPC's (security definer, eigen rechtencheck)
   • pagina's: netwerk-eerst, 3 s       (app)/layout.tsx: shell + <Suspense> data       • triggers (guards, standaardvoorkeuren)
-    time-out → cache → /offline        Server actions (src/server/actions/*)          Auth (wachtwoord, magic link, herstel)
+    time-out → cache → /offline        Server actions (formulieren) + POST /api/outbox  Auth (wachtwoord, magic link, herstel)
   • push tonen, klik → interne URL       zod → requireMember/Admin → service →          Realtime (postgres_changes, RLS)
 HouseholdProvider (client store)         user-client (RLS) of RPC                      Vault (CRON_SECRET) + pg_cron + pg_net
   • snapshot + slices, optimistisch    src/server/system/** (ENIGE plek service role):  (V-32)
@@ -712,6 +712,10 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 | Snapshot | één groot object (nu) | **Nee.** Slices + een kleiner venster: P-01 is een gemeten risico |
 | Prisma (standaardstack) | supabase-js + RLS (bestaand) | **Geen Prisma.** Een tweede datalaag zou RLS omzeilen of dubbel moeten bewaken |
 | Losse taak offline aanmaken | ja, één upsert | **Ja**, reeksen niet (planning op de server) |
+| Wachtrij over deploys | één stabiel endpoint `/api/outbox` + versie per entry | **Ja** (§9.3.1), boven server-action-id's per build of skew protection |
+| "Losse taak wordt terugkerend" | één uitzondering in de bestaande guard | **Ja** (§5.2 "Reekskoppeling"), boven een extra RPC: dezelfde rechten, één plek |
+| Schrijvernaam bij notities | één kolom `author_name` = laatst bekende naam | **Ja** (§3.1), boven een UI-regel die tussen twee bronnen kiest |
+| "Niet meer lid"-melding | detectie via de eigen IDB-cache | **Ja** (§4.6), boven een tombstone in de database (die een persoonsgegeven zou bewaren) |
 
 ## 15. Work packages
 
@@ -784,7 +788,13 @@ Alles is klein. Het risico zit in **herhaald** laden (P-01), niet in de volumes.
 
 ## 17. Besluiten van Jurgen (verwerkt) en open punten
 
-**Open punten: geen.** Jurgen antwoordde op 2026-09-28 op V-30 t/m V-35: "Volg je voorstellen" (letterlijk in `docs/PROGRESS.md`).
+**Open punten (wachten op Jurgen, gesteld via de plan-critic):**
+- `[OPEN: V-36]` Uitrolstrategie: welke WP's direct live gaan en welke samen (§12.3, §15).
+- `[OPEN: V-38]` Ontvangers van "taak gedaan" (§6.1, WP3). De plan-critic constateert dat "niet naar de afvinker" verraadt wie afvinkte.
+
+**Verwerkt uit de plan-critic ronde 1 (TD-deel):** punten 1 (meldingen met namen wissen, §12.4), 3 (eerlijke grens van de platformlogs, §9.4), 4 (Reekskoppeling, §5.2), 5 (`author_name`, §3.1), 6 (voorcontroles vóór expand, §12.4 M1), 7 (telling van uitgezette leden vóór WP1, §12.3 stap 0), 9 (wachtrij over deploys, §9.3.1), 10 (`updateSeriesAction`, §6.1), 12 (technische detectie "niet meer lid", §4.6), 13 (offline in het taakdetail, §9.3), 15 (WP2a/WP2b, §15), 16 (hertellen vóór M5, M6 in dezelfde sessie), 17 (`delete_my_account` via `user_id`, §4.5), 19 (gedrag bij tijdzonewijziging, §6.2).
+
+Jurgen antwoordde op 2026-09-28 op V-30 t/m V-35: "Volg je voorstellen" (letterlijk in `docs/PROGRESS.md`).
 
 | Nr | Besluit | Verwerkt in |
 | --- | --- | --- |
