@@ -329,6 +329,18 @@ export type Database = {
       };
       undo_complete_task: { Args: { p_task_id: string }; Returns: TaskRow };
       accept_swap_request: { Args: { p_request_id: string }; Returns: TaskRow };
+      my_membership: {
+        Args: Record<string, never>;
+        Returns: { member_id: string; household_id: string; household_name: string; role: MemberRole; is_active: boolean }[];
+      };
+      clear_series_occurrences: {
+        Args: { p_recurrence_id: string; p_from: string; p_until?: string | null; p_include_exceptions?: boolean };
+        Returns: number;
+      };
+      pause_series: { Args: { p_recurrence_id: string; p_from: string; p_until: string | null }; Returns: RecurrenceRow };
+      resume_series: { Args: { p_recurrence_id: string }; Returns: RecurrenceRow };
+      stop_series: { Args: { p_recurrence_id: string }; Returns: boolean };
+      delete_task: { Args: { p_task_id: string; p_scope?: "this" | "future" }; Returns: boolean };
     };
     Enums: {
       member_role: MemberRole;

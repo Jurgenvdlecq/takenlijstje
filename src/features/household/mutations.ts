@@ -6,20 +6,7 @@
  * in de wachtrij en worden later verstuurd.
  */
 import type { Snapshot } from "@/lib/data/snapshot";
-import type { ActionResult } from "@/server/errors";
-import {
-  addShoppingItemAction,
-  deleteShoppingItemAction,
-  toggleShoppingItemAction,
-} from "@/server/actions/shopping";
-import { markNotificationsReadAction } from "@/server/actions/notifications";
-import {
-  assignTaskAction,
-  completeTaskAction,
-  moveTaskAction,
-  setTaskStatusAction,
-  undoCompleteAction,
-} from "@/server/actions/tasks";
+import { postOutbox, type SendOutcome } from "@/lib/offline/send";
 import type { ShoppingCategory, TaskStatus } from "@/types/database";
 
 export interface MutationContext {
@@ -30,7 +17,8 @@ export interface MutationContext {
 interface MutationDef<P> {
   offline: boolean;
   optimistic: (s: Snapshot, payload: P, ctx: MutationContext) => Snapshot;
-  send: (payload: P) => Promise<ActionResult<unknown>>;
+  /** Versturen via het stabiele endpoint POST /api/outbox (§9.3.1) */
+  send: (payload: P) => Promise<SendOutcome>;
 }
 
 function patchTask(s: Snapshot, taskId: string, patch: Partial<Snapshot["tasks"][number]>): Snapshot {
@@ -74,7 +62,7 @@ export const mutations = {
         ],
       };
     },
-    send: (p) => completeTaskAction(p),
+    send: (p) => postOutbox("complete", p),
   } satisfies MutationDef<{ taskId: string; mutationId: string; completedAt: string; completedBy?: string; note?: string | null }>,
 
   undo: {
@@ -83,25 +71,25 @@ export const mutations = {
       ...patchTask(s, p.taskId, { status: "todo", completed_at: null, completed_by_member_id: null }),
       completions: removeLatestCompletion(s.completions, p.taskId),
     }),
-    send: (p) => undoCompleteAction(p.taskId),
+    send: (p) => postOutbox("undo", p),
   } satisfies MutationDef<{ taskId: string }>,
 
   setStatus: {
     offline: true,
     optimistic: (s, p) => patchTask(s, p.taskId, { status: p.status }),
-    send: (p) => setTaskStatusAction(p.taskId, p.status),
+    send: (p) => postOutbox("setStatus", p),
   } satisfies MutationDef<{ taskId: string; status: Exclude<TaskStatus, "done"> }>,
 
   move: {
     offline: true,
     optimistic: (s, p) => patchTask(s, p.taskId, { scheduled_date: p.date }),
-    send: (p) => moveTaskAction(p.taskId, p.date),
+    send: (p) => postOutbox("move", p),
   } satisfies MutationDef<{ taskId: string; date: string }>,
 
   assign: {
     offline: true,
     optimistic: (s, p) => patchTask(s, p.taskId, { assigned_member_id: p.memberId }),
-    send: (p) => assignTaskAction(p.taskId, p.memberId),
+    send: (p) => postOutbox("assign", p),
   } satisfies MutationDef<{ taskId: string; memberId: string | null }>,
 
   shoppingAdd: {
@@ -129,7 +117,7 @@ export const mutations = {
               },
             ],
           },
-    send: (p) => addShoppingItemAction(p),
+    send: (p) => postOutbox("shoppingAdd", p),
   } satisfies MutationDef<{ id: string; name: string; quantity?: string | null; category: ShoppingCategory; note?: string | null }>,
 
   shoppingToggle: {
@@ -142,13 +130,13 @@ export const mutations = {
           : i,
       ),
     }),
-    send: (p) => toggleShoppingItemAction(p.id, p.bought),
+    send: (p) => postOutbox("shoppingToggle", p),
   } satisfies MutationDef<{ id: string; bought: boolean }>,
 
   shoppingDelete: {
     offline: true,
     optimistic: (s, p) => ({ ...s, shoppingItems: s.shoppingItems.filter((i) => i.id !== p.id) }),
-    send: (p) => deleteShoppingItemAction(p.id),
+    send: (p) => postOutbox("shoppingDelete", p),
   } satisfies MutationDef<{ id: string }>,
 
   markRead: {
@@ -159,7 +147,7 @@ export const mutations = {
         !n.read_at && (!p.ids || p.ids.includes(n.id)) ? { ...n, read_at: ctx.now } : n,
       ),
     }),
-    send: (p) => markNotificationsReadAction(p.ids),
+    send: (p) => postOutbox("markRead", p),
   } satisfies MutationDef<{ ids?: string[] }>,
 };
 
@@ -173,15 +161,19 @@ function removeLatestCompletion(completions: Snapshot["completions"], taskId: st
 }
 
 /** Pas een mutatie optimistisch toe (generiek, type-veilig per soort). */
-export function applyOptimistic(s: Snapshot, kind: MutationKind, payload: unknown, ctx: MutationContext): Snapshot {
-  const def = mutations[kind] as MutationDef<unknown>;
+export function applyOptimistic(s: Snapshot, kind: string, payload: unknown, ctx: MutationContext): Snapshot {
+  // Een wachtrij-item van een soort die niet meer bestaat, verandert de weergave niet
+  if (!(kind in mutations)) return s;
+  const def = mutations[kind as MutationKind] as MutationDef<unknown>;
   return def.optimistic(s, payload, ctx);
 }
 
-export function sendMutation(kind: MutationKind, payload: unknown): Promise<ActionResult<unknown>> {
-  return (mutations[kind] as MutationDef<unknown>).send(payload);
+/** Versturen; `v` is de versie van een wachtrij-item (ontbreekt = versie 0 van vóór WP1). */
+export function sendMutation(kind: string, payload: unknown, v?: number): Promise<SendOutcome> {
+  if (v !== undefined || !(kind in mutations)) return postOutbox(kind, payload, v ?? 0);
+  return (mutations[kind as MutationKind] as MutationDef<unknown>).send(payload);
 }
 
 export function isOfflineCapable(kind: MutationKind): boolean {
-  return mutations[kind].offline;
+  return mutations[kind]?.offline ?? false;
 }

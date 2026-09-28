@@ -2,7 +2,7 @@
  * - offline: eerder bezochte pagina's en statische bestanden uit de cache
  * - pushmeldingen tonen en bij tikken de juiste pagina openen
  */
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `static-${VERSION}`;
 const PAGE_CACHE = `pages-${VERSION}`;
 const PRECACHE = ["/offline", "/icons/icon.svg", "/icons/icon-192.png"];
@@ -69,6 +69,24 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+// Uitloggen, uitgezet of niet meer lid: opgeslagen pagina's (met gegevens) wissen (BR-43)
+self.addEventListener("message", (event) => {
+  if (event.origin && event.origin !== self.location.origin) return;
+  if (event.data && event.data.type === "CLEAR_PAGES") {
+    event.waitUntil(caches.delete(PAGE_CACHE));
+  }
+});
+
+/** Alleen een pad binnen deze app; anders de startpagina (B-03: geen open redirect) */
+function internalUrl(value) {
+  try {
+    const url = new URL(typeof value === "string" && value ? value : "/", self.location.origin);
+    return url.origin === self.location.origin ? url.href : new URL("/", self.location.origin).href;
+  } catch {
+    return new URL("/", self.location.origin).href;
+  }
+}
+
 self.addEventListener("push", (event) => {
   let data = { title: "Takenlijstje", body: "", url: "/", tag: undefined };
   try {
@@ -89,7 +107,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  const target = internalUrl(event.notification.data?.url);
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {

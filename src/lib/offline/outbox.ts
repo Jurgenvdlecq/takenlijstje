@@ -6,10 +6,12 @@
  * terugkomt. Iedere actie draagt een eigen id, zodat de server hem bij
  * opnieuw versturen herkent (geen dubbele registratie).
  */
-import { createStore, get, set } from "idb-keyval";
+import { clear, createStore, get, set } from "idb-keyval";
 
 export interface OutboxEntry<P = unknown> {
   id: string;
+  /** Versie van het wachtrijformaat; ontbreekt bij entries van vóór WP1 (= versie 0) */
+  v?: number;
   kind: string;
   payload: P;
   createdAt: string;
@@ -42,4 +44,14 @@ export async function writeOutbox(entries: OutboxEntry[]): Promise<void> {
 export function isNetworkError(error: unknown): boolean {
   if (typeof navigator !== "undefined" && !navigator.onLine) return true;
   return error instanceof TypeError && /fetch|network|load failed/i.test(error.message);
+}
+
+/** Alles wissen (uitloggen, uitgezet of niet meer lid; BR-43) */
+export async function clearOutbox(): Promise<void> {
+  if (!store) return;
+  try {
+    await clear(store);
+  } catch {
+    // negeren: het vangnet bij opstarten ruimt alsnog op
+  }
 }

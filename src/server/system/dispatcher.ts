@@ -1,39 +1,41 @@
 import "server-only";
 
 /**
- * Centrale plek om meldingen te versturen:
+ * Centrale plek om meldingen te versturen (alleen het systeem, BR-25):
  *  1. voorkeuren van iedere ontvanger respecteren
  *  2. in-app melding opslaan (notifications-tabel, ook zichtbaar via realtime)
- *  3. extra kanalen (Web Push, later e-mail/WhatsApp/…) aanroepen
+ *  3. extra kanalen (Web Push) aanroepen
+ * Ontvangers en inhoud bepaalt de server; er is geen terugval op de
+ * gebruikersclient (TECHNICAL_DESIGN §5.3).
  */
-import { createAdminClient, hasAdminClient } from "@/lib/supabase/admin";
 import type { DbClient } from "@/lib/supabase/server";
+import {
+  PREFERENCE_FOR_TYPE,
+  type NotificationChannel,
+  type NotificationMessage,
+  type Recipient,
+} from "@/server/notifications/types";
 import type { MemberRow, PreferencesRow } from "@/types/database";
+import { createAdminClient, hasAdminClient } from "./admin-client";
 import { WebPushChannel } from "./channels/web-push";
-import { PREFERENCE_FOR_TYPE, type NotificationChannel, type NotificationMessage, type Recipient } from "./types";
 
 export interface NotifyOptions {
   householdId: string;
   memberIds: string[];
   message: NotificationMessage;
-  /** Client om mee te schrijven als er geen service role is (alleen in-app) */
-  fallbackDb?: DbClient;
 }
 
 function channelsFor(db: DbClient): NotificationChannel[] {
   return [new WebPushChannel(db)];
 }
 
-export async function notify({ householdId, memberIds, message, fallbackDb }: NotifyOptions): Promise<void> {
+export async function notify({ householdId, memberIds, message }: NotifyOptions): Promise<void> {
   const unique = [...new Set(memberIds)];
   if (!unique.length) return;
 
   try {
     if (!hasAdminClient()) {
-      // Zonder service role: alleen in-app melding via de gebruikersclient (RLS staat dit toe)
-      if (fallbackDb) {
-        await fallbackDb.from("notifications").insert(unique.map((memberId) => toRow(householdId, memberId, message)));
-      }
+      console.error(`[notify] ${message.type} niet verstuurd: systeemsleutel ontbreekt`);
       return;
     }
 

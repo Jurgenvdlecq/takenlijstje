@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { loadSnapshot, type Snapshot } from "@/lib/data/snapshot";
 import { readCachedSnapshot, writeCachedSnapshot } from "@/lib/offline/cache";
 import { isNetworkError, readOutbox, writeOutbox, type OutboxEntry } from "@/lib/offline/outbox";
+import { OUTBOX_VERSION } from "@/domain/outbox/migrate";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { newId } from "@/lib/utils";
 import type { ActionResult } from "@/server/errors";
@@ -73,6 +74,7 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   const refreshTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRefresh = React.useRef(0);
   const flushing = React.useRef(false);
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ctx = React.useCallback(() => ({ meId, now: new Date().toISOString() }), [meId]);
 
@@ -80,7 +82,7 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   const reapplyPending = React.useCallback(
     (s: Snapshot) =>
       [...outbox.current, ...inFlight.current.values()].reduce(
-        (acc, entry) => applyOptimistic(acc, entry.kind as MutationKind, entry.payload, ctx()),
+        (acc, entry) => applyOptimistic(acc, entry.kind, entry.payload, ctx()),
         s,
       ),
     [ctx],
@@ -107,28 +109,63 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
   const updatePending = React.useCallback(() => setPending(outbox.current.length + inFlight.current.size), []);
 
   // --- wachtrij versturen ---------------------------------------------------
-  const flushOutbox = React.useCallback(async () => {
+  // Nooit stil weggooien (TECHNICAL_DESIGN §9.3.1): alleen een verwerkte of een
+  // door de server geweigerde actie verdwijnt, en een weigering is zichtbaar.
+  const MAX_ATTEMPTS = 5;
+  const flushOutbox = React.useCallback(async (): Promise<void> => {
     if (flushing.current || outbox.current.length === 0) return;
     flushing.current = true;
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    let retryLater = false;
     try {
       while (outbox.current.length) {
         const entry = outbox.current[0];
-        try {
-          const result = await sendMutation(entry.kind as MutationKind, entry.payload);
-          if (!result.ok) toast.error(result.error);
-        } catch (error) {
-          if (isNetworkError(error)) break; // later opnieuw
-          toast.error("Een offline actie kon niet worden verwerkt.");
+        const outcome = await sendMutation(entry.kind, entry.payload, entry.v ?? 0);
+
+        if (outcome.type === "ok" || outcome.type === "rejected") {
+          if (outcome.type === "rejected") toast.error(outcome.error);
+          outbox.current = outbox.current.slice(1);
+          await writeOutbox(outbox.current);
+          updatePending();
+          continue;
         }
-        outbox.current = outbox.current.slice(1);
-        await writeOutbox(outbox.current);
-        updatePending();
+
+        if (outcome.type === "auth") {
+          const n = outbox.current.length;
+          toast.error(`Log opnieuw in om ${n} ${n === 1 ? "wijziging" : "wijzigingen"} te versturen.`, { id: "outbox-auth" });
+          break;
+        }
+
+        // Tijdelijk probleem: laten staan en later opnieuw
+        if (outcome.reason !== "network") {
+          outbox.current = [{ ...entry, attempts: entry.attempts + 1 }, ...outbox.current.slice(1)];
+          await writeOutbox(outbox.current);
+          if (entry.attempts + 1 >= MAX_ATTEMPTS) {
+            const n = outbox.current.length;
+            toast.error(`${n} ${n === 1 ? "wijziging kon" : "wijzigingen konden"} niet worden verstuurd.`, {
+              id: "outbox-stuck",
+              duration: Infinity,
+              action: { label: "Opnieuw", onClick: () => void flushOutboxRef.current() },
+            });
+            break;
+          }
+          retryLater = true;
+        }
+        break;
       }
     } finally {
       flushing.current = false;
       scheduleRefresh(200);
+      if (retryLater) {
+        const attempts = outbox.current[0]?.attempts ?? 1;
+        retryTimer.current = setTimeout(() => void flushOutboxRef.current(), Math.min(60_000, 2_000 * 2 ** attempts));
+      }
     }
   }, [scheduleRefresh, updatePending]);
+  const flushOutboxRef = React.useRef(flushOutbox);
+  React.useEffect(() => {
+    flushOutboxRef.current = flushOutbox;
+  }, [flushOutbox]);
 
   // --- snelle acties ----------------------------------------------------------
   const mutate = React.useCallback(
@@ -150,7 +187,14 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
 
       if (kind === "complete") ownMutationIds.current.add((payload as MutationPayload<"complete">).mutationId);
 
-      const entry: OutboxEntry = { id: newId(), kind, payload, createdAt: new Date().toISOString(), attempts: 0 };
+      const entry: OutboxEntry = {
+        id: newId(),
+        v: OUTBOX_VERSION,
+        kind,
+        payload,
+        createdAt: new Date().toISOString(),
+        attempts: 0,
+      };
       setSnapshot((s) => applyOptimistic(s, kind, payload, ctx()));
 
       const queue = async () => {
@@ -165,24 +209,31 @@ export function HouseholdProvider({ initial, children }: { initial: Snapshot; ch
 
       inFlight.current.set(entry.id, entry);
       updatePending();
-      try {
-        const result = await sendMutation(kind, payload);
-        inFlight.current.delete(entry.id);
-        updatePending();
-        if (!result.ok) {
-          toast.error(result.error);
+      const outcome = await sendMutation(kind, payload);
+      inFlight.current.delete(entry.id);
+      updatePending();
+      switch (outcome.type) {
+        case "ok":
+          scheduleRefresh();
+          return true;
+        case "rejected":
+          toast.error(outcome.error);
           scheduleRefresh(0);
           return false;
-        }
-        scheduleRefresh();
-        return true;
-      } catch (error) {
-        inFlight.current.delete(entry.id);
-        updatePending();
-        if (isNetworkError(error) && isOfflineCapable(kind)) return queue();
-        toast.error("Geen verbinding. Probeer het opnieuw.");
-        scheduleRefresh(0);
-        return false;
+        case "auth":
+          if (isOfflineCapable(kind)) {
+            await queue();
+            toast.error("Je bent niet meer ingelogd. Log opnieuw in om je wijziging te versturen.", { id: "outbox-auth" });
+            return true;
+          }
+          toast.error("Je bent niet meer ingelogd. Log opnieuw in.");
+          scheduleRefresh(0);
+          return false;
+        case "retry":
+          if (isOfflineCapable(kind)) return queue();
+          toast.error(outcome.reason === "network" ? "Geen verbinding. Probeer het opnieuw." : "Er ging iets mis. Probeer het opnieuw.");
+          scheduleRefresh(0);
+          return false;
       }
     },
     [ctx, scheduleRefresh, updatePending],

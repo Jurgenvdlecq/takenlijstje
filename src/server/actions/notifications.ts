@@ -3,10 +3,10 @@
 import { z } from "zod";
 import { preferencesInput, pushSubscriptionInput, uuid } from "@/lib/validation";
 import type { PreferencesRow } from "@/types/database";
-import { requireMember } from "../context";
+import { requireMember, requireUser } from "../context";
 import { check, runAction, UserError, type ActionResult } from "../errors";
-import { notify } from "../notifications/dispatcher";
-import { isWebPushConfigured } from "../notifications/channels/web-push";
+import { isWebPushConfigured } from "../system/channels/web-push";
+import { notify } from "../system/dispatcher";
 import { parse } from "../parse";
 
 export async function markNotificationsReadAction(ids?: string[]): Promise<ActionResult<true>> {
@@ -66,7 +66,8 @@ export async function savePushSubscriptionAction(raw: z.input<typeof pushSubscri
 
 export async function deletePushSubscriptionAction(endpoint: string): Promise<ActionResult<true>> {
   return runAction("deletePushSubscription", async () => {
-    const { supabase, user } = await requireMember();
+    // Ook een uitgezet lid mag zijn eigen apparaat afmelden (alleen op user_id)
+    const { supabase, user } = await requireUser();
     check(await supabase.from("push_subscriptions").delete().eq("user_id", user.id).eq("endpoint", parse(z.url(), endpoint)));
     return true as const;
   });
@@ -74,11 +75,10 @@ export async function deletePushSubscriptionAction(endpoint: string): Promise<Ac
 
 export async function sendTestNotificationAction(): Promise<ActionResult<true>> {
   return runAction("sendTestNotification", async () => {
-    const { supabase, household, member } = await requireMember();
+    const { household, member } = await requireMember();
     await notify({
       householdId: household.id,
       memberIds: [member.id],
-      fallbackDb: supabase,
       message: {
         type: "reminder",
         title: "Testmelding",

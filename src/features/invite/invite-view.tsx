@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
+import { clearLocalData } from "@/lib/offline/clear";
 import { acceptInvitationAction } from "@/server/actions/household";
 
 interface InvitationInfo {
@@ -125,7 +126,14 @@ export function InviteView({
                 {userEmail && (
                   <p className="text-center text-xs text-muted-foreground">
                     Je bent ingelogd als {userEmail}. Niet jij?{" "}
-                    <button form="uitloggen" type="submit" className="font-medium text-primary underline-offset-4 hover:underline">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await clearLocalData();
+                        (document.getElementById("uitloggen") as HTMLFormElement | null)?.requestSubmit();
+                      }}
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                    >
                       Uitloggen
                     </button>
                   </p>

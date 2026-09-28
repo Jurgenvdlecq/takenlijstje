@@ -10,11 +10,11 @@ import "server-only";
 import { todayIn } from "@/domain/dates";
 import { summaryMessages, taskMessages, type ReminderPrefs } from "@/domain/reminders";
 import { isOverdue } from "@/domain/status";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "./admin-client";
 import type { HouseholdRow, MemberRow, PreferencesRow, TaskRow } from "@/types/database";
 import { check } from "../errors";
-import { notify } from "../notifications/dispatcher";
-import { skipSupersededTasks, topUpSeries } from "./scheduling";
+import { skipSupersededTasks, topUpSeries } from "../services/scheduling";
+import { notify } from "./dispatcher";
 
 function toPrefs(row: PreferencesRow | undefined): ReminderPrefs {
   return {

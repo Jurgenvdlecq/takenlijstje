@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OnboardingWizard } from "@/features/onboarding/onboarding-wizard";
-import { getHouseholdContext, getUser } from "@/server/context";
+import { getHouseholdContext, getUser, isInactiveMember } from "@/server/context";
 import type { MemberRow, TemplateRow } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,9 @@ export const metadata: Metadata = { title: "Aan de slag" };
 export default async function OnboardingPage() {
   const { supabase: userDb, user } = await getUser();
   if (!user) redirect("/login");
+
+  // Een uitgezet lid maakt geen nieuw huishouden aan, maar ziet waarom hij geen toegang heeft
+  if (await isInactiveMember()) redirect("/geen-toegang");
 
   const ctx = await getHouseholdContext();
   if (ctx?.household.onboarding_completed) redirect("/");

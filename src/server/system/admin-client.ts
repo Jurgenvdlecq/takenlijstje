@@ -4,11 +4,14 @@ import { createClient } from "@supabase/supabase-js";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import type { Database } from "@/types/database";
-import type { DbClient } from "./server";
+import type { DbClient } from "@/lib/supabase/server";
 
 /**
- * Client met service role: omzeilt RLS. Alleen gebruiken voor achtergrondtaken
- * (cron, pushmeldingen versturen) en altijd zelf filteren op household_id.
+ * Client met service role: omzeilt RLS. Mag ALLEEN binnen src/server/system/**
+ * worden gebruikt (afgedwongen met ESLint), voor systeemhandelingen: planning
+ * invoegen, de tick, meldingen versturen en een auth-account verwijderen.
+ * Nooit voor een update of delete die een gebruiker aanvraagt, en nooit om
+ * rechten te beslissen (TECHNICAL_DESIGN §5.3). Filter altijd op household_id.
  */
 export function createAdminClient(): DbClient {
   if (!serverEnv.serviceRoleKey) {

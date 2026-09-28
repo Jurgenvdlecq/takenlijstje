@@ -17,8 +17,9 @@ import type { AbsenceRow, HouseholdRow, MemberRow, TemplateRow } from "@/types/d
 import { getUser, HOUSEHOLD_COOKIE, requireAdmin, requireMember } from "../context";
 import { check, runAction, UserError, type ActionResult } from "../errors";
 import { parse } from "../parse";
-import { applyAbsence, topUpSeries } from "../services/scheduling";
-import { notifyAssigned, systemDb } from "../services/tasks";
+import { applyAbsence } from "../services/scheduling";
+import { notifyAssigned } from "../services/tasks";
+import { topUp } from "../system/planner";
 
 const MEMBER_COLORS = ["#2563eb", "#db2777", "#16a34a", "#f59e0b", "#7c3aed", "#0891b2", "#dc2626", "#65a30d"];
 
@@ -269,14 +270,14 @@ export async function activateTemplatesAction(raw: z.input<typeof templateActiva
     });
 
     const series = check(await supabase.from("task_recurrences").insert(rows).select("id"));
-    const created = await topUpSeries(systemDb(supabase), household.id, { recurrenceIds: series.map((s) => s.id) });
+    const created = await topUp(household.id, series.map((s) => s.id));
 
     // Eén melding per persoon voor de eerstvolgende taak
     const first = new Map<string, (typeof created)[number]>();
     for (const task of created) {
       if (task.assigned_member_id && !first.has(task.assigned_member_id)) first.set(task.assigned_member_id, task);
     }
-    await Promise.all([...first.values()].map((t) => notifyAssigned(t, member.id, supabase)));
+    await Promise.all([...first.values()].map((t) => notifyAssigned(t, member.id)));
     return series.length;
   });
 }
@@ -304,8 +305,9 @@ export async function createAbsenceAction(raw: z.input<typeof absenceInput>): Pr
         .select("*")
         .single(),
     ) as AbsenceRow;
-    const reassigned = await applyAbsence(systemDb(supabase), absence);
-    await Promise.all(reassigned.map((t) => notifyAssigned(t, member.id, supabase)));
+    // Met de gebruikersclient: RLS en de guard beslissen wat mag (vervalt in WP2a, V-24)
+    const reassigned = await applyAbsence(supabase, absence);
+    await Promise.all(reassigned.map((t) => notifyAssigned(t, member.id)));
     return reassigned.length;
   });
 }

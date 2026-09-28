@@ -4,7 +4,7 @@ import webpush from "web-push";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import type { DbClient } from "@/lib/supabase/server";
-import type { NotificationChannel, NotificationMessage, Recipient } from "../types";
+import type { NotificationChannel, NotificationMessage, Recipient } from "@/server/notifications/types";
 
 let configured = false;
 

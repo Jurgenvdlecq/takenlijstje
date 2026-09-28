@@ -8,23 +8,17 @@ import { diffDays, todayIn, type ISODate } from "@/domain/dates";
 import { buildLoadMap } from "@/domain/assignment/load";
 import { pickAssignee } from "@/domain/assignment/strategies";
 import { computeWindow } from "@/domain/recurrence/window";
-import { createAdminClient, hasAdminClient } from "@/lib/supabase/admin";
 import type { DbClient } from "@/lib/supabase/server";
 import type { TaskInput, taskInput } from "@/lib/validation";
 import type { HouseholdRow, MemberRow, RecurrenceRow, TaskRow } from "@/types/database";
 import type { z } from "zod";
-import { check, UserError } from "../errors";
-import { notify } from "../notifications/dispatcher";
+import { check } from "../errors";
 import { toAbsence, toAssignable } from "../mappers";
-import { topUpSeries } from "./scheduling";
+import { notify } from "../system/dispatcher";
+import { topUp } from "../system/planner";
 
 type ParsedTaskInput = z.output<typeof taskInput>;
 export type { TaskInput };
-
-/** Systeemclient als die er is (voor inplannen), anders de gebruikersclient. */
-export function systemDb(fallback: DbClient): DbClient {
-  return hasAdminClient() ? createAdminClient() : fallback;
-}
 
 export function taskUrl(taskId: string): string {
   return `/taken?taak=${taskId}`;
@@ -34,13 +28,11 @@ export function taskUrl(taskId: string): string {
 export async function notifyAssigned(
   task: Pick<TaskRow, "id" | "household_id" | "title" | "assigned_member_id" | "scheduled_date">,
   byMemberId: string | null,
-  fallbackDb?: DbClient,
 ): Promise<void> {
   if (!task.assigned_member_id || task.assigned_member_id === byMemberId) return;
   await notify({
     householdId: task.household_id,
     memberIds: [task.assigned_member_id],
-    fallbackDb,
     message: {
       type: "task_assigned",
       title: `Nieuwe taak: ${task.title}`,
@@ -122,19 +114,20 @@ export async function createTask(
         .single(),
     ) as RecurrenceRow;
 
-    const created = await topUpSeries(systemDb(db), household.id, { recurrenceIds: [series.id] });
+    // Rechtenstap is geslaagd (RLS-insert van de reeks); de planner voegt alleen uitvoeringen in
+    const created = await topUp(household.id, [series.id]);
     const firstPerMember = new Map<string, TaskRow>();
     for (const task of created) {
       if (task.assigned_member_id && !firstPerMember.has(task.assigned_member_id)) firstPerMember.set(task.assigned_member_id, task);
     }
-    await Promise.all([...firstPerMember.values()].map((t) => notifyAssigned(t, member.id, db)));
+    await Promise.all([...firstPerMember.values()].map((t) => notifyAssigned(t, member.id)));
     return created;
   }
 
   let assignee = input.assignedMemberId ?? null;
   let reason: TaskRow["assignment_reason"] = assignee ? "manual" : null;
   if (!assignee && input.autoAssign) {
-    assignee = await autoAssignOnce(systemDb(db), household, input.autoAssign, input.scheduledDate);
+    assignee = await autoAssignOnce(db, household, input.autoAssign, input.scheduledDate);
     reason = assignee ? input.autoAssign : null;
   }
 
@@ -168,35 +161,23 @@ export async function createTask(
     created_by_member_id: member.id,
   };
 
-  // Automatische verdeling mag ook aan een ander toewijzen → via systeemclient
-  const writer = reason === "fair" || reason === "random" ? systemDb(db) : db;
-  const { data, error } = await writer.from("tasks").upsert(row, { onConflict: "id", ignoreDuplicates: true }).select("*");
+  // Altijd met de gebruikersclient: RLS en de guard beslissen of toewijzen aan
+  // een ander mag (B-02). Er is geen aanmaakroute met de service role.
+  const { data, error } = await db.from("tasks").upsert(row, { onConflict: "id", ignoreDuplicates: true }).select("*");
   if (error) throw error;
   const task = (data?.[0] ?? check(await db.from("tasks").select("*").eq("id", input.id!).single())) as TaskRow;
 
   if (data?.length && assignee) {
-    await writer.from("task_assignments").insert({
+    await db.from("task_assignments").insert({
       household_id: household.id,
       task_id: task.id,
       member_id: assignee,
       assigned_by_member_id: member.id,
       reason: reason ?? "manual",
     });
-    await notifyAssigned(task, member.id, db);
+    await notifyAssigned(task, member.id);
   }
   return [task];
-}
-
-export async function getTaskForMember(db: DbClient, householdId: string, taskId: string): Promise<TaskRow> {
-  const { data } = await db
-    .from("tasks")
-    .select("*")
-    .eq("id", taskId)
-    .eq("household_id", householdId)
-    .is("deleted_at", null)
-    .maybeSingle();
-  if (!data) throw new UserError("Taak niet gevonden.");
-  return data as TaskRow;
 }
 
 export function householdToday(household: HouseholdRow): ISODate {

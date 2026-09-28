@@ -2,8 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { publicEnv } from "@/lib/env";
 
-/** Routes die zonder inloggen bereikbaar zijn */
-const PUBLIC_PATHS = ["/login", "/auth", "/invite", "/offline", "/api/cron", "/api/status", "/manifest.webmanifest", "/sw.js"];
+/** Routes die zonder inloggen bereikbaar zijn. /api/outbox controleert de sessie zelf (401 in JSON i.p.v. een redirect). */
+const PUBLIC_PATHS = [
+  "/api/outbox",
+  "/login",
+  "/auth",
+  "/invite",
+  "/offline",
+  "/api/cron",
+  "/api/status",
+  "/manifest.webmanifest",
+  "/sw.js",
+];
 
 /** Ververst de Supabase-sessie en stuurt niet-ingelogde bezoekers naar /login. */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
