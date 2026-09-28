@@ -1,10 +1,10 @@
 # Productspecificatie — Takenlijstje
 
-Versie: ronde 2 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15, stap 3 (bestaand project).
-Status: wacht op vijf korte vervolgvragen (V-23 t/m V-27, zie §13), plus V-04 en V-20. Nog niet bevroren.
+Versie: ronde 3 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15, stap 3 (bestaand project).
+Status: alle productvragen zijn beantwoord (V-05 t/m V-27, plus V-04 en V-20). Het document is klaar als basis voor het UX-ontwerp. Nog niet bevroren.
 
 **Bronnen**
-- De besluiten en antwoorden van Jurgen in `docs/PROGRESS.md` (V-05 t/m V-22). Die zijn leidend.
+- De besluiten en antwoorden van Jurgen in `docs/PROGRESS.md` (V-04, en V-05 t/m V-27). Die zijn leidend.
 - De besluiten uit `README.md` en `docs/ARCHITECTUUR.md` (V-02), voor zover Jurgen ze niet heeft vervangen.
 - `docs/INVENTARIS.md`.
 - De huidige code: `supabase/migrations/*`, `src/domain/**` en `src/server/**`.
@@ -26,7 +26,7 @@ Dit vervangt de overgenomen besluiten uit INVENTARIS §2 over Verdeling, Ruilen 
 | Toewijzen aan een persoon ("Wie?") | Een nieuwe taak is minimaal *Naam · Wanneer?*. Slimme invoer herkent geen personen meer ("Badkamer zaterdag"). |
 | Automatische verdeling (vast, om en om, willekeurig, eerlijk) en taakbelasting | Een reeks plant alleen nog datums in, zonder persoon. |
 | Ruilen en ruilverzoeken ("Ik kan deze taak niet doen") | Niet meer nodig: niemand is eigenaar, dus er valt niets over te dragen. |
-| Punten, spaardoel en "Samen sparen" | Een taak heeft geen punten meer. Het veld "duur" is alleen nog informatie `[OPEN: V-25]`. |
+| Punten, spaardoel en "Samen sparen" | Een taak heeft geen punten meer. Het veld "duur" blijft, als informatie ("ca. 30 min") (V-25). |
 | Registratie van wie afvinkte, en "namens een ander afvinken" | De historie legt wat, wanneer en op tijd of te laat vast, niet wie. De melding "gedaan door Ellen" noemt geen naam meer. |
 | Statistieken per persoon (Huishouden-overzicht) | Het overzicht toont alleen cijfers voor het huishouden als geheel (UC-06). |
 | "Mijn taken" tegenover "Iedereen" op Vandaag | Er is één lijst voor het huishouden. |
@@ -34,7 +34,7 @@ Dit vervangt de overgenomen besluiten uit INVENTARIS §2 over Verdeling, Ruilen 
 | Melding "Nieuwe taak voor jou" (toegewezen), en de meldingen over ruilen | Vervallen. |
 | Dagoverzicht "waarvan X voor jou", en het avondoverzicht "van jou nog open" | Beide tellen voor het huishouden als geheel (BR-31). |
 | Lid zonder account (bijv. een kind zonder telefoon) | Heeft geen functie meer: er is niets aan hem toe te wijzen en niets namens hem af te vinken. Lynn en Kai krijgen optioneel een eigen account als gezinslid (V-06). |
-| Afwezigheid, met opnieuw verdelen, doorschuiven of vrijgeven | Bestond om taken van een persoon te verwerken. Zonder toewijzing heeft het geen doel meer `[OPEN: V-24]`. |
+| Afwezigheid, met opnieuw verdelen, doorschuiven of vrijgeven | **Vervalt** (V-24). Het bestond alleen om taken van een persoon te verwerken. Gaat het hele gezin op vakantie, dan pauzeer je de terugkerende taken (BR-09). |
 | Uitnodiging gekoppeld aan een bestaand lid zonder account | Vervalt samen met de leden zonder account. Een uitnodiging maakt altijd een nieuw gezinslid. |
 | Instelling "Gezinsleden mogen aan anderen toewijzen" | Vervalt. "Gezinsleden mogen taken maken" blijft (BR-20). |
 
@@ -43,17 +43,17 @@ Dit vervangt de overgenomen besluiten uit INVENTARIS §2 over Verdeling, Ruilen 
 - afvinken en ongedaan maken;
 - de kalender;
 - boodschappen;
-- meldingen (met andere ontvangers, `[OPEN: V-23]`);
+- meldingen (met andere ontvangers, BR-31);
 - offline werken, realtime en uitnodigingen;
 - rollen: beheerder en gezinslid.
 
 **Wat "niet bijhouden wie" wel en niet betekent.** Jurgen koos: de app houdt niet bij wie een taak **gedaan** heeft. Andere "wie"-gegevens hebben een ander doel:
-- **De maker van een taak of reeks** is nodig voor het recht om een reeks te wijzigen, pauzeren of stoppen (V-09), en om een taak te verwijderen (V-13). Dat is "wie heeft dit ingesteld", niet "wie heeft het gedaan". Het botst dus niet met het besluit. Voorstel: niet tonen en niet gebruiken in overzichten.
-- **De schrijver van een notitie** en **wie iets op de boodschappenlijst zette of kocht** vallen in een grijs gebied.
+Jurgen heeft per gegeven besloten (V-25):
+- **De maker van een taak of reeks wordt bewaard, maar nergens getoond** en niet gebruikt in overzichten. Hij is nodig voor het recht om een reeks te wijzigen, pauzeren of stoppen (V-09), en om een taak te verwijderen (V-13). Dat is "wie heeft dit ingesteld", niet "wie heeft het gedaan". Het botst dus niet met V-21.
+- **De schrijver van een notitie wordt bewaard en getoond** bij de notitie ("Ellen: ...").
+- **"Toegevoegd door" en "gekocht door" bij boodschappen vervallen.**
 
-Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
-
-**Bestaande gegevens in de live database** (toewijzingen, toewijzingshistorie, wie afvinkte, punten, ruilverzoeken, afwezigheid, leden zonder account) moeten bij de overgang worden opgeruimd `[OPEN: V-26]`.
+**Bestaande gegevens in de live database** worden bij de overgang opgeruimd volgens BR-46 (V-26). Vlak vóór het wissen vraagt de bouwer Jurgen nogmaals om bevestiging.
 
 ---
 
@@ -194,11 +194,11 @@ Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
   - taak gedaan, zonder naam;
   - dagoverzicht en avondoverzicht.
 - **Kanalen en instellingen:** in de app, en optioneel als pushmelding op de telefoon. Per persoon in te stellen.
-- **Wie ontvangt ze,** nu niemand eigenaar is van een taak: `[OPEN: V-23]`.
+- **Wie ontvangt ze (V-23):** iedereen met een account, volgens de eigen meldingsinstellingen. Standaard aan voor Ellen en Jurgen (de beheerders), standaard uit voor Lynn en Kai. Zij kunnen het zelf aanzetten (BR-31).
 - **Wat kan misgaan:**
   - push op de iPhone kan alleen als de app op het beginscherm staat, vanaf iOS 16.4;
   - dubbele meldingen worden voorkomen met een dedupe-sleutel;
-  - meldingen komen te laat, omdat de achtergrondtaak te weinig draait (R-01, V-04).
+  - meldingen komen te laat, omdat de achtergrondtaak nu maar één keer per dag draait (R-01; V-04 bevestigd: pg_cron staat niet aan).
 
 ### UC-09 — Uitnodigen en aansluiten
 - **Begin:** een beheerder maakt een uitnodigingslink, eventueel gebonden aan een e-mailadres.
@@ -270,7 +270,7 @@ Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
   - *(afwijking: de code slaat nu `completed_by_member_id` en `task_completions.member_id` op, en kan "namens" een ander afvinken; B-04 vervalt daarmee)*
 - **BR-13 — Ongedaan maken:**
   - **Iedereen** in het huishouden mag een afvinking terugdraaien (V-22).
-  - Direct na het afvinken kan het een paar seconden via de melding, en later via het taakdetail (V-11, voor wie het mag vervangen door V-22).
+  - Direct na het afvinken kan het een paar seconden via de melding, en later via het taakdetail. Dat later kunnen komt uit V-11; wie het mag, is vervangen door V-22.
   - Terugdraaien verwijdert de registratie in de historie en zet de taak weer open.
   - *(afwijking: nu mogen alleen wie afvinkte en een beheerder terugdraaien)*
 - **BR-14 — Status "bezig":** een open taak kan op "bezig" gezet worden, zonder te registreren door wie. Iedereen mag de status terugzetten.
@@ -297,7 +297,7 @@ Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
   - verstuurt herinneringen, "deadline nadert" en "verlopen";
   - verstuurt het dag- en avondoverzicht.
 
-  *(afwijking: R-01; V-04 staat nog open)*
+  *(afwijking: R-01 — bevestigd bij V-04: pg_cron en pg_net zijn niet geïnstalleerd, en de taak draait alleen één keer per dag via `vercel.json`, om 05:30 UTC. De oplossing hoort in het technisch ontwerp.)*
 - **BR-31 — Meldingsregels:**
   - **Herinnering:** X minuten vóór het geplande tijdstip, anders vóór de deadline; maximaal 5 per taak. Verstuurd binnen 90 minuten na het moment, anders vervalt hij.
   - **Deadline nadert:** binnen de ingestelde waarschuwingstijd (standaard 2 uur, instelbaar van 5 minuten tot 48 uur).
@@ -307,7 +307,11 @@ Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
   - **Taak gedaan:** "'Vaatwasser uitruimen' is gedaan", **zonder naam**, en niet naar degene die op dat moment afvinkte. Dat laatste wordt alleen tijdens de actie gebruikt en niet opgeslagen. Standaard uit.
   - **Nooit dubbel:** dezelfde melding komt per ontvanger nooit twee keer.
   - **Voorkeuren:** gelden per persoon.
-  - **Ontvangers** van herinnering, deadline, verlopen en de overzichten: `[OPEN: V-23]`.
+  - **Ontvangers (V-23):**
+    - herinnering, "deadline nadert", "verlopen", dag- en avondoverzicht en "taak gedaan" gaan naar **ieder lid met een account** dat die soort melding aan heeft staan;
+    - **standaard aan** voor beheerders (Ellen en Jurgen), **standaard uit** voor gezinsleden (Lynn en Kai), behalve "taak gedaan", die voor iedereen standaard uit staat;
+    - ieder lid kan dit zelf wijzigen.
+  - **Gevolg van V-21:** er zijn geen meldingen meer die afhangen van een eigenaar, zoals "Nieuwe taak voor jou" of meldingen over ruilen.
 
 ### Overig
 - **BR-40 — Tijd:** alle datums worden bepaald in de tijdzone van het huishouden (standaard Europe/Amsterdam).
@@ -331,7 +335,22 @@ Alle drie de punten staan ter bevestiging in `[OPEN: V-25]`.
   | Verlopen of gebruikte uitnodigingen | 30 dagen |
   | Pushabonnementen | Weg zodra ze ongeldig zijn |
 
-  Ouder wordt automatisch verwijderd. De termijn voor afwezigheid (1 jaar) vervalt als afwezigheid vervalt (V-24).
+  Ouder wordt automatisch verwijderd. De termijn voor afwezigheid uit V-18 vervalt, omdat afwezigheid zelf vervalt (V-24).
+- **BR-46 — Overgang van de live gegevens (V-26):**
+  1. Eerst wordt een **back-up** gemaakt van de live database, en er wordt gecontroleerd dat die terug te zetten is.
+  2. **Vlak vóór het wissen vraagt de bouwer Jurgen nogmaals om uitdrukkelijke bevestiging.** Zonder die bevestiging wordt er **nooit** iets gewist.
+  3. Daarna worden gewist:
+     - toewijzingen en toewijzingshistorie;
+     - wie afvinkte ("gedaan door", en de persoon in de afvinkhistorie);
+     - punten en het spaardoel;
+     - ruilverzoeken;
+     - afwezigheden;
+     - meldingen van soorten die vervallen (toegewezen, ruilverzoek, ruil geaccepteerd);
+     - "toegevoegd door" en "gekocht door" bij boodschappen;
+     - leden zonder account.
+  4. **Blijft bestaan:** de afvinkhistorie zelf (wat, wanneer, op tijd of te laat, notitie), zonder personen. Ook de makers van taken en reeksen en de schrijvers van notities blijven bestaan (V-25).
+
+  — waarom: het wissen is onomkeerbaar en raakt gegevens van het gezin.
 
 ## 6. Randgevallen
 
@@ -400,13 +419,13 @@ Leden zonder account vervallen (§0).
 | Profiel en lidmaatschap (naam, kleur, emoji, rol, actief) | Tonen wie er in het huishouden zit, rechten | Beheerder of het lid zelf | Ja, ook van minderjarigen (Lynn 15, Kai 13) | Tot het account, het lid of het huishouden verwijderd wordt |
 | Huishouden (naam, tijdzone, instelling "taken maken") | Werking | Beheerder | Indirect (de naam kan een achternaam bevatten) | Tot het huishouden verwijderd wordt |
 | Uitnodigingen (token, optioneel e-mailadres, rol, wie uitnodigde) | Aansluiten | Beheerder | Ja (e-mailadres) | 30 dagen na verlopen of gebruik (BR-45) |
-| Taken en reeksen (titel, omschrijving, planning, deadline, duur, prioriteit, herinneringen, **maker**) | Kernfunctie; de maker is nodig voor de rechten (BR-22, BR-23) | Leden en planning | De maker wel: wie iets instelde, niet wie het deed `[OPEN: V-25]` | Tot de taak verwijderd wordt |
+| Taken en reeksen (titel, omschrijving, planning, deadline, duur, prioriteit, herinneringen, **maker**) | Kernfunctie; de maker is nodig voor de rechten (BR-22, BR-23) | Leden en planning | De maker wel: wie iets instelde, niet wie het deed. Wordt bewaard, maar nergens getoond (V-25) | Tot de taak verwijderd wordt |
 | Afvinkhistorie (titel, categorie, wanneer, te laat, notitie) **zonder persoon** | "Gedaan" tonen, ongedaan maken, "vergeten"-overzicht | Afvinken | Nee (alleen de vrije notitie kan iets persoonlijks bevatten) | 2 jaar (BR-45) |
-| Notities bij taken (tekst, schrijver) | Afspraken en boodschappen | Leden | Ja (de schrijver) `[OPEN: V-25]` | Tot de taak verwijderd wordt |
+| Notities bij taken (tekst, schrijver) | Afspraken en boodschappen | Leden | Ja: de schrijver wordt bewaard en bij de notitie getoond (V-25) | Tot de taak verwijderd wordt |
 | Meldingen (per ontvanger) | Informeren | Systeem | Ja (de ontvanger) | 90 dagen (BR-45) |
 | Meldingsvoorkeuren | Werking | Lid | Ja | Tot het lid verwijderd wordt |
 | Pushabonnementen (endpoint, sleutels, browserinfo) | Web Push | Apparaat | Ja | Tot uitzetten of uitloggen, of tot ze ongeldig zijn |
-| Boodschappen (product, aantal, categorie, gekocht; nu ook "toegevoegd door" en "gekocht door") | Gedeelde lijst, "vaak gekocht" | Leden | "Toegevoegd door" en "gekocht door" wel `[OPEN: V-25]` | Gearchiveerde lijsten 1 jaar (BR-45) |
+| Boodschappen (product, aantal, categorie, notitie, gekocht ja/nee en wanneer) | Gedeelde lijst, "vaak gekocht" | Leden | Nee. "Toegevoegd door" en "gekocht door" vervallen (V-25) | Gearchiveerde lijsten 1 jaar (BR-45) |
 | Offline cache en wachtrij (op het apparaat) | Offline werken | App | Ja | Tot uitloggen (BR-43) |
 
 - **Bewust niet opgeslagen:**
@@ -414,16 +433,18 @@ Leden zonder account vervallen (§0).
   - toewijzingen en toewijzingshistorie;
   - punten en taakbelasting;
   - ruilverzoeken;
+  - afwezigheid (V-24);
+  - wie iets op de boodschappenlijst zette of kocht (V-25);
   - wachtwoorden (alleen bij Supabase Auth);
   - locatie, telefoonnummers, geboortedata en foto's;
   - invoer of persoonsgegevens in logs.
-- **Te verwijderen bij de overgang:** gegevens die nu in de live database staan maar niet meer nodig zijn `[OPEN: V-26]`.
+- **Te verwijderen bij de overgang:** volgens BR-46: eerst een back-up, dan vlak vóór het wissen nogmaals bevestiging van Jurgen.
 - **Verwijderen:**
   - ieder lid kan het eigen account verwijderen;
   - een beheerder kan leden verwijderen (voorkeur: deactiveren) en het hele huishouden;
   - oudere gegevens verdwijnen volgens de bewaartermijnen (BR-45).
 - **Externe partijen:**
-  - **Supabase:** database, authenticatie en e-mail. De regio is nog onbekend `[OPEN: V-20]`.
+  - **Supabase:** database, authenticatie en e-mail. Het project staat in regio eu-central-1 (Frankfurt, EU) (V-20).
   - **Vercel:** hosting.
   - **Pushdiensten van Apple en Google:** de inhoud is versleuteld, maar bevat taaktitels.
   - Er zijn geen analytics, geen advertenties en geen AI-diensten.
@@ -434,10 +455,10 @@ Leden zonder account vervallen (§0).
 | --- | --- | --- |
 | Supabase (PostgreSQL, Auth, Realtime) | Gegevens, inloggen, directe updates | Uitval betekent dat alleen de offline weergave overblijft |
 | Vercel | Hosting | Het gratis plan draait cron maar één keer per dag (R-01) |
-| pg_cron + pg_net in Supabase, of een externe cron | Achtergrondtaak elke 15 minuten | Onbekend of dit aan staat (V-04). Juist de herinneringen zijn de kern van het doel "minder vergeten" |
+| Een planner die elke 15 minuten draait (pg_cron + pg_net in Supabase, of een externe cron) | Achtergrondtaak elke 15 minuten | **Staat nu niet aan** (V-04): pg_cron en pg_net zijn niet geïnstalleerd, en Vercel draait de taak één keer per dag. Juist de herinneringen zijn de kern van het doel "minder vergeten". De keuze voor een planner hoort in het technisch ontwerp |
 | Web Push (VAPID) | Pushmeldingen | iPhone: alleen vanaf iOS 16.4 en na "Zet op beginscherm" |
 | E-mail van Supabase Auth | Magic link, uitnodiging, wachtwoord vergeten | De standaardtemplates zijn Engels |
-| Migratie van de live database | Van het huidige model (met toewijzing en personen) naar het nieuwe | Gegevens gaan onomkeerbaar verloren (V-26). Vooraf een back-up |
+| Migratie van de live database | Van het huidige model (met toewijzing en personen) naar het nieuwe | Gegevens gaan onomkeerbaar verloren. Daarom eerst een back-up, en vlak vóór het wissen nogmaals bevestiging van Jurgen (BR-46) |
 
 ## 10. Bewust niet (nu)
 
@@ -452,7 +473,7 @@ Leden zonder account vervallen (§0).
 
 ## 11. Succescriteria
 
-Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlijke verdeling, doordat zichtbaar is wat er moet en wanneer. Voorstel, ter bevestiging `[OPEN: V-27]`. Controleerbaar drie maanden na de livegang van de nieuwe versie:
+Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlijke verdeling, doordat zichtbaar is wat er moet en wanneer. Akkoord van Jurgen (V-27). Controleerbaar drie maanden na de livegang van de nieuwe versie:
 
 1. **Minder vergeten:** het aandeel taken dat verlopen of overgeslagen is, is in maand 3 lager dan in maand 1. Te zien in het Huishouden-overzicht.
 2. **Op tijd:** minstens 80% van de afgevinkte taken is vóór de deadline gedaan. Te zien in de historie ("te laat").
@@ -467,10 +488,11 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
    - op 390×844 zijn de verlopen taken en die van vandaag zichtbaar zonder te scrollen, bij een normale dag (tot ongeveer 6 taken).
 7. **Privacy klopt:** de database bevat geen gegevens over wie een taak afvinkte. Dat is te controleren in het schema en met een test.
 
-## 12. Verwerkte antwoorden (V-05 t/m V-22)
+## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27)
 
 | Vraag | Antwoord (zie `docs/PROGRESS.md`) | Verwerkt in |
 | --- | --- | --- |
+| V-04 | pg_cron en pg_net zijn niet geïnstalleerd; de achtergrondtaak draait alleen één keer per dag via `vercel.json` (bevestigt R-01) | BR-30, UC-08, §9. De oplossing hoort in het technisch ontwerp |
 | V-05 | Alleen het eigen gezin | §2 |
 | V-06 | Vooral Ellen en Jurgen; Lynn (15) en Kai (13) optioneel | §1, §2, §7 |
 | V-07 | Telefoon (390×844) | §2, §10, §11 |
@@ -483,25 +505,21 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
 | V-14 | Google/Apple-tekst weg, wachtwoord vergeten toevoegen | UC-10, UC-11 |
 | V-15 | Account verwijderen, huishouden verwijderen, bij voorkeur deactiveren | UC-11, UC-12, §8 |
 | V-16 | Uitgegaan van toewijzing; vervangen door V-23 | — |
-| V-17 | Uitgegaan van afwezigheid; hangt af van V-24 | — |
+| V-17 | Uitgegaan van afwezigheid; vervallen door V-24 | — |
 | V-18 | Bewaartermijnen volgens voorstel | BR-45 |
 | V-19 | Doel: oneerlijke verdeling en vergeten, zonder dat de app verdeelt | §0, §1, §11 |
 | V-21 | Niemand toegewezen; niet bijhouden wie; punten weg | §0 en het hele document |
+| V-20 | Het Supabase-project staat in eu-central-1 (Frankfurt, EU) | §8 |
 | V-22 | Iedereen mag terugdraaien | BR-13 |
+| V-23 | Meldingen naar ieder lid met een account, volgens de eigen instellingen; standaard aan voor Ellen en Jurgen, uit voor Lynn en Kai | UC-08, BR-31 |
+| V-24 | Afwezigheid vervalt; bij een gezinsvakantie reeksen pauzeren | §0, §8, BR-45 |
+| V-25 | Maker bewaren maar niet tonen; schrijver van een notitie tonen; "toegevoegd door" en "gekocht door" bij boodschappen weg; duur blijft als informatie | §0, §8 |
+| V-26 | Eerst een back-up, dan wissen zoals voorgesteld (de afvinkhistorie blijft, zonder personen); vlak vóór het wissen nogmaals bevestiging van Jurgen | BR-46, §8, §9 |
+| V-27 | Succescriteria akkoord | §11 |
 
 ## 13. Aannames en open vragen
 
 **Aannames** (zonder invloed op rechten, gegevens, privacy, scope of gebruikerservaring):
 - `[AANNAME]` De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (ook vastgelegd in PROGRESS).
 
-**Open vragen.** De vragen staan in het rapport aan de hoofdsessie.
-
-| Vraag | Onderwerp | Raakt |
-| --- | --- | --- |
-| V-04 | pg_cron aan in productie? (al open) | Techniek, herinneringen |
-| V-20 | Supabase-regio EU? (al open) | Privacy |
-| V-23 | Wie krijgt herinneringen, deadline-, verlopen- en overzichtsmeldingen nu niemand eigenaar is | Functionaliteit, kern van "minder vergeten" |
-| V-24 | Afwezigheid laten vervallen | Scope |
-| V-25 | Welke "wie"-gegevens blijven: maker, schrijver van een notitie, boodschappen; en het veld "duur" | Gegevens, privacy |
-| V-26 | Wat gebeurt er bij de overgang met de bestaande gegevens in de live database | Gegevens (onomkeerbaar) |
-| V-27 | Kloppen de nieuwe succescriteria | Succes |
+**Open vragen:** geen.

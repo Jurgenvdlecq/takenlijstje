@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie afronden, daarna UX-ontwerp
-Volgende stap: product-analyst verwerkt V-23 t/m V-27 en V-04/V-20 in `docs/PRODUCT_SPEC.md`; daarna product-designer: `docs/UX_SPEC.md` + wireframes (telefoon 390x844).
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — stap 3: productspecificatie klaar (geen open vragen); UX-ontwerp gestart
+Volgende stap: product-designer levert `docs/UX_SPEC.md` + wireframes (telefoon 390x844) met screenshots in `docs/screenshots/prototype/`; hoofdsessie verzamelt eventuele vragen voor Jurgen; daarna visual-designer.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
