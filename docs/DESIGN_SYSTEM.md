@@ -4,7 +4,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand p
 Basis: `docs/PRODUCT_SPEC.md`, `docs/UX_SPEC.md` (ronde 1, wireframes 01–21), besluiten in `docs/PROGRESS.md`, `docs/INVENTARIS.md` §5 en §7 (D-01…D-05), de huidige stijl (`src/app/globals.css`, `src/components/ui/*`) en `docs/screenshots/bestaand/*-390x844.png`.
 Prototype: `docs/prototype/visueel/` · screenshots: `docs/screenshots/prototype/vis-*.png` (§12).
 
-Open plekken zijn gemarkeerd met `[OPEN: V-nr]` (zie §13).
+Besluiten van Jurgen verwerkt (2026-09-28, `docs/PROGRESS.md`): V-28 (Boodschappen in de onderbalk), V-30 (accent diep blauw `#2B4C9B`, app-icoon in dezelfde tint), V-31 (lettertype Figtree, zelf gehost). Er staan geen open vragen meer in dit document (zie §13).
 
 ---
 
@@ -20,7 +20,7 @@ Waarom opnieuw ontwerpen:
 Wat behouden blijft:
 - Tailwind 4 met tokens in `globals.css` en `@theme inline`, de Radix-componenten in `src/components/ui/*` (dialog als sheet van onderen, dropdown, switch, tabs, checkbox), `lucide-react` als iconenset, `sonner` voor meldingen. Alleen de tokenwaarden en de klassen in die componenten veranderen.
 - De warme, gebroken witte achtergrond (#faf9f6 nu) als idee: die past bij "thuis". Hij wordt iets warmer en krijgt een echt systeem eromheen.
-- Blauw als kleur voor "je kunt hierop tikken", in een diepere, rustiger tint dan het huidige felle indigo `[OPEN: V-30]`.
+- Blauw als kleur voor "je kunt hierop tikken", in een diepere, rustiger tint dan het huidige felle indigo: **`#2B4C9B`** (besluit V-30). Het app-icoon (het blauwe huisje) krijgt dezelfde tint, zodat icoon, statusbalk en app bij elkaar passen.
 - Categorie-emoji bij Boodschappen (functioneel: sneller scannen in de winkel, en bekend bij het gezin).
 
 ## 1. Karakter en principes
@@ -47,13 +47,13 @@ Gericht bekeken: hoogwaardige takenapps, een huishoudapp en Apple's richtlijnen.
 
 ## 3. Typografie
 
-**Lettertype: Figtree** (variabel, gewichten 300–900, SIL Open Font License), met terugval `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`. `[OPEN: V-31]`
+**Lettertype: Figtree** (variabel, gewichten 300–900, SIL Open Font License), met terugval `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`. Besluit V-31: Figtree, zelf gehost.
 
 Waarom Figtree en niet alleen de systeemletter:
 - Vergeleken op echte inhoud (Figtree, Instrument Sans, Hanken Grotesk, Onest, Inter; tijdelijke vergelijkingspagina, niet bewaard). Figtree heeft ronde, open vormen (warm, gezinsvriendelijk) zonder kinderachtig te worden, heldere cijfers met `tabular-nums` (de tijdkolom staat recht), en is met **20 KB** (latin, variabel) de lichtste van de vijf.
 - Het gezin gebruikt mogelijk niet allemaal een iPhone; de systeemletter zou dan per toestel anders zijn (SF Pro, Roboto, Samsung One). Eén eigen letter geeft één herkenbaar beeld.
 - Techniek: via `next/font/google` (Figtree) of `next/font/local`: wordt bij de build zelf gehost, dus geen verzoek naar Google bij het openen (privacy) en geen verspringende tekst (`font-display: swap` met aangepaste terugvalmaten). Alleen de subset `latin` (inclusief é, ë, ó, ü) en één variabel bestand.
-- Alternatief als Jurgen liever geen eigen letter heeft: de systeemletter. Dan blijven de schaal en gewichten gelijk; op de iPhone ziet het er vrijwel even goed uit.
+- De terugvalletters worden alleen gebruikt zolang Figtree nog laadt of als het bestand onverhoopt ontbreekt.
 
 **Schaal** (px; 1 px = 1 pt op iPhone). Gewichten via de variabele as.
 
@@ -205,7 +205,7 @@ Opbouw: `[rondje] [titel / meta] [tijd]`. Rondje en rij zijn **twee aparte knopp
 - **Kaarten met rand/schaduw:** worden niet gebruikt. Groeperen gebeurt met een sectiekop en witruimte.
 
 ### 7.6 Navigatie
-- **Onderbalk:** `bg` met haarlijn erboven (geen blur, geen schaduw). Vier bestemmingen met icoon 24 px + label 11,5 px; actief = `accent` en iets dikkere lijn, plus `aria-current="page"`. In het midden de **+**: rond, 48 px, `accent`, zonder label maar met `aria-label="Nieuwe taak"` (de plus is universeel; een label eronder zou de balk hoger maken). Indeling volgens UX §3 `[OPEN: V-28]` (visueel geen verschil als Huishouden in plaats van Boodschappen staat).
+- **Onderbalk:** `bg` met haarlijn erboven (geen blur, geen schaduw). Vier bestemmingen met icoon 24 px + label 11,5 px; actief = `accent` en iets dikkere lijn, plus `aria-current="page"`. In het midden de **+**: rond, 48 px, `accent`, zonder label maar met `aria-label="Nieuwe taak"` (de plus is universeel; een label eronder zou de balk hoger maken). Indeling volgens UX §3 en besluit V-28: Vandaag · Taken · + · Kalender · Boodschappen.
 - **Kop:** paginatitel links (`text-large`), ondertitel eronder; rechts bel en tandwiel als icoonknoppen. Ongelezen-teller op de bel: klein `accent`-rondje met cijfer (geen rood: rood betekent in deze app "verlopen").
 - **Subpagina's:** "‹ Instellingen" linksboven (tekstknop in accent), titel 22 px.
 - **Sheets:** greep bovenaan, titel links, ✕ rechts (rond `sunken` vlakje), `surface`, radius 22 boven; `scrim` erachter.
@@ -317,9 +317,11 @@ Wat het prototype **niet** laat zien (volgt dezelfde regels, geen nieuw ontwerp 
 
 ## 13. Open vragen en aannames
 
-**Vragen voor Jurgen**
-- **V-30** — Accentkleur en app-icoon. Voorstel: de kleur voor "tikbaar" wordt een diep, rustig blauw (`#2B4C9B`) in plaats van het huidige felle indigo; het app-icoon (blauw huisje) krijgt dezelfde blauwe tint zodat icoon en app bij elkaar passen. Waarom het ertoe doet: het icoon is wat het gezin elke dag op het beginscherm ziet; een andere kleur is een merkkeuze. Alternatief: het huidige indigo en icoon houden (dan kleurt alleen de tint van knoppen feller).
-- **V-31** — Eigen lettertype. Voorstel: Figtree, zelf gehost (20 KB, geen verbinding met Google). Waarom het ertoe doet: het bepaalt het gevoel van de hele app en werkt op iPhone en Android gelijk. Alternatief: de standaardletter van elke telefoon.
+**Besluiten van Jurgen**
+Geen open vragen. Besloten door Jurgen (2026-09-28, letterlijk in `docs/PROGRESS.md`):
+- **V-30** — Accentkleur diep blauw `#2B4C9B` in plaats van het felle indigo; het app-icoon krijgt dezelfde tint (§0, §4).
+- **V-31** — Lettertype Figtree, zelf gehost (§3).
+- **V-28** — Boodschappen in de onderbalk (§7.6).
 
 **Aannames (raken geen rechten, gegevens, privacy of scope)**
 - `[AANNAME]` Prioriteit hoog/dringend krijgt in de rij geen kleur; alleen in het detail (en het bestaande "!" vóór de titel bij dringend blijft, in `text`).
