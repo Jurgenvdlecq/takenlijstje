@@ -54,8 +54,18 @@ select pg_temp.assert((select count(*) = 1 from public.shopping_lists), 'boodsch
 select pg_temp.assert((select count(*) = 1 from public.user_preferences), 'voorkeuren aangemaakt');
 
 -- Gezinsleden toevoegen: Ellen (met account) en Kai (zonder account)
-insert into public.household_members (household_id, user_id, display_name, color)
-values (:'h1', '00000000-0000-0000-0000-00000000000b', 'Ellen', '#db2777') returning id as ellen \gset
+-- Een account koppelen kan alleen via een uitnodiging (security punt 1, D-016).
+-- Vroeger voegde de beheerder Ellen direct met user_id toe; dat is nu een negatieve test.
+select pg_temp.expect_error(format(
+  $$insert into public.household_members (household_id, user_id, display_name) values (%L, '00000000-0000-0000-0000-00000000000b', 'Ellen')$$, :'h1'),
+  'beheerder koppelt direct een account (D-016)');
+insert into public.household_invitations (household_id, email, invited_by_member_id)
+values (:'h1', 'ellen@example.com', :'jurgen') returning token as ellen_token \gset
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000b"}', false);
+select public.accept_invitation(:'ellen_token', 'Ellen');
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000000a"}', false);
+select id as ellen from public.household_members where household_id = :'h1' and user_id = '00000000-0000-0000-0000-00000000000b' \gset
+update public.household_members set color = '#db2777' where id = :'ellen';
 insert into public.household_members (household_id, display_name, color)
 values (:'h1', 'Kai', '#16a34a') returning id as kai \gset
 select pg_temp.assert((select count(*) = 0 from public.user_preferences where member_id = :'ellen'), 'voorkeuren van ander niet zichtbaar');
@@ -107,9 +117,11 @@ select pg_temp.expect_error(format(
   $$update public.household_members set role = 'admin' where id = %L$$, :'ellen'), 'gezinslid maakt zichzelf beheerder');
 -- Eigen naam wel
 update public.household_members set display_name = 'Ellen ❤' where id = :'ellen';
--- Taak van een ander wijzigen raakt niets (RLS filtert)
-update public.tasks set title = 'Anders' where id = :'task1';
-select pg_temp.assert((select title = 'WC schoonmaken' from public.tasks where id = :'task1'), 'taak van ander niet gewijzigd');
+-- Taak van een ander wijzigen mag: ieder actief lid wijzigt een losse taak
+-- (BR-23, V-13, AC-013; update-policy is_member). Vroeger filterde RLS dit weg.
+update public.tasks set title = 'WC schoonmaken (grondig)' where id = :'task1';
+select pg_temp.assert((select title = 'WC schoonmaken (grondig)' from public.tasks where id = :'task1'),
+  'actief lid wijzigt taak van een ander (BR-23)');
 insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
 values (:'h1', 'Stofzuigen', current_date, :'ellen') returning id as task2 \gset
 -- Direct op 'done' zetten mag niet (historie moet kloppen)
@@ -161,9 +173,16 @@ select pg_temp.expect_error(format(
 -- -----------------------------------------------------------------------------
 -- Meldingen: alleen eigen meldingen zichtbaar
 -- -----------------------------------------------------------------------------
+-- Meldingen maakt alleen het systeem aan (BR-25, AC-016). Vroeger mocht een lid
+-- huisgenoten een melding sturen; dat is nu een negatieve test.
+select pg_temp.expect_error(format(
+  $$insert into public.notifications (household_id, member_id, type, title) values (%L, %L, 'task_assigned', 'Nieuwe taak voor Ellen')$$, :'h1', :'ellen'),
+  'lid plaatst melding voor huisgenoot (BR-25)');
+reset role;
 insert into public.notifications (household_id, member_id, type, title) values
   (:'h1', :'ellen', 'task_assigned', 'Nieuwe taak voor Ellen'),
   (:'h1', :'jurgen', 'reminder', 'Herinnering voor Jurgen');
+set role authenticated;
 select pg_temp.assert((select count(*) = 1 from public.notifications), 'Jurgen ziet alleen eigen melding');
 select pg_temp.expect_error(format(
   $$insert into public.notifications (household_id, member_id, type, title) values (%L, %L, 'reminder', 'spam')$$, :'h1', :'buurman'),
