@@ -1,6 +1,6 @@
 # UX-specificatie — Takenlijstje
 
-Versie: ronde 3 (2026-09-28, V-28 en V-29 verwerkt; §4.13 gelijkgetrokken met TECHNICAL_DESIGN §4.5) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
+Versie: ronde 4 (2026-09-28, V-28, V-29 en V-34 verwerkt; §4.13 gelijkgetrokken met TECHNICAL_DESIGN §4.5) · Kwaliteitsniveau 2 · Werkwijze §15 (bestaand project), fase 3.
 Basis: `docs/PRODUCT_SPEC.md` (ronde 3), de besluiten en antwoorden in `docs/PROGRESS.md`, `docs/INVENTARIS.md` en de huidige schermen in `docs/screenshots/bestaand/`.
 Dit document beschrijft **hoe de gebruiker zijn doel bereikt**: structuur, flows, schermen en states. Kleur, typografie en vorm zijn werk voor de visual-designer; de wireframes zijn bewust grijs.
 
@@ -174,7 +174,7 @@ Ontvanger:
 - Uitloggen (Instellingen › Account): bevestiging "Uitloggen? De offline opgeslagen gegevens op deze telefoon worden gewist." (BR-43). Zijn er nog niet verstuurde offline wijzigingen, dan eerst: "Er staan nog 2 wijzigingen klaar die niet verstuurd zijn. Die gaan verloren." met **Toch uitloggen** / Annuleren.
 
 ### 4.13 Account verwijderen (UC-11, V-15, BR-24)
-1. Instellingen › Account verwijderen (2) → pagina met wat er gebeurt: "Je account en je profiel verdwijnen. Taken, reeksen en de historie van het huishouden blijven bestaan. Je notities blijven staan." `[AANNAME: notities blijven met de naam van de schrijver; dit volgt uit V-25 en §8, en vraagt geen nieuwe beslissing]`
+1. Instellingen › Account verwijderen (2) → pagina met wat er gebeurt: "Je account en je profiel verdwijnen. Taken, reeksen en de historie van het huishouden blijven bestaan. Je notities blijven staan." Notities blijven met de naam van de schrijver staan (besluit V-34).
 2. **Account definitief verwijderen** (3) → bevestiging door het **eigen wachtwoord** in te voeren (veld met "tonen") → uitgelogd, naar het inlogscherm met "Je account is verwijderd." (uitvoeringskeuze van de architect, TECHNICAL_DESIGN §4.5; AC-137)
 - Wie alleen met een inloglink inlogt en geen wachtwoord heeft: in plaats van het wachtwoordveld staat "Stel eerst een wachtwoord in via Wachtwoord vergeten", met een link naar die flow (§4.12). De knop **Account definitief verwijderen** is dan uitgeschakeld. Na het instellen van een wachtwoord kom je hier terug en werkt het zoals hierboven.
 - Verkeerd wachtwoord: "Dit wachtwoord klopt niet" onder het veld; er wordt niets verwijderd en je blijft op de pagina.
@@ -189,7 +189,7 @@ Instellingen › Gezinsleden (wireframe 16) → tik een lid → sheet: naam, rol
 - Beheerder: tik een lid → **Uitzetten** → bevestiging "Kai uitzetten? Kai kan dan niet meer bij het huishouden en krijgt geen meldingen. Je kunt Kai later weer aanzetten." → **Uitzetten** / Annuleren. In de ledenlijst staat het lid grijs met het label "uitgezet" en de regel "Geen toegang, geen meldingen". **Weer aanzetten** heeft geen bevestiging nodig; melding "Kai heeft weer toegang".
 - Uitzetten is niet mogelijk voor jezelf en niet voor de enige beheerder (anders kan niemand het huishouden nog beheren; volgt uit BR-24). Die knop is dan uitgeschakeld met "Er moet altijd minstens één beheerder met toegang zijn."
 - Het uitgezette lid zelf: bij openen van de app (of bij de eerstvolgende verbinding) één scherm: "Je hebt op dit moment geen toegang tot ‘Familie’. Een beheerder kan je weer toegang geven." met **Uitloggen**. Geen taken, geen onderbalk. Account verwijderen blijft bereikbaar via een link op dat scherm. De offline opgeslagen stand op het toestel verdwijnt dan (technische uitwerking voor de architect).
-- Notities van een uitgezet lid blijven met zijn naam zichtbaar bij de taak.
+- Notities van een uitgezet lid blijven met zijn naam zichtbaar bij de taak. Ook na verwijderen uit het huishouden blijft de naam bij zijn notities staan (V-34).
 
 ## 5. Schermen
 
@@ -445,10 +445,10 @@ HTML in `docs/prototype/wireframes/` (gedeelde stijl `wf.css`), screenshots op 3
 
 **Beantwoord (2026-09-28, letterlijk in `docs/PROGRESS.md`):**
 - **V-28** — "Volg voorstel": Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag. Verwerkt in §3, §5.1, §5.6.
+- **V-34** — besluit van Jurgen: de naam van de schrijver blijft bij notities staan, ook na account verwijderen of verwijderen uit het huishouden. Verwerkt in §4.13 en §4.15.
 - **V-29** — "Volg voorstel": uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles. Verwerkt in §4.15, §7, §9 en wireframe 16.
 
 **Aannames (raken geen rechten, gegevens, privacy of scope)**
-- `[AANNAME]` Bij account verwijderen blijven notities met de naam van de schrijver staan (volgt uit V-25 en PRODUCT_SPEC §8: "tot de taak verwijderd wordt").
 - `[AANNAME]` De deadline van een verplaatste taak schuift mee met dezelfde afstand; te bevestigen door de architect als uitvoeringskeuze.
 
 **Voor de solution-architect (geen vraag voor Jurgen)**
