@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vandaag — laden mislukt (geen cache) + skelet ter vergelijking</title><link rel="stylesheet" href="ds.css">
+<style>
+  .err { padding: 36px 0 0; }
+  .err .ic { width: 44px; height: 44px; border-radius: 50%; background: var(--sunken); color: var(--text-2); display: grid; place-items: center; margin-bottom: 14px; }
+  .err h2 { font-size: 22px; line-height: 28px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .err p { margin: 6px 0 0; font-size: 16px; line-height: 22px; color: var(--text-2); }
+  .err .fine { font-size: 14px; line-height: 19px; color: var(--text-3); margin-top: 14px; }
+  .divider { margin: 34px 0 16px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); display: flex; gap: 10px; align-items: center; }
+  .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .srow { display: flex; align-items: center; gap: 14px; height: 62px; }
+  .srow .c { width: 24px; height: 24px; border-radius: 50%; border: 1.75px solid var(--sunken); flex: none; }
+  .srow .l { flex: 1; }
+  .srow .l .skel:first-child { height: 14px; width: 62%; }
+  .srow .l .skel + .skel { height: 10px; width: 36%; margin-top: 8px; }
+</style></head>
+<body>
+<div class="phone" data-tab="vandaag">
+<div class="scroll">
+  <header class="top">
+    <div><h1 class="t-large">Vandaag</h1><div class="sub">maandag 28 september</div></div>
+    <div class="acts">
+      <a class="iconbtn" aria-label="Meldingen"><i data-ic="bell"></i></a>
+      <a class="iconbtn" aria-label="Instellingen"><i data-ic="settings"></i></a>
+    </div>
+  </header>
+  <main>
+    <div class="err" role="alert">
+      <div class="ic"><i data-ic="sync"></i></div>
+      <h2>De taken konden niet worden geladen</h2>
+      <p>Er is verbinding, maar de server reageert niet. Je gegevens zijn niet kwijt.</p>
+      <button class="btn pri" style="margin-top:18px">Opnieuw proberen</button>
+      <p class="fine">Lukt het na een paar minuten nog niet? Sluit de app en open hem opnieuw.</p>
+    </div>
+
+    <div class="divider">Ter vergelijking: laden (skelet)</div>
+    <div aria-hidden="true">
+      <div class="skel" style="height:14px;width:90px;margin-bottom:6px"></div>
+      <div class="srow"><span class="c"></span><div class="l"><div class="skel"></div><div class="skel"></div></div><div class="skel" style="width:54px;height:14px"></div></div>
+      <div class="srow"><span class="c"></span><div class="l"><div class="skel"></div><div class="skel"></div></div><div class="skel" style="width:54px;height:14px"></div></div>
+      <div class="srow"><span class="c"></span><div class="l"><div class="skel"></div><div class="skel"></div></div></div>
+    </div>
+  </main>
+</div>
+</div>
+<script src="shell.js"></script>
+</body></html>

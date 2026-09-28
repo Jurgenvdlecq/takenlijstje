@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bestaand project onder het systeem brengen (werkwijze §15) — UX-ontwerp ronde 1 klaar (UX_SPEC + 22 wireframes); visueel ontwerp gestart
-Volgende stap: product-designer verwerkt V-28/V-29 in UX_SPEC (markeringen weg); visual-designer levert DESIGN_SYSTEM.md + visueel prototype; daarna solution-architect.
+Fase: Bestaand project onder het systeem brengen (werkwijze §15) — visueel ontwerp ronde 1 klaar (besluit: visuele laag opnieuw, techniek behouden); technische architectuur gestart
+Volgende stap: antwoorden V-30/V-31 vastleggen; solution-architect levert TECHNICAL_DESIGN.md met work packages; daarna acceptatiecriteria (product-analyst), vergelijking Behouden/Herwerken/Vervangen in INVENTARIS §8, en plan-critic.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -46,7 +46,8 @@ Volgende stap: product-designer verwerkt V-28/V-29 in UX_SPEC (markeringen weg);
 - V-28 en V-29 (2026-09-28): "Volg voorstel" → V-28 Boodschappen in de onderbalk, Huishouden-overzicht als kaart onderaan Vandaag · V-29 uitgezet = geen toegang tot het huishouden en geen meldingen; account en notities blijven; weer aanzetten herstelt alles.
 
 ## Open vragen
-- (geen)
+- V-30: Accentkleur en app-icoon: rustig diep blauw #2B4C9B in plaats van het felle indigo, icoon in dezelfde tint? Voorstel: ja. Alternatief: huidig indigo en icoon houden — gesteld 2026-09-28 — blokkeert: niets (alleen tokenwaarden).
+- V-31: Eigen lettertype Figtree (door de app zelf gehost, 20 KB, geen verbinding met Google)? Voorstel: ja. Alternatief: standaardletter van de telefoon — gesteld 2026-09-28 — blokkeert: niets (alleen tokenwaarden).
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).

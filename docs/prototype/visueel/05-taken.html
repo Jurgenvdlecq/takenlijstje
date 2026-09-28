@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taken — open, met filter</title><link rel="stylesheet" href="ds.css">
+<style>
+  .tools { display: flex; gap: 8px; margin-top: 14px; }
+  .tools .input { flex: 1; height: 44px; min-height: 44px; font-size: 16px; }
+  .tools .input svg { color: var(--text-3); }
+  .fbtn { position: relative; width: 44px; height: 44px; border-radius: var(--r-md); background: var(--sunken); display: grid; place-items: center; color: var(--text); }
+  .fbtn::after { content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--sunken); }
+  .activef { display: flex; align-items: center; gap: 4px; margin-top: 10px; }
+  .activef .chip { height: 34px; padding: 0 8px 0 12px; background: var(--accent-soft); color: var(--accent); }
+  .activef .chip svg { color: var(--accent); }
+  .sec { margin-top: 20px; }
+  .sec.today .t-sec { color: var(--today); }
+  .today-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--today); }
+</style></head>
+<body>
+<div class="phone" data-tab="taken">
+<div class="scroll">
+  <header class="top">
+    <div><h1 class="t-large">Taken</h1><div class="sub"><b>5 open</b> in Keuken · 1 verlopen</div></div>
+    <div class="acts">
+      <a class="iconbtn" aria-label="Meldingen, 2 ongelezen"><i data-ic="bell"></i><span class="count num">2</span></a>
+      <a class="iconbtn" aria-label="Instellingen"><i data-ic="settings"></i></a>
+    </div>
+  </header>
+  <main>
+    <div class="tools">
+      <label class="input sunk" aria-label="Zoek een taak"><i data-ic="search" class="sm"></i><span class="ph">Zoek een taak</span></label>
+      <button class="fbtn" aria-label="Filter, 1 actief"><i data-ic="filter" class="sm"></i></button>
+    </div>
+    <div class="seg" style="margin-top:10px" role="tablist"><span class="on" role="tab" aria-selected="true">Open</span><span role="tab">Gedaan</span><span role="tab">Terugkerend</span></div>
+    <div class="activef"><span class="chip">Keuken <i data-ic="x" class="xs"></i></span><button class="btn text" style="font-size:15px">Filters wissen</button></div>
+
+    <section class="sec alarm" style="margin-top:12px">
+      <div class="sec-h"><h2 class="t-sec"><i data-ic="alert" class="sm"></i>Verlopen</h2></div>
+      <div class="alarmbox">
+        <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button>
+          <div class="body"><div class="t">Kraan ontkalken</div><div class="m">was voor vr 25 sep</div></div>
+          <div class="when num">3 dagen<small>te laat</small></div></div>
+      </div>
+    </section>
+    <section class="sec today">
+      <div class="sec-h"><h2 class="t-sec"><span class="today-dot" aria-hidden="true"></span>Vandaag</h2></div>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button>
+        <div class="body"><div class="t">Vaatwasser uitruimen</div><div class="m"><i data-ic="repeat" class="xs"></i>dagelijks</div></div>
+        <div class="when"></div></div>
+    </section>
+    <section class="sec">
+      <div class="sec-h"><h2 class="t-sec">Deze week</h2></div>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button>
+        <div class="body"><div class="t">Vaatwasser uitruimen</div><div class="m"><i data-ic="repeat" class="xs"></i>dagelijks</div></div>
+        <div class="when">morgen</div></div>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button>
+        <div class="body"><div class="t">Koelkast schoonmaken</div><div class="m">mag al · gepland do 1 okt</div></div>
+        <div class="when"><span class="pre">vóór</span> vrijdag</div></div>
+    </section>
+    <section class="sec">
+      <div class="sec-h"><h2 class="t-sec">Volgende week</h2></div>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button>
+        <div class="body"><div class="t">Oven reinigen</div><div class="m"><i data-ic="repeat" class="xs"></i>elke 4 weken</div></div>
+        <div class="when num">di 6 okt</div></div>
+    </section>
+  </main>
+</div>
+</div>
+<script src="shell.js"></script>
+</body></html>

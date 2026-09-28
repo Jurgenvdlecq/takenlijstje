@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taakdetail — open taak uit een reeks</title><link rel="stylesheet" href="ds.css">
+<style>
+  .sheet { top: 54px; bottom: 0; }
+  .overline { display: flex; align-items: center; gap: 6px; font-size: 14px; line-height: 18px; color: var(--text-2); font-weight: 500; }
+  .overline .mag { color: var(--text); font-weight: 600; }
+  .quick { display: grid; grid-template-columns: 1fr 1fr 52px; gap: 8px; margin-top: 8px; }
+  .quick .btn { width: 100%; padding: 0; }
+  h3.sub { font-size: 15px; line-height: 20px; font-weight: 700; margin: 26px 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  h3.sub a { font-size: 15px; font-weight: 600; color: var(--accent); text-decoration: none; }
+  .note { font-size: 16px; line-height: 22px; }
+  .note b { font-weight: 700; }
+  .note .when { font-size: 13px; color: var(--text-3); margin-left: 4px; }
+  .hist { display: flex; justify-content: space-between; font-size: 15px; line-height: 20px; padding: 7px 0; }
+  .hist .s { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+  .hist .ok { color: var(--done); } .hist .late { color: var(--overdue); } .hist .skip { color: var(--text-3); font-weight: 500; }
+</style></head>
+<body>
+<div class="phone" data-tab="geen-balk">
+  <div aria-hidden="true"><header class="top" style="padding-top:6px"><div><h1 class="t-large">Vandaag</h1></div></header></div>
+  <div class="scrim"></div>
+
+  <section class="sheet" role="dialog" aria-labelledby="dt">
+    <div class="grip"></div>
+    <div class="sheet-h" style="margin-top:6px">
+      <div>
+        <div class="overline"><i data-ic="repeat" class="xs"></i>Elke zaterdag · <span class="mag">mag al</span></div>
+        <h2 class="t-title" id="dt" style="font-size:24px;line-height:30px;margin-top:2px">Badkamer schoonmaken</h2>
+      </div>
+      <button class="closebtn" aria-label="Sluiten"><span><i data-ic="x" class="sm"></i></span></button>
+    </div>
+
+    <button class="btn pri big" style="margin-top:18px"><i data-ic="check"></i>Afvinken</button>
+    <div class="quick">
+      <button class="btn sec sm">Naar morgen</button>
+      <button class="btn sec sm">Andere dag…</button>
+      <button class="btn sec sm" aria-label="Meer acties"><i data-ic="more"></i></button>
+    </div>
+
+    <div class="ilist" style="margin-top:20px">
+      <div class="irow"><span class="k">Gepland</span><span class="v">zaterdag 3 oktober</span></div>
+      <div class="irow"><span class="k">Uiterlijk</span><span class="v" style="font-weight:700">zondag 4 okt<small style="font-weight:400">einde van de dag</small></span></div>
+      <div class="irow"><span class="k">Herhaalt</span><span class="v">elke zaterdag<small>daarna za 10 okt</small></span></div>
+      <div class="irow"><span class="k">Duur</span><span class="v">ca. 45 min · Schoonmaak</span></div>
+    </div>
+
+    <h3 class="sub">Notities</h3>
+    <p class="note" style="margin:0"><b>Ellen</b> Nieuwe wc-reiniger staat onder de wastafel.<span class="when">gisteren</span></p>
+    <div class="input sunk" style="margin-top:10px;min-height:44px"><span class="ph">Notitie toevoegen…</span></div>
+
+    <h3 class="sub">Vorige keren <a>Alles</a></h3>
+    <div class="hist num"><span>za 26 sep</span><span class="s ok"><i data-ic="check" class="xs"></i>op tijd</span></div>
+    <div class="hist num"><span>zo 20 sep</span><span class="s late">1 dag te laat</span></div>
+    <div class="hist num"><span>za 12 sep</span><span class="s skip">overgeslagen</span></div>
+  </section>
+</div>
+<script src="shell.js"></script>
+</body></html>

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Componenten en states</title><link rel="stylesheet" href="ds.css">
+<style>
+  body { padding: 16px 20px 40px; width: 390px; }
+  h2.g { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 22px 0 10px; }
+  h2.g:first-child { margin-top: 0; }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .lbl { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+  .focusring { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .pal { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .sw { border-radius: 10px; height: 40px; border: 1px solid var(--line); }
+  .sw + span { font-size: 11px; color: var(--text-2); display: block; margin-top: 3px; }
+  .row.pending .when { color: var(--text-3); font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+</style></head>
+<body>
+<h2 class="g">Kleur (functie)</h2>
+<div class="pal">
+  <div><div class="sw" style="background:var(--bg)"></div><span>bg</span></div>
+  <div><div class="sw" style="background:var(--surface)"></div><span>surface</span></div>
+  <div><div class="sw" style="background:var(--sunken)"></div><span>sunken</span></div>
+  <div><div class="sw" style="background:var(--text)"></div><span>text</span></div>
+  <div><div class="sw" style="background:var(--accent)"></div><span>accent (tikbaar)</span></div>
+  <div><div class="sw" style="background:var(--overdue)"></div><span>verlopen / gevaar</span></div>
+  <div><div class="sw" style="background:var(--today)"></div><span>vandaag</span></div>
+  <div><div class="sw" style="background:var(--done)"></div><span>gedaan</span></div>
+</div>
+
+<h2 class="g">Knoppen</h2>
+<div class="grid">
+  <button class="btn pri">Toevoegen</button>
+  <button class="btn pri pressed">Ingedrukt</button>
+  <button class="btn pri focusring">Focus</button>
+</div>
+<div class="grid" style="margin-top:8px">
+  <button class="btn is-disabled" disabled>Toevoegen</button>
+  <button class="btn pri" style="opacity:.9"><span style="display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent"></span>Bezig…</button>
+</div>
+<div class="lbl">Uitgeschakeld altijd met één zin reden eronder, bijv. "Geef de taak eerst een naam."</div>
+<div class="grid" style="margin-top:10px">
+  <button class="btn sec">Naar morgen</button>
+  <button class="btn sec acc">Toevoegen</button>
+  <button class="btn text">Filters wissen</button>
+</div>
+<div class="grid" style="margin-top:8px">
+  <button class="btn danger">Stoppen</button>
+  <button class="btn sec" style="color:var(--overdue)">Verwijderen…</button>
+</div>
+
+<h2 class="g">Invoer</h2>
+<label class="field-l">Wat moet er gebeuren?</label>
+<div class="input"><span class="ph">Bijv. Badkamer zaterdag</span></div>
+<div class="help">Hulptekst in text-3.</div>
+<div class="input focus" style="margin-top:10px">Badkamer<span class="caret"></span></div>
+<div class="input err" style="margin-top:10px">Deze taaknaam is echt veel te lang geworden om nog…</div>
+<div class="help err"><i data-ic="alert" class="xs"></i>Maximaal 80 tekens (nu 86)</div>
+
+<h2 class="g">Keuzes</h2>
+<div class="chips"><span class="chip">Vandaag</span><span class="chip on"><i data-ic="check" class="xs"></i>Morgen</span><span class="chip q"><i data-ic="plus" class="xs"></i><b>Kaas</b></span></div>
+<div class="seg" style="margin-top:10px"><span>Dag</span><span class="on">Week</span><span>Maand</span></div>
+<div class="grid" style="margin-top:10px;gap:16px"><span class="switch"></span><span class="switch on"></span><span class="switch" style="opacity:.45"></span><span class="tag">bezig</span></div>
+
+<h2 class="g">Rijen</h2>
+<div class="alarmbox" style="margin:0 -12px">
+  <div class="row"><button class="chk"><span></span></button><div class="body"><div class="t">Verlopen</div><div class="m">was voor za 26 sep</div></div><div class="when">2 dagen<small>te laat</small></div></div>
+</div>
+<div class="row"><button class="chk"><span></span></button><div class="body"><div class="t">Open met deadline</div><div class="m"><i data-ic="repeat" class="xs"></i>wekelijks · Buiten <span class="tag">bezig</span></div></div><div class="when num"><span class="pre">vóór</span> 12:00</div></div>
+<div class="row done"><button class="chk"><span><i data-ic="check" class="xs"></i></span></button><div class="body"><div class="t">Gedaan</div><div class="m">08:12 · op tijd</div></div><div class="when"></div></div>
+<div class="row pending"><button class="chk"><span style="background:var(--done);border-color:var(--done)"><i data-ic="check" class="xs" style="stroke:var(--surface)"></i></span></button><div class="body"><div class="t" style="color:var(--text-3);text-decoration:line-through">Offline afgevinkt</div><div class="m">wacht op verbinding</div></div><div class="when"><i data-ic="sync" class="xs"></i></div></div>
+
+<h2 class="g">Melding onderin</h2>
+<div class="toast" style="position:static;margin:0 -8px">
+  <i data-ic="circlecheck"></i><div class="msg"><small>Verplaatst naar</small><b>dinsdag 29 september</b></div><button class="act">Ongedaan maken</button>
+</div>
+<script src="shell.js"></script>
+</body></html>

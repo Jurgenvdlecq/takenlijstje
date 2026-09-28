@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boodschappen</title><link rel="stylesheet" href="ds.css">
+<style>
+  .add { display: flex; gap: 8px; margin-top: 14px; }
+  .add { align-items: center; }
+  .add .input { flex: 1; height: 48px; }
+  .sec { margin-top: 20px; }
+  .cat { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .cat .e { font-size: 16px; width: 20px; text-align: center; }
+  .row { min-height: 54px; }
+  .row .qty { flex: none; margin-left: 12px; font-size: 15px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .row.done .chk span { background: var(--done); border-color: var(--done); }
+  .chip.q { height: 38px; }
+</style></head>
+<body>
+<div class="phone" data-tab="boodschappen">
+<div class="scroll">
+  <header class="top">
+    <div><h1 class="t-large">Boodschappen</h1><div class="sub"><b>6 te halen</b> · 2 gekocht</div></div>
+    <div class="acts">
+      <a class="iconbtn" aria-label="Meldingen, 2 ongelezen"><i data-ic="bell"></i><span class="count num">2</span></a>
+      <a class="iconbtn" aria-label="Instellingen"><i data-ic="settings"></i></a>
+    </div>
+  </header>
+  <main>
+    <div class="add">
+      <label class="input" aria-label="Product toevoegen"><span class="ph">Bijv. 2 melk</span></label>
+      <button class="btn sec acc">Toevoegen</button>
+    </div>
+
+    <div class="field-l" style="margin-top:16px">Vaak gekocht</div>
+    <div class="chips">
+      <span class="chip q"><i data-ic="plus" class="xs"></i><b>Kaas</b></span>
+      <span class="chip q"><i data-ic="plus" class="xs"></i><b>Eieren</b></span>
+      <span class="chip q"><i data-ic="plus" class="xs"></i><b>Pindakaas</b></span>
+      <span class="chip q"><i data-ic="plus" class="xs"></i><b>Bananen</b></span>
+      <span class="chip q">meer…</span>
+    </div>
+
+    <section class="sec">
+      <h2 class="cat"><span class="e" aria-hidden="true">🧀</span>Zuivel</h2>
+      <div class="row"><button class="chk" aria-label="Melk gekocht"><span></span></button><div class="body"><div class="t">Melk</div></div><span class="qty">2</span></div>
+      <div class="row"><button class="chk" aria-label="Yoghurt gekocht"><span></span></button><div class="body"><div class="t">Yoghurt</div><div class="m">de volle, geen magere</div></div></div>
+    </section>
+    <section class="sec">
+      <h2 class="cat"><span class="e" aria-hidden="true">🥖</span>Brood</h2>
+      <div class="row"><button class="chk" aria-label="Brood gekocht"><span></span></button><div class="body"><div class="t">Volkorenbrood</div></div></div>
+    </section>
+    <section class="sec">
+      <h2 class="cat"><span class="e" aria-hidden="true">🧴</span>Drogisterij</h2>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button><div class="body"><div class="t">Wc-reiniger</div></div></div>
+      <div class="row"><button class="chk" aria-label="Afvinken"><span></span></button><div class="body"><div class="t">Toiletpapier</div><div class="m">het zachte merk</div></div><span class="qty">1 pak</span></div>
+    </section>
+    <section class="sec">
+      <div class="sec-h"><h2 class="cat">Gekocht <span style="color:var(--text-3)">2</span></h2><a>Verbergen</a></div>
+      <div class="row done"><button class="chk" aria-label="Bananen terugzetten"><span><i data-ic="check" class="xs"></i></span></button><div class="body"><div class="t">Bananen</div></div><span class="qty">6</span></div>
+    </section>
+  </main>
+</div>
+</div>
+<script src="shell.js"></script>
+</body></html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nieuwe taak — slimme invoer, toetsenbord open</title><link rel="stylesheet" href="ds.css">
+<style>
+  .sheet { bottom: 336px; padding-bottom: 12px; border-radius: var(--r-sheet); }
+  .behind { position: absolute; inset: 0; }
+</style></head>
+<body>
+<div class="phone" data-tab="geen-balk">
+  <div class="behind" aria-hidden="true">
+    <header class="top" style="padding-top:53px"><div><h1 class="t-large">Vandaag</h1><div class="sub">maandag 28 september · <b>nog 5 te doen</b></div></div></header>
+  </div>
+  <div class="scrim"></div>
+
+  <section class="sheet" role="dialog" aria-labelledby="st" style="top:58px">
+    <div class="grip"></div>
+    <div class="sheet-h" style="margin-top:2px">
+      <h2 class="t-title" id="st">Nieuwe taak</h2>
+      <button class="closebtn" aria-label="Sluiten"><span><i data-ic="x" class="sm"></i></span></button>
+    </div>
+
+    <label class="field-l" for="naam" style="margin-top:10px">Wat moet er gebeuren?</label>
+    <div class="input focus" id="naam" style="font-size:18px;gap:0">Badkamer&nbsp;<span class="hl">zaterdag</span><span class="caret"></span></div>
+    <div class="help">“zaterdag” gebruikt als dag · <a href="#">Toch in de naam</a></div>
+
+    <div class="field-l" style="margin-top:18px">Wanneer?</div>
+    <div class="chips" role="radiogroup" aria-label="Wanneer">
+      <span class="chip" role="radio" aria-checked="false">Vandaag</span>
+      <span class="chip" role="radio" aria-checked="false">Morgen</span>
+      <span class="chip on" role="radio" aria-checked="true"><i data-ic="check" class="xs"></i>Za 3 okt</span>
+      <span class="chip" role="radio" aria-checked="false">Zo 4 okt</span>
+      <span class="chip" role="radio" aria-checked="false">Andere dag…</span>
+    </div>
+    <div class="help" style="margin-top:10px">Uiterlijk za 3 okt, einde van de dag · <a href="#">Aanpassen</a></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+      <label style="display:flex;align-items:center;gap:10px;font-size:17px;font-weight:500"><i data-ic="repeat" class="sm" style="color:var(--text-3)"></i>Herhalen</label>
+      <span class="switch" role="switch" aria-checked="false" aria-label="Herhalen"></span>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+      <button class="btn text" style="margin-left:-8px;font-size:16px">Meer instellingen <i data-ic="chevd" class="sm"></i></button>
+      <button class="btn pri" style="min-width:150px">Toevoegen</button>
+    </div>
+  </section>
+
+  <div class="kbd" aria-hidden="true" id="kbd"></div>
+</div>
+<script src="shell.js"></script>
+<script>
+  const rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+  const k = document.getElementById("kbd");
+  k.innerHTML =
+    `<div class="r">${[...rows[0]].map((c) => `<span class="k">${c}</span>`).join("")}</div>` +
+    `<div class="r">${[...rows[1]].map((c) => `<span class="k">${c}</span>`).join("")}</div>` +
+    `<div class="r"><span class="k w">⇧</span>${[...rows[2]].map((c) => `<span class="k">${c}</span>`).join("")}<span class="k w">⌫</span></div>` +
+    `<div class="r"><span class="k w">123</span><span class="k w">🙂</span><span class="k sp">spatie</span><span class="k go">Voeg toe</span></div>`;
+</script>
+</body></html>

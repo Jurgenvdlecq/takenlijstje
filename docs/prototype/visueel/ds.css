@@ -1,0 +1,277 @@
+/* Takenlijstje — visueel prototype. Tokens gelijk aan docs/DESIGN_SYSTEM.md §3–§6.
+   Tijdelijk referentiemateriaal: geen productiecode. */
+
+@font-face {
+  font-family: "Figtree";
+  src: url(fonts/figtree.woff2) format("woff2");
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+/* ---------- Tokens: licht ---------- */
+:root {
+  color-scheme: light;
+  --font: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --bg: #F6F4EF;            /* papier: achtergrond van elke pagina */
+  --surface: #FFFFFF;       /* sheets, invoervelden, menu's */
+  --sunken: #ECE9E2;        /* chips, segment, zoekveld, zachte knoppen, skelet */
+  --line: #E2DED5;          /* haarlijnen tussen rijen (decoratief) */
+  --text: #1C1B19;          /* hoofdtekst, titels */
+  --text-2: #5C574F;        /* secundaire tekst */
+  --text-3: #6D675E;        /* meta, plaatshouders (≥ 4,5:1 op bg én sunken) */
+  --control: #8F887D;       /* rand van rondjes en schakelaars (≥ 3:1) */
+
+  --accent: #2B4C9B;        /* alles wat je kunt aantikken; nooit een status */
+  --accent-hover: #233F84;
+  --accent-soft: #E6ECF8;   /* achtergrond van 'bezig' en geselecteerde lichte staat */
+  --on-accent: #FFFFFF;
+  --on-danger: #FFFFFF;
+
+  --overdue: #AE3A22;       /* verlopen, en gevaarlijke acties */
+  --overdue-soft: #FBEDE8;
+  --today: #8A5608;         /* 'vandaag' in lijsten met meerdere dagen, kalender */
+  --today-soft: #FBF1DC;
+  --done: #2B6F4B;          /* gedaan / op tijd / gekocht */
+  --done-soft: #E3F0E7;
+
+  --focus: #2B4C9B;
+  --scrim: rgba(28, 27, 25, 0.38);
+  --toast: #1C1B19;
+  --on-toast: #F3F0EA;
+  --toast-action: #A9BDF5;
+
+  --shadow-sheet: 0 -1px 0 rgba(0,0,0,.04), 0 -8px 30px rgba(28,27,25,.10);
+  --shadow-float: 0 6px 24px rgba(28,27,25,.18);
+  --shadow-thumb: 0 1px 2px rgba(28,27,25,.18), 0 1px 1px rgba(28,27,25,.06);
+
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-sheet: 22px; --r-full: 999px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
+  --gutter: 20px;
+}
+
+/* ---------- Tokens: donker ---------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #151412;
+    --surface: #1F1D1B;
+    --sunken: #2A2825;
+    --line: #34312D;
+    --text: #F3F0EA;
+    --text-2: #B9B2A7;
+    --text-3: #9D968B;
+    --control: #7D766C;
+    --accent: #9DB4F2;
+    --accent-hover: #B4C6F6;
+    --accent-soft: #232C44;
+    --on-accent: #151412;
+    --on-danger: #151412;
+    --overdue: #F2917B;
+    --overdue-soft: #2E1D18;
+    --today: #E5B061;
+    --today-soft: #2E2517;
+    --done: #7CC79C;
+    --done-soft: #1B2A21;
+    --focus: #9DB4F2;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --toast: #F3F0EA;
+    --on-toast: #1C1B19;
+    --toast-action: #2B4C9B;
+    --shadow-sheet: 0 -1px 0 rgba(255,255,255,.05);
+    --shadow-float: 0 6px 24px rgba(0,0,0,.5);
+  }
+}
+
+/* ---------- Basis ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 17px; line-height: 24px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01" 0;
+}
+.phone { position: relative; width: 390px; min-height: 844px; height: 844px; overflow: hidden; background: var(--bg); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+svg.i.sm { width: 16px; height: 16px; stroke-width: 2; }
+svg.i.xs { width: 14px; height: 14px; stroke-width: 2.1; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* iOS-statusbalk en home-indicator, alleen om de echte ruimte te tonen */
+.statusbar { height: 47px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 30px 8px 36px; font-size: 16px; font-weight: 600; }
+.statusbar .sys { display: flex; gap: 6px; align-items: center; }
+.statusbar .sys { gap: 5px; }
+.statusbar .sys i { display: block; width: 17px; height: 10px; background: linear-gradient(90deg, var(--text) 0 3px, transparent 3px 4.6px, var(--text) 4.6px 7.6px, transparent 7.6px 9.2px, var(--text) 9.2px 12.2px, transparent 12.2px 13.8px, var(--text) 13.8px 16.8px, transparent 0); clip-path: polygon(0 70%, 25% 70%, 25% 45%, 50% 45%, 50% 20%, 75% 20%, 75% 0, 100% 0, 100% 100%, 0 100%); }
+.statusbar .sys i.w { display: none; }
+.statusbar .sys i.b { width: 25px; height: 12px; border-radius: 3.5px; background: none; clip-path: none; border: 1px solid color-mix(in srgb, var(--text) 45%, transparent); position: relative; }
+.statusbar .sys i.b::after { content: ""; position: absolute; inset: 1.5px 5px 1.5px 1.5px; border-radius: 2px; background: var(--text); }
+.homebar { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--text); z-index: 60; }
+
+/* ---------- Typografie ---------- */
+.t-large { font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+.t-title { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.t-head { font-size: 17px; line-height: 22px; font-weight: 600; }
+.t-sec { font-size: 15px; line-height: 20px; font-weight: 700; letter-spacing: 0.005em; margin: 0; }
+.t-meta { font-size: 14px; line-height: 18px; color: var(--text-3); }
+.t-sub { font-size: 15px; line-height: 20px; color: var(--text-2); }
+.t-cap { font-size: 12px; line-height: 16px; font-weight: 600; }
+
+/* ---------- Paginakop ---------- */
+.top { display: flex; align-items: flex-start; justify-content: space-between; padding: 6px var(--gutter) 0; }
+.top .sub { margin-top: 2px; font-size: 15px; line-height: 20px; color: var(--text-2); }
+.top .sub b { color: var(--text); font-weight: 600; }
+.top .acts { display: flex; margin-right: -10px; margin-top: -2px; }
+.iconbtn { position: relative; width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--r-full); color: var(--text-2); }
+.iconbtn .count { position: absolute; top: 5px; left: 24px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: var(--on-accent); font-size: 11px; line-height: 16px; font-weight: 700; text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+
+main { padding: 0 var(--gutter); }
+
+/* ---------- Secties ---------- */
+.sec { margin-top: 26px; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 2px; }
+.sec-h .t-sec { display: flex; align-items: center; gap: 6px; }
+.sec-h .n { color: var(--text-3); font-weight: 600; }
+.sec-h a, .link { color: var(--accent); font-size: 15px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 2px; min-height: 44px; }
+.sec-h a { min-height: auto; padding: 12px 0 12px 12px; margin: -12px 0; }
+.sec.alarm .t-sec { color: var(--overdue); }
+
+/* ---------- Taakrij ---------- */
+.list { margin: 0; padding: 0; list-style: none; }
+.row { position: relative; display: flex; align-items: center; min-height: 62px; }
+.row + .row::before { content: ""; position: absolute; top: 0; left: 44px; right: 0; height: 1px; background: var(--line); }
+.chk { width: 44px; height: 44px; margin-left: -10px; margin-right: 10px; display: grid; place-items: center; flex: none; }
+.chk span { width: 24px; height: 24px; border-radius: 50%; border: 1.75px solid var(--control); display: grid; place-items: center; }
+.row .body { flex: 1; min-width: 0; padding: 10px 0; }
+.row .t { font-size: 17px; line-height: 22px; font-weight: 500; }
+.row .m { margin-top: 2px; font-size: 14px; line-height: 18px; color: var(--text-3); display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.row .m svg { margin-right: -1px; }
+.row .when { flex: none; margin-left: 12px; text-align: right; font-size: 15px; line-height: 20px; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; }
+.row .when small { display: block; font-size: 13px; line-height: 16px; font-weight: 500; color: var(--text-3); }
+.row .when .pre { font-weight: 500; color: var(--text-3); }
+.row.done .t { color: var(--text-3); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text-3) 70%, transparent); }
+.row.done .chk span { background: var(--done); border-color: var(--done); color: var(--bg); }
+.row.done .chk span svg { stroke: var(--surface); }
+.row.pending .m { color: var(--text-2); }
+
+/* Verlopen: de enige groep met een eigen vlak */
+.alarmbox { margin: 8px -12px 0; padding: 0 12px; border-radius: var(--r-lg); background: var(--overdue-soft); }
+.alarmbox .row + .row::before { background: color-mix(in srgb, var(--overdue) 18%, transparent); }
+.alarmbox .chk span { border-color: var(--overdue); }
+.alarmbox .when { color: var(--overdue); }
+.alarmbox .when small { color: var(--overdue); font-weight: 600; }
+
+.tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 12px; line-height: 20px; font-weight: 600; background: var(--accent-soft); color: var(--accent); }
+
+/* Gedaan-regel (inklapbaar) */
+.fold { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin-top: 2px; border-top: 1px solid var(--line); font-size: 15px; color: var(--text-2); }
+.fold .l { display: flex; align-items: center; gap: 8px; }
+.fold .l svg { color: var(--done); }
+.fold b { color: var(--text); font-weight: 600; }
+
+/* Weekblok onderaan Vandaag */
+.week { display: flex; align-items: center; justify-content: space-between; margin-top: 28px; padding: 14px 14px 14px 16px; border-radius: var(--r-lg); background: var(--sunken); text-decoration: none; color: inherit; }
+.week .h { font-size: 15px; line-height: 20px; font-weight: 700; }
+.week .p { font-size: 14px; line-height: 18px; color: var(--text-2); margin-top: 2px; }
+.week svg { color: var(--text-3); }
+
+/* ---------- Onderbalk ---------- */
+.tabbar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 40; height: 90px; padding: 6px 6px 34px; background: var(--bg); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5, 1fr); align-items: start; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; height: 50px; padding-top: 4px; color: var(--text-3); font-size: 11.5px; line-height: 14px; font-weight: 600; text-decoration: none; }
+.tab.on { color: var(--accent); }
+.tab.on svg { stroke-width: 2.2; }
+.tab.plus { padding-top: 0; }
+.tab.plus span { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; }
+.tab.plus svg { stroke-width: 2.25; }
+.scroll { position: absolute; top: 47px; left: 0; right: 0; bottom: 90px; overflow: hidden; }
+
+/* ---------- Knoppen ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: var(--r-md); font-size: 17px; font-weight: 600; line-height: 22px; white-space: nowrap; }
+.btn.pri { background: var(--accent); color: var(--on-accent); }
+.btn.sec { background: var(--sunken); color: var(--text); }
+.btn.sec.acc { color: var(--accent); }
+.btn.danger { background: var(--overdue); color: var(--on-danger); }
+.btn.text { padding: 0 8px; color: var(--accent); min-height: 44px; }
+.btn.sm { min-height: 44px; font-size: 15px; padding: 0 14px; }
+.btn.big { min-height: 54px; font-size: 18px; border-radius: 14px; width: 100%; }
+.btn[disabled], .btn.is-disabled { background: var(--sunken); color: var(--text-3); }
+.btn.pressed { filter: brightness(.92); transform: scale(.98); }
+
+/* ---------- Invoer ---------- */
+.field-l { display: block; font-size: 13px; line-height: 16px; font-weight: 700; color: var(--text-2); margin-bottom: 8px; letter-spacing: .01em; }
+.input { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); font-size: 17px; }
+.input.sunk { background: var(--sunken); border-color: transparent; }
+.input.focus { border: 2px solid var(--accent); padding: 0 13px; }
+.input .ph { color: var(--text-3); }
+.input.err { border: 2px solid var(--overdue); padding: 0 13px; }
+.help { margin-top: 6px; font-size: 14px; line-height: 18px; color: var(--text-3); }
+.help.err { color: var(--overdue); font-weight: 500; display: flex; gap: 6px; align-items: center; }
+.help a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.caret { display: inline-block; width: 2px; height: 22px; background: var(--accent); margin-left: 1px; vertical-align: -4px; }
+.hl { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 2px; margin: 0 -2px; box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* ---------- Chips ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 40px; padding: 0 14px; border-radius: var(--r-full); background: var(--sunken); font-size: 15px; font-weight: 600; color: var(--text); position: relative; }
+.chip::after { content: ""; position: absolute; inset: -2px 0; } /* raakvlak 44px */
+.chip.on { background: var(--accent); color: var(--on-accent); }
+.chip.q { color: var(--text-2); font-weight: 500; }
+.chip.q b { font-weight: 600; color: var(--text); }
+.chip svg { color: var(--text-3); }
+.chip.on svg { color: inherit; }
+
+/* ---------- Segment ---------- */
+.seg { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; padding: 3px; border-radius: 11px; background: var(--sunken); }
+.seg span { height: 38px; display: grid; place-items: center; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--text-2); }
+.seg span.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-thumb); }
+
+/* ---------- Schakelaar ---------- */
+.switch { width: 51px; height: 31px; border-radius: 16px; background: var(--sunken); box-shadow: inset 0 0 0 1.5px var(--control); position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-thumb); }
+.switch.on { background: var(--accent); box-shadow: none; }
+.switch.on::after { left: 22px; }
+
+/* ---------- Sheet ---------- */
+.scrim { position: absolute; inset: 0; background: var(--scrim); z-index: 50; }
+.sheet { position: absolute; left: 0; right: 0; z-index: 55; background: var(--surface); border-radius: var(--r-sheet) var(--r-sheet) 0 0; box-shadow: var(--shadow-sheet); padding: 0 var(--gutter); }
+.grip { width: 36px; height: 5px; border-radius: 3px; background: var(--line); margin: 8px auto 6px; }
+.sheet-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.closebtn { width: 44px; height: 44px; margin: -4px -12px 0 0; display: grid; place-items: center; color: var(--text-2); }
+.closebtn span { width: 30px; height: 30px; border-radius: 50%; background: var(--sunken); display: grid; place-items: center; }
+
+/* Info-lijst in sheets */
+.ilist { border-top: 1px solid var(--line); }
+.irow { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 15px; line-height: 20px; }
+.irow .k { color: var(--text-2); flex: none; }
+.irow .v { text-align: right; color: var(--text); }
+.irow .v small { display: block; color: var(--text-3); font-size: 14px; }
+
+/* ---------- Melding (toast) ---------- */
+.toast { position: absolute; left: 12px; right: 12px; bottom: 100px; z-index: 45; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 6px 6px 14px; border-radius: 14px; background: var(--toast); color: var(--on-toast); box-shadow: var(--shadow-float); font-size: 15px; line-height: 20px; }
+.toast .msg { flex: 1; min-width: 0; }
+.toast .msg small { display: block; font-size: 13px; line-height: 16px; opacity: .72; }
+.toast .msg b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast svg { color: #7CC79C; }
+.toast .act { flex: none; min-height: 44px; padding: 0 10px; display: grid; place-items: center; color: var(--toast-action); font-weight: 700; }
+
+/* ---------- Toetsenbord (alleen in prototype) ---------- */
+.kbd { position: absolute; left: 0; right: 0; bottom: 0; height: 336px; z-index: 56; background: #D1D3D9; padding: 8px 3px 0; }
+@media (prefers-color-scheme: dark) { .kbd { background: #2B2B2D; } .kbd .k { background: #6B6B6E; color: #fff; } }
+.kbd .r { display: flex; justify-content: center; gap: 6px; margin-bottom: 11px; }
+.kbd .k { width: 33px; height: 42px; border-radius: 5px; background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.3); display: grid; place-items: center; font-family: -apple-system, var(--font); font-size: 22px; color: #111; }
+.kbd .k.w { width: 42px; background: #ABAFB9; font-size: 15px; }
+.kbd .k.sp { width: 184px; font-size: 15px; }
+.kbd .k.go { width: 88px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; }
+
+/* ---------- Balken en states ---------- */
+.banner { margin: 0 var(--gutter); padding: 10px 12px; border-radius: var(--r-md); background: var(--sunken); font-size: 14px; line-height: 19px; color: var(--text-2); display: flex; gap: 10px; }
+.banner b { color: var(--text); }
+.empty { padding: 28px 0 8px; }
+.empty .ic { width: 44px; height: 44px; border-radius: 50%; background: var(--done-soft); color: var(--done); display: grid; place-items: center; margin-bottom: 14px; }
+.empty h2 { font-size: 22px; line-height: 28px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+.empty p { margin: 6px 0 0; font-size: 16px; line-height: 22px; color: var(--text-2); max-width: 300px; }
+.skel { background: var(--sunken); border-radius: 6px; }
