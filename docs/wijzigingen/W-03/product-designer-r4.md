@@ -148,3 +148,38 @@ Relevante bestanden:
 - /home/user/takenlijstje/docs/wijzigingen/W-03/solution-architect-r4.md
 - /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r3.md
 - /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r4.md
+
+
+---
+
+## Aanvulling r6 punt 1 (G″ en H2 rond de jaarwisseling)
+Ik heb niets in bestanden geschreven. Bron: `docs/wijzigingen/W-03/solution-architect-r6.md`, regels 115–119, met de achtergrond in regels 22–23 en 56–77. Deze zinnen vervangen ook de r4-zin in §13.7.5 over H2, want die klopt niet meer: na de laatste decemberdatum volgt nu T-73, geen H2.
+
+**§13.8.1, tabelrij G″** (was: "Aan, kalender volgend jaar ontbreekt | G + stille regel T-73 | idem als G"):
+> | G″ | Aan, kalender volgend jaar ontbreekt: in december als het venster tot in januari loopt, **of** in november en december zonder komende ophaaldag terwijl de kalender van volgend jaar nog niet online staat | G + stille regel T-73 | idem als G |
+
+**§13.7.5, bullet "Kalender van volgend jaar ontbreekt"** (vervangt de hele bullet met subbullets uit r3 en de r4-zin "geeft de gemeente geen enkele komende ophaaldag meer (na de laatste decemberdatum, of op 1 januari), dan volgt H2 …"):
+> - **Kalender van volgend jaar ontbreekt** (in december als het venster al tot in januari loopt, of in november en december als de laatste ophaaldag van dit jaar al geweest is), terwijl de gemeente nog geen kalender voor volgend jaar heeft:
+>   - stille regel T-73 onder de kop, geen balk en geen melding;
+>   - is de kalender van het lopende jaar helemaal leeg (bijvoorbeeld op 1 januari), dan volgt H2.
+>   - Een lege periode van een paar weken, bijvoorbeeld papier eens per 4 weken, is geen storing.
+
+**§13.16, rij T-73, alleen de kolom "Wanneer"** (was: "december, kalender J+1 ontbreekt, venster loopt tot in januari"):
+> december als het venster tot in januari loopt; of november en december zonder komende ophaaldag; in beide gevallen staat de kalender J+1 nog niet online
+
+De tekst van T-73 zelf blijft ongewijzigd. "Ophaaldagen vanaf 1 januari komen erbij zodra hij er is." klopt ook in november.
+
+**Ongewijzigd en gecontroleerd:**
+- **T-77a ("december of januari"):** blijft staan. In december kan H2 nog ontstaan als de kalender van het lopende jaar helemaal leeg is, of als een eerdere storing doorloopt.
+- **Voorrang in §13.8.1:** blijft staan. G″ vraagt nog steeds om een geslaagde bijwerking, en volgens TD r6 is het geval eind november een `success`.
+- **F2 bij het instellen eind november:** blijft F2 met T-64, want het instellen heeft geen uitzondering voor het jaareinde. T-64 zegt "rond de jaarwisseling", niet "eind december" zoals TD r6 regel 49 citeert.
+
+### Voor de architect
+In TD r6 regel 49 staat dat T-64 "eind december" zegt. Dat is de oude r2-tekst. Moet worden: "komt meestal rond de jaarwisseling online".
+
+### Vragen voor Jurgen
+Geen.
+
+Relevante bestanden:
+- /home/user/takenlijstje/docs/wijzigingen/W-03/solution-architect-r6.md
+- /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r4.md
