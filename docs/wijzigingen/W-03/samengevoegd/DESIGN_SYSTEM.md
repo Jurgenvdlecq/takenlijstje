@@ -26,7 +26,7 @@ Mijn schrijfrechten dekken `docs/wijzigingen/` niet. Sla dit rapport daarom zelf
 - **Aanbeveling 11, prototype w03-07:** onder "Volgende ophaaldagen · stand ma 12 okt" staan nu de bewaarde datums (PMD vr 16 okt, Restafval di 20 okt, Papier wo 4 nov) in plaats van drie keer T-45b.
   - Er is ook een regel bijgekomen in §7.13.4 en §8: een leeg antwoord wist geen datums.
   - T-45b blijft in beeld in w03-11, bij een bak die echt geen datum heeft.
-- **Bevinding 4, lijst voor CP-W03:** de drie beeldpunten die de critic miste en die bij mij horen, staan nu als aandachtspunten in §7.13.6. Ze komen bovenop de lijst in U3 en vervangen die niet: het ⋯-menu zonder leeg menu, "1 dag te laat" bij binnenzetten, en de bewaarde datums bij H2. De architect moet ze nog wel in U3 zelf opnemen.
+- **Bevinding 4, lijst voor CP-W03:** de drie beeldpunten die de critic miste en die bij mij horen, staan nu als aandachtspunten in §7.13.6. Ze komen bovenop de lijst in U3 en vervangen die niet: het ⋯-menu zonder leeg menu, "9 uur te laat" (wo 09:00) en "1 dag te laat" (do 09:00) bij binnenzetten, en de bewaarde datums bij H2. De architect moet ze nog wel in U3 zelf opnemen.
 - **Toegevoegd, klein:** de bestaande §7.10-regel voor `circle-alert` krijgt het gebruik in de storingsbalk erbij. Zonder die aanvulling zou de iconentabel onvolledig zijn. Dit staat als aparte, duidelijk gemarkeerde regelwijziging (1b).
 
 ### Wat ik op het nieuwe screenshot zie (w03-07)
@@ -44,7 +44,7 @@ Mijn schrijfrechten dekken `docs/wijzigingen/` niet. Sla dit rapport daarom zelf
 
 # INVOEGTEKST VOOR DESIGN_SYSTEM.md
 
-Er zijn vijf blokken: (1a) en (1b) in §7.10, (2) een nieuwe §7.13, (3) in §8 en (4) in §12. Buiten deze plekken verandert er niets in DESIGN_SYSTEM.md.
+Er zijn zeven blokken: (1a), (1b) en (1c) in §7.10, (2) een nieuwe §7.13, (3) in §8, en (4a) en (4b) in §12. Buiten deze plekken verandert er niets in DESIGN_SYSTEM.md.
 
 ---
 
@@ -120,7 +120,7 @@ Voorbeeld: ophaaldag D = di 6 okt.
 | binnenzetten, op D−1 | Binnenkort | **morgen** (T-19) |
 | binnenzetten, D vóór 12:00 | Binnenkort, bovenaan | <span>vanaf</span> **12:00** (T-18) |
 | binnenzetten, D vanaf 12:00 | Vandaag | leeg (gewoon vandaag) |
-| binnenzetten, D+1 t/m D+6, open | Verlopen | het bestaande patroon: "**9 uur**" / "te laat" op D+1, daarna "**1 dag**" … "**6 dagen**" / "te laat" |
+| binnenzetten, D+1 t/m D+6, open | Verlopen | het bestaande patroon (gerekend vanaf het einde van D): op D+1 tot 23:30 in minuten of uren, bijv. wo 09:00 "**9 uur**" / "te laat"; vanaf D+1 23:30 "**1 dag**" / "te laat", oplopend tot hooguit "**6 dagen**" / "te laat" |
 | binnenzetten, begin van de dag van de volgende buitenzet-taak, en **uiterlijk D+7 00:00** (wat eerst komt), nog open | — | de rij verdwijnt: vanzelf overgeslagen, telt als vergeten (BR-54, AC-210); geen melding |
 
 - "vanaf" en "vóór" zijn altijd kleine letters in `text-3`.
@@ -242,7 +242,7 @@ Geldt alleen voor de oude UI op `main` zolang WP3b daar live staat; in de nieuwe
    - **Kenmerk:** voor afvaltaken `<Recycle className="size-3" aria-hidden />` + "Afvalkalender" in dezelfde meta-span als de categorie (`text-xs text-muted-foreground`, `inline-flex items-center gap-1`). Er is geen `Repeat`-icoon en geen categorie.
    - **Tijd:** het bestaande `Clock`-span toont "vanaf 22:00", "vóór 07:45" of "vanaf 12:00" in plaats van "21:00", met dezelfde klassen.
    - **Binnenkort:** binnenzetten op D vóór 12:00 toont "Vandaag" + "vanaf 12:00". Op D−1 toont het "Morgen" (bestaande `relativeDayLabel`).
-   - **Verlopen:** alleen de bestaande badge "… te laat", zonder klokje (binnenzetten: van "9 uur te laat" tot "6 dagen te laat"; daarna verdwijnt de kaart, §7.13.3).
+   - **Verlopen:** alleen de bestaande badge "… te laat", zonder klokje (binnenzetten: op D+1 tot 23:30 in minuten of uren, bijv. wo 09:00 "9 uur te laat"; vanaf D+1 23:30 "1 dag te laat", oplopend tot hooguit "6 dagen te laat"; daarna verdwijnt de kaart, §7.13.3).
    - **Badges:** geen andere deadlinebadges en geen nieuwe `Badge`. "Bezig" gebruikt de bestaande badge.
    - Altijd het Lucide-icoon, nooit het teken ♻.
 2. **Instellingen (`afval-section.tsx`):**
@@ -287,7 +287,7 @@ Geldt alleen voor de oude UI op `main` zolang WP3b daar live staat; in de nieuwe
 - bij H (ook H2) blijven de bewaarde ophaaldagen onder "Volgende ophaaldagen · stand …" staan;
 - "21:00" staat nergens in een rij;
 - het recycle-icoon is even groot en even grijs als ↻;
-- binnenzetten bij Verlopen toont "1 dag te laat" op D+1 en is uiterlijk op D+7 uit de lijst;
+- binnenzetten bij Verlopen toont op wo 09:00 (D+1) "9 uur te laat" en op do 09:00 (D+2) "1 dag te laat", en is uiterlijk op D+7 00:00 uit de lijst;
 - het ⋯-menu van een overgeslagen afvaltaak toont "Toch nog doen" en is nooit leeg.
 ```
 
@@ -308,17 +308,17 @@ Geldt alleen voor de oude UI op `main` zolang WP3b daar live staat; in de nieuwe
 **(4a) Tabel: elf nieuwe regels onderaan, na de regel `| 09 | 09-componenten.html | … |`**
 
 ```
-| W03-01 | `../w03/01-instellingen-aan.html` | `w03-01-instellingen-aan-390x844.png`, `…-donker-…` | Afvalkalender aan (G), met tip en T-52 | Geen hoofdactie. "Wijzigen" eerst onderstreept in 17 px → 15/600 zonder onderstreping |
-| W03-02 | `../w03/02-klopt-dit.html` | `w03-02-klopt-dit-390x844.png`, `…-donker-…` | Klopt dit? (C), T-45a met "Den Haag", T-46 | Adres als onderwerp zonder kaart; één hoofdactie |
-| W03-03 | `../w03/03-vandaag-avond.html` | `w03-03-vandaag-avond-390x844.png` | Vandaag, avond vóór de ophaaldag | "vanaf 22:00"; het kenmerk even rustig als ↻ |
-| W03-04 | `../w03/04-vandaag-ophaaldag.html` | `w03-04-vandaag-ophaaldag-390x844.png` | Vandaag, ophaaldag 07:05 | "vóór 07:45" met bezig; binnenzetten "vanaf 12:00" bovenaan Binnenkort |
-| W03-05 | `../w03/05-instellingen-storing.html` | `w03-05-instellingen-storing-390x844.png`, `…-donker-…` | Storing H1 (T-75/T-76), na "nog steeds fout" | Zonder alarm, ook in donker; resultaatregel T-78 in de balk |
-| W03-06 | `../w03/06-adres-leeg.html` | `w03-06-adres-leeg-390x844.png` | Formulier (A, T-40) met veldfout | 60/40 werkt op 390 breed; de foutregel loopt door binnen de kolom |
-| W03-07 | `../w03/07-storing-leeg-te-snel.html` | `w03-07-storing-leeg-te-snel-390x844.png` | H2 (oktober: T-77/T-77b) met T-79 ("te snel") en de bewaarde ophaaldagen onder "stand ma 12 okt" | T-79 in de balk, geen melding onderin; `text-wrap: balance` op de titel. Eerst stond er drie keer T-45b, wat suggereerde dat een leeg antwoord de datums wist → nu de bewaarde datums (BR-52, TD §18.8.4) |
-| W03-08 | `../w03/08-storing-adres-weg.html` | `w03-08-storing-adres-weg-390x844.png`, `…-donker-…` | H3 | Twee tekstknoppen in `sunken`; het adres brak eerst af → `nowrap` |
-| W03-09 | `../w03/09-nog-geen-ophaaldagen.html` | `w03-09-nog-geen-ophaaldagen-390x844.png` | F2 (2 januari, aanzetten: T-64) | Balk zonder titel, vijf regels zonder weesregel; hoofdactie onder het formulier |
-| W03-10 | `../w03/10-adres-onbekend.html` | `w03-10-adres-onbekend-390x844.png` | D | Regel in `overdue` boven de velden, zonder rode rand |
-| W03-11 | `../w03/11-instellingen-hapering.html` | `w03-11-instellingen-hapering-390x844.png` | G′ + Gedeeltelijk | Stille regel `text-3` zonder knop (`text-wrap: pretty`); T-45b in de infolijst |
+| W03-01 | `docs/prototype/w03/01-instellingen-aan.html` | `w03-01-instellingen-aan-390x844.png`, `…-donker-…` | Afvalkalender aan (G), met tip en T-52 | Geen hoofdactie. "Wijzigen" eerst onderstreept in 17 px → 15/600 zonder onderstreping |
+| W03-02 | `docs/prototype/w03/02-klopt-dit.html` | `w03-02-klopt-dit-390x844.png`, `…-donker-…` | Klopt dit? (C), T-45a met "Den Haag", T-46 | Adres als onderwerp zonder kaart; één hoofdactie |
+| W03-03 | `docs/prototype/w03/03-vandaag-avond.html` | `w03-03-vandaag-avond-390x844.png` | Vandaag, avond vóór de ophaaldag | "vanaf 22:00"; het kenmerk even rustig als ↻ |
+| W03-04 | `docs/prototype/w03/04-vandaag-ophaaldag.html` | `w03-04-vandaag-ophaaldag-390x844.png` | Vandaag, ophaaldag 07:05 | "vóór 07:45" met bezig; binnenzetten "vanaf 12:00" bovenaan Binnenkort |
+| W03-05 | `docs/prototype/w03/05-instellingen-storing.html` | `w03-05-instellingen-storing-390x844.png`, `…-donker-…` | Storing H1 (T-75/T-76), na "nog steeds fout" | Zonder alarm, ook in donker; resultaatregel T-78 in de balk |
+| W03-06 | `docs/prototype/w03/06-adres-leeg.html` | `w03-06-adres-leeg-390x844.png` | Formulier (A, T-40) met veldfout | 60/40 werkt op 390 breed; de foutregel loopt door binnen de kolom |
+| W03-07 | `docs/prototype/w03/07-storing-leeg-te-snel.html` | `w03-07-storing-leeg-te-snel-390x844.png` | H2 (oktober: T-77/T-77b) met T-79 ("te snel") en de bewaarde ophaaldagen onder "stand ma 12 okt" | T-79 in de balk, geen melding onderin; `text-wrap: balance` op de titel. Eerst stond er drie keer T-45b, wat suggereerde dat een leeg antwoord de datums wist → nu de bewaarde datums (BR-52, TD §18.8.4) |
+| W03-08 | `docs/prototype/w03/08-storing-adres-weg.html` | `w03-08-storing-adres-weg-390x844.png`, `…-donker-…` | H3 | Twee tekstknoppen in `sunken`; het adres brak eerst af → `nowrap` |
+| W03-09 | `docs/prototype/w03/09-nog-geen-ophaaldagen.html` | `w03-09-nog-geen-ophaaldagen-390x844.png` | F2 (2 januari, aanzetten: T-64) | Balk zonder titel, vijf regels zonder weesregel; hoofdactie onder het formulier |
+| W03-10 | `docs/prototype/w03/10-adres-onbekend.html` | `w03-10-adres-onbekend-390x844.png` | D | Regel in `overdue` boven de velden, zonder rode rand |
+| W03-11 | `docs/prototype/w03/11-instellingen-hapering.html` | `w03-11-instellingen-hapering-390x844.png` | G′ + Gedeeltelijk | Stille regel `text-3` zonder knop (`text-wrap: pretty`); T-45b in de infolijst |
 ```
 
 **(4b) Nieuwe alinea direct na de alinea "Wat het prototype **niet** laat zien …"**
@@ -326,8 +326,6 @@ Geldt alleen voor de oude UI op `main` zolang WP3b daar live staat; in de nieuwe
 ```
 **W-03 (afvalkalender).** De bestanden staan in `docs/prototype/w03/`, met een kopie van `ds.css` (gelijk aan `visueel/`), een uitgebreide `shell.js` (icoon `recycle`) en `w03.css` (alleen aanvullingen, geen nieuwe tokens). Alle W03-screenshots zijn 390×844, met Read bekeken; 01, 02, 05 en 08 ook donker. Niet als prototype gebouwd, omdat ze 1-op-1 bestaande patronen volgen: het taakdetail van een afvaltaak, de uitzet-sheet, C2, E, A′, offline, en de meldingen T-90/T-90b (bestaande melding onderin, §7.8, met of zonder actie). De beeldcontrole daarvan valt bij CP-W03 (TD §18.16 U3).
 ```
-
-(Het pad `../w03/` is relatief ten opzichte van `docs/prototype/visueel/`, de map die in de openingszin van §12 staat. Zet je liever het volledige pad neer, vervang `../w03/` dan door `docs/prototype/w03/`.)
 
 ---
 
@@ -349,7 +347,7 @@ Ik heb geen nieuw internetonderzoek gedaan. Dit is een samenvoeging binnen een b
 2. **CP-W03-lijst (critic-bevinding 4).** De architect moet in TD §18.16 U3 nog opnemen:
    - laden en laden mislukt;
    - een overgeslagen afvaltaak met "Toch nog doen";
-   - binnenzetten "1 dag te laat";
+   - binnenzetten "9 uur te laat" op wo 09:00 (D+1) en "1 dag te laat" op do 09:00 (D+2);
    - H2 → H1.
 
    Ik voeg daar voor de architect één punt aan toe: "bij H2 blijven de bewaarde datums staan". In §7.13.6 staan deze punten al als aandachtspunten, maar U3 blijft de enige lijst.

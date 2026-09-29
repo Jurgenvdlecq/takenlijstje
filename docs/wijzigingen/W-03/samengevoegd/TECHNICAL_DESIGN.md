@@ -45,8 +45,6 @@ Doelplek: nieuwe sectie `## 18. Afvalkalender (W-03)`, direct na §17 (einde doc
 - D-046 (rechten van pg_net op live);
 - de uitkomst van P0 en U0.2 (`docs/wijzigingen/W-03/probe/P0-uitkomst.md`, 2026-09-29).
 
-Deze sectie vervangt de concepten `docs/wijzigingen/W-03/solution-architect-r1.md` t/m `-r6.md`. De verschillen staan in §18.17.
-
 **Uitgangspunten:**
 - Afvaltaken zijn gewone rijen in `tasks`, met drie extra kolommen. Alleen het systeem maakt ze, verschuift ze, hernoemt ze en verwijdert ze.
 - Leden wijzigen alleen de status: afvinken, terugdraaien, bezig en overslaan. Notities gaan zoals altijd via `task_comments`.
@@ -294,7 +292,7 @@ supabase/ops/waste_rollback.sql   terugrolstap (§18.16)
     - de rest van het ontwerp blijft gelijk.
 - **Niet bewaard:** straat, plaats, coördinaten, ids uit A, ruwe antwoorden en wie het adres invoerde.
 - **"Storingsmelding verstuurd"** is afgeleid uit de dedupe-sleutel (§18.9.3). `alarm_since` zegt alleen dat de storing is vastgesteld, niet of de melding al verstuurd is.
-- **Versimpeltoets:** één `jsonb`-kolom in plaats van een cachetabel, want het gaat om ≤ ~150 datums per jaar die altijd in hun geheel worden gelezen. De keuze voor `last_failure_at` en `alarm_since` staat in §18.18.
+- **Versimpeltoets:** één `jsonb`-kolom in plaats van een cachetabel, want het gaat om ≤ ~150 datums per jaar die altijd in hun geheel worden gelezen. De keuze voor `last_failure_at` en `alarm_since` staat in §18.17.
 
 #### 18.3.2 `tasks`: drie kolommen erbij
 
@@ -515,8 +513,10 @@ planWasteTasks({ pickups, existing, now, timeZone }):
 4. In alle andere gevallen (bijvoorbeeld in juni: C(J) heeft alleen datums in het verleden en J+1 is leeg) → `failure`, `SUSPECT_EMPTY`.
 
 **Gevolgen van `SUSPECT_EMPTY`:**
-- de bewaarde datums (`pickups`), de taken en het adres blijven ongewijzigd;
-- de planning draait door op de bewaarde datums;
+- de bewaarde datums (`pickups`) en het adres blijven ongewijzigd;
+- bestaande afvaltaken worden **niet** verwijderd, verschoven of hernoemd;
+- de planning draait door op de bewaarde datums, en past daarbij **alleen nieuwe taken** toe (§18.8.6): komt een al bekende ophaaldag tijdens de storing binnen de 14 dagen, dan worden de taken ervoor gewoon klaargezet (BR-50);
+- vanzelf vervallen volgens BR-54 loopt door;
 - **de instellingen tonen onder "Volgende ophaaldagen · stand <dag>" gewoon de bewaarde datums van de laatste geslaagde bijwerking, ook in G′ en H2** (§18.6 `getWasteSettings`, §18.11). Een leeg antwoord wist nooit datums, niet in de database en niet in beeld.
 
 **Bij het instellen:** `no_upcoming` (F2) volgens §18.8.1. Er wordt niets bewaard, en de uitzondering uit stap 3 geldt hier niet.
@@ -589,7 +589,7 @@ Nieuwe stap in `runTick`, **tussen "overslaan" en "meldingen"**, met een eigen `
      - `failure` met `SUSPECT_EMPTY` (via `classifyEmpty`).
      
      `fetchMs` gaat als getal naar de tick-log;
-   - **plannen** met de effectieve datums: de nieuwe bij succes, anders de bewaarde;
+   - **plannen** met de effectieve datums: de nieuwe bij succes, anders de bewaarde. **Verwijderen, verschuiven en hernoemen (`remove`, `move`, `rename`) worden alleen toegepast na een geslaagde ophaling in dezelfde ronde.** Na een mislukte ophaling (`UNREACHABLE`, `FORMAT`, `ADDRESS_GONE` of `SUSPECT_EMPTY`), of als er deze ronde niet is opgehaald, gaat alleen `insert` naar `waste_sync`, met `p_remove`, `p_move` en `p_rename` leeg. Zo komen er tijdens een storing wel taken bij voor al bekende ophaaldagen die binnen de 14 dagen komen, en verandert er niets aan bestaande afvaltaken. Hetzelfde geldt voor `syncHousehold` vanuit "Opnieuw proberen";
    - **`waste_sync`** als er een ophaaluitkomst is of het plan niet leeg is;
    - **vervallen (BR-54):**
      - `out` open en vandaag > D → `skipped`;
@@ -634,6 +634,7 @@ Afvaltaken tellen mee in het dag- en avondoverzicht. "Taak gedaan" volgt de eige
 | "Opnieuw proberen" vaak achter elkaar, of vlak na de tick | claim ≥ 60 s | hooguit één opvraging per minuut; de tweede ziet T-79 (AC-236 c) |
 | Pagina open tijdens een lopende poging | gezondheid negeert `last_attempt_at` | geen kort flitsende H2 |
 | Claim zonder uitkomst na één leeg antwoord | alarm op `last_failure_at` | geen `failed`, geen melding (AC-205) |
+| Storing terwijl een bewaarde ophaaldag het venster in schuift | na een mislukte ophaling alleen `insert` (§18.8.6) | taken voor die dag worden klaargezet; geen bestaande afvaltaak verwijderd, verschoven of hernoemd; BR-54 loopt door (AC-204) |
 | Alarm en daarna een gelijktijdig succes | `markWasteAlarm … and last_success_at = :lastSuccessAt` | geen blijvend alarm na herstel |
 
 ### 18.11 Foutafhandeling: van uitkomst naar toestand en tekst-ID
@@ -785,7 +786,7 @@ Alle teksten komen uit UX §13.16. "Melding onderin" = toast; "regel" = tekst in
 | 201 | rename | rename raakt done niet | — | — |
 | 202 | — | remove/move/rename op done/skipped → 0 rijen | — | — |
 | 203 | (a)–(e) | — | tick op die tijden | — |
-| 204 | **Parser:** B `{}` (letterlijk U0.2) → `NOT_FOUND`; B `[]` → `NOT_FOUND`; B niet-leeg object → `FORMAT`. <br>**`hasNoUpcoming`:** alle drie leeg = ja; alleen papier met een datum over 25 dagen = nee; alleen komende GFT- of kerstboomdatums = ja. <br>**`classifyEmpty`:** (a) P0-fixture op 2026-11-26: C(2026) alleen datums in het verleden, C(2027) `[]` → `success` + notice, geen `SUSPECT_EMPTY`; (b) dezelfde vorm op 2026-06-15 → `SUSPECT_EMPTY`; (c) 2027-01-01 met C(2027) `[]` → `SUSPECT_EMPTY`; (d) 2026-11-26 met C(2027) met datums van rest/papier/PMD → `success` + planning; (e) 2026-11-26 met C(2027) met **alleen kerstbomen** → `success` + notice (aanbeveling 8); (f) 2026-12-28, na de laatste decemberdatum, C(2027) `[]` → `success` + notice; (g) 2026-10-05 met P0-fixture (volgende dag 27-10) → `success` | `waste_sync 'failure'`: `last_failure_at = p_now`; zelfde code → `error_since` blijft; andere code → reset; `'success'` → alle vier null; `'failure'` laat `pickups` ongewijzigd | 500/time-out/leeg/adres weg (B `{}`) → taken, adres en `pickups` gelijk; adres weg → `last_error_code = 'ADDRESS_GONE'`; andere tickstappen draaien; volgende poging ≤ 75 min; console zonder adres. **Regressies:** P0-fixture door twee ticks op 2026-10-05 → geen `SUSPECT_EMPTY`, geen melding; tick eind november (P0-vorm) → geen melding, T-73. **Fetch-spy:** op 2026-11-26 wordt `/kalender/2027` opgehaald; in oktober met komende datums **niet** | G′ met T-71, met de bewaarde datums onder Volgende ophaaldagen; adres weg: T-71b; gezinslid ziet niets |
+| 204 | **Parser:** B `{}` (letterlijk U0.2) → `NOT_FOUND`; B `[]` → `NOT_FOUND`; B niet-leeg object → `FORMAT`. <br>**`hasNoUpcoming`:** alle drie leeg = ja; alleen papier met een datum over 25 dagen = nee; alleen komende GFT- of kerstboomdatums = ja. <br>**`classifyEmpty`:** (a) P0-fixture op 2026-11-26: C(2026) alleen datums in het verleden, C(2027) `[]` → `success` + notice, geen `SUSPECT_EMPTY`; (b) dezelfde vorm op 2026-06-15 → `SUSPECT_EMPTY`; (c) 2027-01-01 met C(2027) `[]` → `SUSPECT_EMPTY`; (d) 2026-11-26 met C(2027) met datums van rest/papier/PMD → `success` + planning; (e) 2026-11-26 met C(2027) met **alleen kerstbomen** → `success` + notice; (f) 2026-12-28, na de laatste decemberdatum, C(2027) `[]` → `success` + notice; (g) 2026-10-05 met P0-fixture (volgende dag 27-10) → `success` | `waste_sync 'failure'`: `last_failure_at = p_now`; zelfde code → `error_since` blijft; andere code → reset; `'success'` → alle vier null; `'failure'` laat `pickups` ongewijzigd | 500/time-out/leeg/adres weg (B `{}`) → adres en `pickups` gelijk; **geen bestaande afvaltaak verwijderd, verschoven of hernoemd** (`removed = moved = renamed = 0`, ook als het nieuwe antwoord een andere dag zou geven); **bewaarde datum schuift tijdens de storing het venster in**: bewaarde ophaaldag D = vandaag + 15, volgende dag een tick met stub "onbereikbaar" en apart met stub "leeg" → `out` en `in` voor D worden klaargezet (`inserted = 2`); **BR-54 loopt door**: een open `out` van gisteren wordt tijdens de storing `skipped`; adres weg → `last_error_code = 'ADDRESS_GONE'`; andere tickstappen draaien; volgende poging ≤ 75 min; console zonder adres. **Regressies:** P0-fixture door twee ticks op 2026-10-05 → geen `SUSPECT_EMPTY`, geen melding; tick eind november (P0-vorm) → geen melding, T-73. **Fetch-spy:** op 2026-11-26 wordt `/kalender/2027` opgehaald; in oktober met komende datums **niet** | G′ met T-71, met de bewaarde datums onder Volgende ophaaldagen; adres weg: T-71b; gezinslid ziet niets |
 | 205 | `wasteSyncHealth`: (a) leeg 06:00, claim om 07:15 zonder uitkomst, now 07:20 → `retrying` (geen `failed`); (b) leeg 06:00 + leeg 07:15 → `failed/empty`, variant H2; (c) leeg 06:00 + 06:30 → `retrying`; (d) UNREACHABLE 06:00 + leeg 07:15 → `retrying`; (e) 48 h + 1 min, `last_error_code null` → `failed/stale`, variant H1; (f) `alarm_since` gezet, daarna UNREACHABLE (reset, < 48 h) → `failed/held`, H1; (g) succes → `ok`; (h) leeg 06:00/06:20/06:40 → `retrying`; `wasteFailureVariant` voor alle codes en `null`; teksten zonder adres | claim-update laat `last_failure_at` ongemoeid; checks weigeren `last_failure_at` zonder code en `last_failure_at < error_since`; `authenticated` kan geen van de kolommen schrijven; `markWasteAlarm` met een verouderd `last_success_at` → 0 rijen | over meerdere ticks elk 1 melding voor Jurgen en Ellen (M-03/M-04/M-05 per variant), 0 voor Lynn; tick met overgeslagen ophaalstap (budget) en 48 h stil → M-03; na succes + nieuwe storing opnieuw 1; na een alarm door leeg en daarna UNREACHABLE blijft `failed`; `getWasteSettings` bij H2 geeft de bewaarde eerstvolgende datums per bak | stub "leeg" twee keer met een klok ≥ 60 min → H2 (T-77 + T-77b), **bewaarde datums blijven onder "Volgende ophaaldagen · stand <dag>"**; stub "onbereikbaar" + 48 h → H1 (T-75/T-76); stub "adres weg" + 48 h → H3 (T-77c/T-77d, twee knoppen); gezinslid geen balk |
 | 206 | zomer- en wintertijd | — | — | — |
 | 207 | — | `in` afvinken + terugdraaien door lid; `out` ongewijzigd | idem, historie zonder persoon | ja |
@@ -881,7 +882,7 @@ Daarnaast:
 31. Vandaag ma 19:30: buitenzetten "vanaf 22:00" (T-16) onder Vandaag, binnenzetten "Morgen" (T-19) onder Binnenkort ◐
 32. Vandaag di 06:30: buitenzetten "vóór 07:45" (T-17)
 33. Vandaag di 09:10: buitenzetten onder Verlopen ("… te laat", zonder klokje), binnenzetten "vanaf 12:00" (T-18) onder Binnenkort
-34. Vandaag wo (D+1): binnenzetten van di onder Verlopen met "1 dag te laat" (UX §13.4); nog niet vervallen, want er is geen volgende buitenzet-taak begonnen en D+7 is niet bereikt
+34. Vandaag wo 09:00 (D+1): binnenzetten van di onder Verlopen met "9 uur te laat" (deadline wo 00:00; bestaande weergave, "1 dag te laat" verschijnt pas vanaf wo ± 23:30; UX §13.4); nog niet vervallen, want er is geen volgende buitenzet-taak begonnen en D+7 is niet bereikt
 35. Taakdetail buitenzetten, beheerder met Herinneringen aan (T-20, T-21, T-22, T-25, T-27, ⋯-menu) ◐
 36. Taakdetail buitenzetten, gezinslid zonder herinneringsrij
 37. Taakdetail binnenzetten (T-23, T-24), met en zonder herinneringsrij
@@ -904,78 +905,18 @@ Daarnaast:
 
 **Versimpeltoets terugrol:** "afvalkalender uitzetten" wist meer dan nodig en dwingt de beheerder het adres opnieuw in te voeren. Alleen de open taken verwijderen is de kleinste ingreep die betrouwbaar werkt.
 
-### 18.17 Afwijkingen, rechtgetrokken
-
-**r1 → r2:** sleutel per dag en richting; adres alleen voor beheerders; niets bewaren bij een storing; leeg-bewaking over drie bakken samen; niemand wijzigt afvaltaken; 18:00, storingstype en vervallen; `jsonb` in plaats van een cachetabel; elk uur opnieuw na een storing.
-
-**r2 → r3 (plan-critic W-03 ronde 1):**
-- P0 vóór migraties en UI, met een beslisregel;
-- verschuiving als move;
-- leeg-regel en `error_since`;
-- W-03-regels bij WP4–WP9;
-- CP-W03;
-- `waste_rollback.sql`;
-- 06:00 en 17:00;
-- december-`notice`;
-- bevestigen zonder claim;
-- platformlogs;
-- `description = null`;
-- de meldings-URL als route.
-
-**r3 → r4 (plan-critic W-03 ronde 2):**
-- P0 als draaiboek;
-- L4 volgens D-046;
-- tekst-ID's uit UX §13.16 (`saved.mode` → T-90/T-91/T-92, T-79 in de balk, T-65, F2);
-- AC-236/AC-237 opgenomen;
-- één CP-W03-lijst met H1/H2/H3;
-- `wasteFailureVariant(null)` = H1/M-03;
-- `last_failure_at` (alleen `waste_sync`);
-- `alarm_since` (balk tot herstel);
-- "Opnieuw proberen" alleen als regeltest;
-- bovengrens binnenzetten D+7.
-
-**r4 → r5 (uitkomst P0):**
-- P0 uitgevoerd;
-- leeg-regel "geen komende datum" (`hasNoUpcoming`) in plaats van een venster van 14 dagen;
-- geen terugval op B voor `no_streams`;
-- B `[]`/404 → `NOT_FOUND`;
-- `bagId` `^[0-9]{16}$` definitief;
-- parser met strippen;
-- `classifyStream`-tabel uit P0;
-- fixtures;
-- U0 en U5 als controles vóór de livegang.
-
-**r5 → r6:**
-- C(J+1) ook zodra C(J) geen komende datum meer heeft;
-- jaareinde-uitzondering in november/december via `classifyEmpty`;
-- `notice` ook in november;
-- `saved.enabled` gesplitst in T-90 (`inserted > 0`) en T-90b (`inserted = 0`);
-- U3 met T-90b en "eerstvolgende dag over 3 weken".
-
-**r6 → samengevoegde tekst (plan-critic W-03 ronde 3 en U0.2):**
-
-| # | Bron | Was | Wordt |
-| --- | --- | --- | --- |
-| 1 | U0.2 | B bij een onbekende adrescode onbekend; uitwijkregel via een extra A-verzoek | B geeft `{}` → expliciet `NOT_FOUND` (`ADDRESS_GONE` / `not_found`), geen FORMAT; uitwijkregel vervalt; U0.2 afgerond |
-| 2 | aanb. 7 | C(J−1) in januari voor `hadAnyDate`; `includePreviousYearIfEmpty` | geschrapt. Januari zonder komende datum → altijd `no_upcoming` (F2). Eén veld `hadAnyDateInJ` |
-| 3 | aanb. 8 | "C(J+1) is opgehaald en leeg" | "C(J+1) bevat geen datum van rest, papier of PMD" (`nextYearHasDate`), met test (e) |
-| 4 | aanb. 10 | gedrag van de live code bij een U5-blokkade niet vastgelegd | §18.16 U5: afvalkalender blijft uit, geen adres bewaard, geen terugrol, wijzigingsverzoek |
-| 5 | moet 3 | §10 "probe P0 vóór de freeze"; `classifyEmpty` niet in §18.2; rij 204 "(e) alle eerdere r5-gevallen"; T-64 als "eind december" geciteerd | P0 uitgevoerd; `classifyEmpty` in §18.2; rij 204 per functie uitgeschreven; T-64 "rond de jaarwisseling" (§18.8.1) |
-| 6 | moet 4 | U3 zonder laden, laden mislukt, "Toch nog doen", Verlopen op D+1, H2 → H1 | U3 punten 1, 2, 26, 34, 38 (41 punten in totaal) |
-| 7 | hoofdsessie (DS §7.13.4) | bewaarde datums bij H2 alleen impliciet | expliciet in §18.6, §18.8.4, §18.11, §18.15 (205) en U3 punt 21 |
-| 8 | moet 6 | adrescode als "komt in het totaalvoorstel" | `[OPEN: V-58]` met het gevolg van "nee" (§18.3.1) |
-
-### 18.18 Versimpeltoets
+### 18.17 Versimpeltoets
 
 | Onderdeel | Eenvoudigste variant | Gekozen? Waarom |
 | --- | --- | --- |
 | Ophaaldagen bewaren | niet bewaren | **Nee.** Bij een storing moeten de bekende dagen blijven gelden en zichtbaar blijven. Wel de kleinste vorm: één `jsonb`-kolom |
+| Plannen tijdens een storing | niets plannen, of het volledige plan op de bewaarde datums | **Alleen `insert`.** Niets plannen laat een al bekende ophaaldag stil ontbreken. Een volledig plan zou in theorie taken kunnen weghalen of verschuiven op basis van verouderde gegevens. "Alleen nieuwe taken na een mislukte ophaling" is één voorwaarde en goed te toetsen |
 | Ophalen | stap in de bestaande tick | **Ja** |
 | Tweede ophaalmoment | alleen 06:00 | **Nee.** Een wijziging overdag komt dan te laat voor 21:00 |
 | Lock | voorwaardelijke update op `last_attempt_at` | **Ja.** Lease en rate limit tegelijk |
 | Leeg-regel | venster van 14 dagen, of "geen komende dag" | **"Geen komende dag".** Eenvoudiger (drie lege lijsten) en zonder vals alarm bij 4-wekelijks papier (P0) |
 | Jaareinde | J+1 altijd ophalen | **Nee.** Kost het hele jaar extra GET's en lost het probleem niet op zolang J+1 leeg is. Gekozen: J+1 alleen als het nodig is, plus één maanduitzondering in een pure functie |
-| C(J−1) in januari | ophalen voor `hadAnyDate` (r4–r6) | **Nee (aanbeveling 7).** Januari zonder komende datum geeft altijd F2, dus C(J−1) veranderde de uitkomst nooit. Minder verzoeken, één optie en één stub-scenario minder |
+| C(J−1) in januari | ophalen om te zien of het adres vorig jaar datums had | **Nee.** Januari zonder komende datum geeft altijd F2, dus C(J−1) verandert de uitkomst nooit. Minder verzoeken, één optie en één stub-scenario minder |
 | Datums-vlaggen | `hadAnyDate` (meerdere jaren) + `hadAnyDateInJ` | **Eén veld `hadAnyDateInJ`.** Zonder C(J−1) is het verschil weg. Elke datum in J+1 is komend, dus als `hasNoUpcoming` waar is, heeft J+1 geen relevante datums |
 | "Adres weg" herkennen | extra A-verzoek na een leeg antwoord | **Nee.** B geeft voor een onbekende adrescode eenduidig `{}` (U0.2); één vormcontrole in de parser volstaat |
 | `no_streams` via B | B zonder rest/papier/PMD | **Nee.** B noemt ook soorten zonder dagen (P0) |
@@ -1022,7 +963,7 @@ Daarnaast:
 
 === aanvullingen in bestaande secties (per sectie letterlijk) ===
 
-Bron: r2 (C) als basis, met de wijzigingen uit r3 (C) en r4 (C). Wat ik in deze samenvoeging nieuw toevoeg, is gemarkeerd met *(nieuw)*.
+(Niet invoegen.) Bron: r2 (C) als basis, met de wijzigingen uit r3 (C) en r4 (C). Wat in deze samenvoeging nieuw is, is gemarkeerd met *(nieuw)*; die markering hoort niet in de bevroren tekst.
 
 **§2 Systeemgrenzen.** In het codeblok wordt de regel
 `Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel), Supabase Auth-mail.`
@@ -1095,7 +1036,7 @@ Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel),
 > - **WP3b (W-03):** zie §18.15 (stub `tests/e2e/support/waste-stub.mjs`, `supabase/tests/70_afval.sql`, `tests/integration/waste.test.ts`, `tests/e2e/waste.spec.ts`).
 
 **§14 Versimpeltoets.** Nieuwe rij onderaan:
-> `| Afvalkalender (W-03) | zie §18.18 | — |`
+> `| Afvalkalender (W-03) | zie §18.17 | — |`
 
 **§17 Besluiten van Jurgen en open punten.** Onder "**Open punten:**", na de bestaande bullet *(nieuw)*:
 > - **W-03 afvalkalender (§18):** besluiten V-41…V-57, letterlijk in `docs/PROGRESS.md`. Open vóór `/design-go`: **V-58**, het bewaren van de adrescode (§18.3.1, §18.12) [OPEN: V-58]. Open controles vóór de livegang van WP3b: **U0.1** (gemeenteregel 22:00/07:45, Jurgen) en **U5** (bereikbaarheid vanaf Vercel, §18.16).
@@ -1137,4 +1078,18 @@ Relevante bestanden:
 - /home/user/takenlijstje/docs/wijzigingen/W-03/samenvoegen.md
 - /home/user/takenlijstje/docs/wijzigingen/W-03/samengevoegd/DESIGN_SYSTEM.md (§7.13.4)
 - /home/user/takenlijstje/docs/reviews/plan-critic.md
+
+### Wijzigingen ten opzichte van r6 (niet invoegen)
+
+| # | Bron | Was | Wordt |
+| --- | --- | --- | --- |
+| 1 | U0.2 | B bij een onbekende adrescode onbekend; uitwijkregel via een extra A-verzoek | B geeft `{}` → expliciet `NOT_FOUND` (`ADDRESS_GONE` / `not_found`), geen FORMAT; uitwijkregel vervalt; U0.2 afgerond |
+| 2 | aanb. 7 | C(J−1) in januari voor `hadAnyDate`; `includePreviousYearIfEmpty` | geschrapt. Januari zonder komende datum → altijd `no_upcoming` (F2). Eén veld `hadAnyDateInJ` |
+| 3 | aanb. 8 | "C(J+1) is opgehaald en leeg" | "C(J+1) bevat geen datum van rest, papier of PMD" (`nextYearHasDate`), met test (e) |
+| 4 | aanb. 10 | gedrag van de live code bij een U5-blokkade niet vastgelegd | §18.16 U5: afvalkalender blijft uit, geen adres bewaard, geen terugrol, wijzigingsverzoek |
+| 5 | moet 3 | §10 "probe P0 vóór de freeze"; `classifyEmpty` niet in §18.2; rij 204 "(e) alle eerdere r5-gevallen"; T-64 als "eind december" geciteerd | P0 uitgevoerd; `classifyEmpty` in §18.2; rij 204 per functie uitgeschreven; T-64 "rond de jaarwisseling" (§18.8.1) |
+| 6 | moet 4 | U3 zonder laden, laden mislukt, "Toch nog doen", Verlopen op D+1, H2 → H1 | U3 punten 1, 2, 26, 34, 38 (41 punten in totaal) |
+| 7 | hoofdsessie (DS §7.13.4) | bewaarde datums bij H2 alleen impliciet | expliciet in §18.6, §18.8.4, §18.11, §18.15 (205) en U3 punt 21 |
+| 8 | moet 6 | adrescode als "komt in het totaalvoorstel" | `[OPEN: V-58]` met het gevolg van "nee" (§18.3.1) |
+| 9 | plan-critic r4 bev. 1, aanb. 3, 4 | taken tijdens een storing impliciet; "1 dag te laat" op D+1; versiegeschiedenis in §18 | alleen insert na een mislukte ophaling (§18.8.4/§18.8.6/§18.10/§18.15/§18.18); "9 uur te laat" wo 09:00; §18.17 weg, §18.18 → §18.17 |
 - /home/user/takenlijstje/docs/TECHNICAL_DESIGN.md

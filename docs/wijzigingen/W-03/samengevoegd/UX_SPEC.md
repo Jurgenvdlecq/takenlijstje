@@ -30,7 +30,7 @@ Documenten: niets geschreven, want de bestanden zijn bevroren. Hieronder staat d
    - Onder de 48 uur staat er alleen een stille regel.
    - Daarboven komen een waarschuwing en één melding aan de beheerders, met een tekst die bij de oorzaak past (V-50, BR-52).
    - Een eenmaal getoonde waarschuwing blijft staan tot het echt weer gelukt is.
-   - De laatst bekende ophaaldagen blijven zichtbaar; een storing wist niets.
+   - De laatst bekende ophaaldagen blijven zichtbaar, en voor die datums blijven taken verschijnen; een storing wist niets.
 7. **"♻" is een afkorting** in dit document. In de app staat altijd het Lucide-icoon `Recycle`, nooit het teken of een emoji (DS §7.10).
 
 ### 13.2 Informatiearchitectuur (aanvulling op §2)
@@ -82,7 +82,7 @@ Voorbeeld: ophaaldag **di 6 okt** voor restafval en papier. Dit geldt voor Vanda
 | ma 5 okt | Binnenkort | **morgen** | ja |
 | di vóór 12:00 | Binnenkort, **bovenaan** | **vanaf 12:00** | ja, niet geblokkeerd |
 | di vanaf 12:00 | Vandaag | leeg (gewoon vandaag) | ja |
-| vanaf wo, open, tot hij vervalt (volgende rij) | Verlopen, bestaand patroon ("9 uur" / "te laat", "1 dag" / "te laat", enzovoort) | — | ja, telt als te laat |
+| vanaf wo, open, tot hij vervalt (volgende rij) | Verlopen, bestaand patroon, gerekend vanaf het einde van di: wo 09:00 "9 uur" / "te laat"; vanaf wo ca. 23:30 "1 dag" / "te laat" (dus do 09:00 "1 dag" / "te laat"); daarna "2 dagen" / "te laat", enzovoort | — | ja, telt als te laat |
 | begin van de dag van de volgende buitenzet-taak, **en uiterlijk begin van D+7 (di 13 okt, 00:00)**, wat het eerst komt, nog open | verdwijnt: vanzelf overgeslagen, telt als vergeten (BR-54, AC-210) | — | — |
 
 - **Bovengrens voor binnenzetten (D+7):**
@@ -227,13 +227,15 @@ Anders ontbreekt de rij. Er komt dan niet "(uit)" of iets anders voor in de plaa
 - **Minder dan 48 uur, of één enkele hapering** (er is een foutcode, maar nog geen storing):
   - onder de kop van G staat alleen de stille regel T-71 (bij `ADDRESS_GONE`: T-71b);
   - er is geen balk, geen melding en geen knop;
-  - de app probeert het elk uur opnieuw.
+  - de app probeert het elk uur opnieuw;
+  - de taken lopen door op de bewaarde datums, net als bij een storing (hieronder).
 - **Minder dan 48 uur zonder foutcode** (de achtergrondtaak heeft het ophalen een tijd niet gedaan): gewoon G. De kop toont eerlijk het laatste tijdstip, bijvoorbeeld "bijgewerkt gisteren 06:15". Er komt geen stille regel.
-- **Storing** (`health = failed`: langer dan 48 uur zonder succes, om welke reden ook, of minstens twee vastgelegde antwoorden achter elkaar zonder enige komende ophaaldag):
+- **Storing** (`health = failed`, BR-52): langer dan 48 uur zonder succes, om welke reden ook; of minstens twee vastgelegde lege antwoorden achter elkaar (geen enkele komende ophaaldag), met minstens een uur tussen het eerste en het laatste en zonder andere uitkomst ertussen. Het jaareinde telt niet: in november en december, na de laatste ophaaldag van het jaar en zolang de kalender van volgend jaar nog niet online staat, is er geen storing, alleen de stille regel T-73 (zie "Kalender van volgend jaar ontbreekt" hieronder). Bij een storing:
   - de beheerders krijgen één melding, volgens de oorzaak: M-03 (onbereikbaar, onbruikbaar, of **geen foutcode**), M-04 (leeg) of M-05 (adres niet gevonden);
   - de rij in Instellingen toont "Niet bijgewerkt" (T-37);
   - de pagina toont toestand H: de balk bovenaan, met tekst per oorzaak (§13.8.2);
   - onder de balk blijven de Volgende ophaaldagen de laatst bekende stand tonen, ook bij een leeg antwoord (H2). Een storing wist geen datums (BR-52, §13.8.2);
+  - de afvaltaken lopen door op de bewaarde datums. Bestaande taken worden niet verwijderd, verschoven of hernoemd. Voor al bekende ophaaldagen die binnen de 14 dagen komen, worden wel taken klaargezet (BR-50), en het vanzelf vervallen (§13.4) loopt ook door. Alleen wijzigingen van de gemeente komen er pas bij als het weer lukt;
   - **geen foutcode** (de achtergrondtaak lag stil of sloeg het ophalen steeds over) geeft H1 met M-03. T-76 is zo geformuleerd dat hij dan ook klopt.
 - **Een storing blijft een storing tot het echt weer lukt:**
   - is de storing eenmaal vastgesteld, dan blijven balk H en "Niet bijgewerkt" staan tot het bijwerken weer gelukt is;
@@ -244,7 +246,7 @@ Anders ontbreekt de rij. Er komt dan niet "(uit)" of iets anders voor in de plaa
   - Stille regel T-73 onder de kop, geen balk en geen melding.
   - Is de kalender van het lopende jaar helemaal leeg (bijvoorbeeld op 1 januari), dan volgt H2.
   - Een lege periode van een paar weken, bijvoorbeeld papier eens per 4 weken, is geen storing.
-- **Weer gelukt:** de balk en "Niet bijgewerkt" verdwijnen vanzelf. Er komt geen melding "weer gelukt". Na een handmatige poging komt wel melding T-94. Een latere, nieuwe storing geeft opnieuw één melding.
+- **Weer gelukt:** de balk en "Niet bijgewerkt" verdwijnen vanzelf, en wijzigingen van de gemeente worden verwerkt. Er komt geen melding "weer gelukt". Na een handmatige poging komt wel melding T-94. Een latere, nieuwe storing geeft opnieuw één melding.
 - **Gezinsleden** zien niets van een storing (AC-205).
 
 #### 13.7.6 "Opnieuw proberen" (alleen in balk H, en als opnieuw zoeken in toestand F)
@@ -705,7 +707,7 @@ Restafval en papier buitenzetten
   - T-76 klopt ook als de app zelf niet heeft geprobeerd.
   - T-52 noemt de twee vaste momenten.
   - De balk verdwijnt pas als het echt weer gelukt is.
-  - Bij een storing blijven de laatst bekende ophaaldagen zichtbaar, met "stand <dag>". H2 suggereert niet dat de datums weg zijn.
+  - Bij een storing blijven de laatst bekende ophaaldagen zichtbaar, met "stand <dag>", en voor die datums komen gewoon taken. H2 suggereert niet dat de datums weg zijn.
   - In januari zegt de app niet ten onrechte "ondergrondse container".
   - Eind november en in december, na de laatste ophaaldag, geeft de app geen vals alarm, alleen T-73.
 - **Alle states?** Zie §13.8.1, §13.8.2, §13.7.6, §13.4 en §13.6:
@@ -836,7 +838,7 @@ Restafval en papier buitenzetten
 - T-77a/T-77b/M-04 oud: "De gemeente geeft voor de komende twee weken geen (enkele) ophaaldag(en).";
 - T-45a oud: "<straat> <nr><toev>, <plaats>". Nooit "'s-Gravenhage" tonen.
 
-### 13.17 Verwijzingen naar acceptatiecriteria (definitieve nummering: analist r3 met r4, r4b en r4c)
+### 13.17 Verwijzingen naar acceptatiecriteria (ACCEPTANCE_CRITERIA WP3b en WP4–WP9)
 **WP3b:**
 - AC-183: aanzetten. (b) Eerstvolgende ophaaldag verder dan 14 dagen weg geeft C, dan T-90b en 0 taken.
 - AC-184: vorm.
@@ -883,8 +885,6 @@ Restafval en papier buitenzetten
 - AC-233: storingsmelding in de lijst, WP8.
 - AC-234: Overzicht T-97/T-98, WP8.
 - AC-235: kernflow, WP9.
-
-In §13 staat geen enkele verwijzing naar de nummering van ronde 1.
 
 ---
 

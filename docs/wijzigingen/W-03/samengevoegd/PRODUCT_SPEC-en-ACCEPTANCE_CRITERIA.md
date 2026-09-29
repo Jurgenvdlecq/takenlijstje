@@ -176,7 +176,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
   - Afvaltaken hebben het kenmerk "Afvalkalender" (T-15) met het recycle-icoon. Ze tellen mee zoals andere taken: in Vandaag, Taken, Kalender, het dag- en avondoverzicht, het Overzicht en de historie. In het categoriefilter vallen ze onder Buiten.
 
 - **BR-50 — Vooruit plannen en nooit dubbel.**
-  - Er staan altijd afvaltaken klaar voor elke ophaaldag van **vandaag t/m vandaag + 14 dagen** (V-52), net als bij BR-02. Verder vooruit worden ze niet gemaakt.
+  - Er staan altijd afvaltaken klaar voor elke ophaaldag van **vandaag t/m vandaag + 14 dagen** (V-52), net als bij BR-02. Verder vooruit worden ze niet gemaakt. Dat geldt ook tijdens een hapering of storing van de bron: dan op basis van de laatst bekende ophaaldagen (BR-52).
   - Per huishouden, ophaaldag en richting (buiten of binnen) bestaat **nooit** meer dan één afvaltaak. Dat blijft zo:
     - bij herhaald bijwerken;
     - als twee achtergrondrondes elkaar overlappen;
@@ -205,12 +205,15 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 
 - **BR-52 — Nooit gokken, nooit stil falen.**
   - **De bron is onbereikbaar, geeft een onbruikbaar antwoord, of kent het adres niet meer:**
-    - de afvaltaken, het adres en de bekende ophaaldagen blijven ongewijzigd;
+    - het adres en de bekende ophaaldagen blijven ongewijzigd;
+    - bestaande afvaltaken worden **niet** verwijderd, verschoven of hernoemd;
+    - voor al bekende ophaaldagen die binnen de 14 dagen komen, worden **wel** taken klaargezet (BR-50). Dat is geen gokken: die datums komen van de gemeente;
+    - vanzelf vervallen volgens BR-54 loopt gewoon door, net als afvinken, overslaan en de herinneringen;
     - de app maakt **nooit** zelf ophaaldagen aan op basis van een vermoed patroon;
     - de andere taken van de achtergrondtaak lopen gewoon door;
     - later volgt een nieuwe poging.
     - Geeft de bron voor de bewaarde adrescode helemaal niets terug (geen enkele afvalsoort), dan geldt dat als "adres niet meer gevonden", en niet als een onbruikbaar antwoord (P0, U0.2).
-  - **Een leeg antwoord:** de bron geeft voor rest, papier en PMD **samen geen enkele komende ophaaldag** (vandaag of later), en het jaareinde hieronder geldt niet. Dat is een verdacht leeg antwoord, en niet "alle ophaaldagen vervallen". De afvaltaken, het adres en de bekende ophaaldagen blijven ongewijzigd, en er volgt later een nieuwe poging.
+  - **Een leeg antwoord:** de bron geeft voor rest, papier en PMD **samen geen enkele komende ophaaldag** (vandaag of later), en het jaareinde hieronder geldt niet. Dat is een verdacht leeg antwoord, en niet "alle ophaaldagen vervallen". Er gebeurt dan hetzelfde als bij een onbereikbare bron hierboven. Het adres en de bekende ophaaldagen blijven ongewijzigd, en bestaande afvaltaken worden niet verwijderd, verschoven of hernoemd. Voor al bekende ophaaldagen binnen de 14 dagen worden wel taken klaargezet, en BR-54 loopt door. Er volgt later een nieuwe poging.
     - Is de kalender van het lopende jaar voor rest, papier en PMD **helemaal leeg**, dan is dat altijd een leeg antwoord, in elke maand. Voorbeeld: op 1 januari, als de gemeente voor het nieuwe jaar nog geen datum voor rest, papier of PMD geeft.
     - Er geldt geen voorwaarde over wat er eerder bekend was. Een adres wordt alleen bewaard als er minstens één komende ophaaldag is (BR-48). "Geen enkele komende ophaaldag" is daarna dus altijd een verandering.
     - Datums van andere soorten (GFT, kerstbomen) tellen nergens in deze regel mee. Een kalender met alleen kerstboom- of GFT-datums geldt als leeg.
@@ -243,10 +246,10 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
     - gezinsleden krijgen geen melding en zien geen waarschuwing of stille regel (V-53).
   - **"Opnieuw proberen"** (alleen beheerders, in balk H):
     - tijdens de poging staat er "Bezig…" (T-77e);
-    - is het gelukt, dan verdwijnt de balk en verschijnt melding T-94;
+    - is het gelukt, dan verdwijnt de balk, worden de wijzigingen van de gemeente verwerkt (BR-51), en verschijnt melding T-94;
     - lukt het nog steeds niet, dan komt regel T-78 in de balk;
     - heeft iemand anders of de achtergrondtaak het binnen de minuut al geprobeerd, dan komt regel T-79 in de balk. Er komt dan geen melding onderin en geen extra opvraging bij de gemeente.
-  - **Lukt het weer**, dan verdwijnen de balk en de stille regel vanzelf, en wordt de planning aangevuld. Er komt geen melding "weer gelukt".
+  - **Lukt het weer**, dan verdwijnen de balk en de stille regel vanzelf, en worden de wijzigingen van de gemeente verwerkt (BR-51). Er komt geen melding "weer gelukt".
   - **Stille regel T-73.** De beheerder ziet T-73 als aan alle drie deze voorwaarden is voldaan:
     - de laatste bijwerking is gelukt;
     - de app kent nog geen enkele ophaaldag van rest, papier of PMD in het nieuwe jaar;
@@ -366,8 +369,8 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 | Instellen na de laatste ophaaldag van het jaar (eind november of december) of begin januari, nieuwe kalender nog niet online | Niets bewaard, "over een paar dagen opnieuw" (T-64, BR-48); in januari ook bij een adres zonder bakken. De jaareinde-uitzondering van het bijwerken geldt hier niet |
 | Bron onbereikbaar bij instellen | Niets bewaard (T-63/T-63b, BR-48) |
 | Hetzelfde adres opnieuw bevestigd | Niets verandert; notities en "bezig" blijven (T-92, BR-48) |
-| Bron onbereikbaar tijdens het bijwerken | Niets gewijzigd en niets verzonnen. Stille regel voor de beheerders; na 48 uur een balk en één melding (BR-52) |
-| Geen enkele komende ophaaldag voor rest, papier en PMD samen (buiten het jaareinde) | Niets gewijzigd. Blijft het zo bij een poging minstens een uur later: storing met balk H2 en één melding (BR-52) |
+| Bron onbereikbaar tijdens het bijwerken | Geen taak verwijderd, verschoven of hernoemd, en niets verzonnen. Taken voor al bekende ophaaldagen binnen 14 dagen verschijnen gewoon, en vergeten taken vervallen zoals altijd (BR-50, BR-54). Stille regel voor de beheerders; na 48 uur een balk en één melding (BR-52) |
+| Geen enkele komende ophaaldag voor rest, papier en PMD samen (buiten het jaareinde) | Geen taak verwijderd, verschoven of hernoemd; taken voor al bekende ophaaldagen binnen 14 dagen verschijnen gewoon (BR-50). Blijft het zo bij een poging minstens een uur later: storing met balk H2 en één melding (BR-52) |
 | November of december: laatste ophaaldag van het jaar geweest, kalender van volgend jaar nog niet online (of alleen met kerstboom- of GFT-datums) | Geen storing, alleen de stille regel T-73 voor de beheerders (BR-52). Is de kalender van het nieuwe jaar op 1 januari voor rest, papier en PMD nog steeds helemaal leeg: leeg antwoord, na een uur H2 met T-77a |
 | December, de komende 14 dagen lopen over de jaargrens en het nieuwe jaar is nog niet online | Stille regel T-73; taken tot 31 december staan gewoon klaar (BR-52) |
 | Papier wordt van eind november tot half januari niet opgehaald | Geen storing. Er zijn gewoon geen papiertaken (BR-52) |
@@ -774,7 +777,13 @@ GEGEVEN een bewaard adres met afvaltaken, en de gemeentebron geeft een van deze 
 - (c) het adres is onbekend geworden: de bron geeft voor de bewaarde adrescode geen enkele afvalsoort meer terug (een leeg object `{}`, P0 U0.2). Dat is geval (c), en niet een onbegrijpelijk antwoord (a)
 WANNEER het bijwerken draait
 DAN:
-- verandert er niets aan de afvaltaken, het adres en de bekende ophaaldagen;
+- veranderen het adres en de bekende ophaaldagen niet;
+- wordt geen enkele bestaande afvaltaak verwijderd, verschoven of hernoemd;
+- worden voor al bekende ophaaldagen die in die tijd binnen de 14 dagen komen, wel taken klaargezet (BR-50). Voorbeeld:
+  - de bewaarde ophaaldag is dinsdag 20 oktober 2026;
+  - de bron is van zondag 4 tot en met woensdag 7 oktober onbereikbaar;
+  - op dinsdag 6 oktober staan de taken voor 20 oktober toch gewoon klaar;
+- loopt het vanzelf vervallen gewoon door (BR-54, AC-210), net als afvinken, overslaan en de herinneringen;
 - verschijnen er geen verzonnen ophaaldagen;
 - draaien de andere stappen van de achtergrondtaak gewoon (vergelijk AC-076);
 - wordt het ongeveer een uur later opnieuw geprobeerd (binnen 75 minuten);
@@ -794,7 +803,7 @@ DAN:
   - Dat is geen storing, ook niet na meerdere rondes. De beheerder ziet alleen de stille regel T-73 (AC-220).
   - Hetzelfde geldt in december, ná de laatste ophaaldag van het jaar, zolang de kalender van volgend jaar nog geen datum voor rest, papier of PMD heeft.
 - **Eén bak zonder dagen.** Geeft de bron alleen voor papier geen dagen, terwijl rest of PMD wel komende dagen heeft, dan is dat geen leeg antwoord. De open papiertaken voor verdwenen dagen vervallen dan volgens AC-199.
-**Toets:** Unit + DB + Int (met regressietoetsen op de P0-fixture voor 5 oktober en 26 november, en op het U0.2-antwoord `{}`)
+**Toets:** Unit + DB + Int (met regressietoetsen op de P0-fixture voor 5 oktober en 26 november, op het U0.2-antwoord `{}`, en op het geval "bewaarde ophaaldag schuift tijdens een storing het venster in → taken worden klaargezet, geen taak verwijderd, verschoven of hernoemd")
 
 ### AC-205 — Storing, per oorzaak (WP3b; BR-52, BR-55; V-50)
 GEGEVEN Jurgen en Ellen (beheerders, Ellen met herinneringen uit) en Lynn (gezinslid), en een van deze situaties:
@@ -826,7 +835,7 @@ DAN:
 - een bron die alleen ophaaldagen ná de komende 14 dagen geeft, hoe vaak achter elkaar ook. Voorbeeld: papier eens per 4 weken, met de eerstvolgende dag over ruim drie weken (AC-204, P0);
 - het jaareinde: in november of december, na de laatste ophaaldag van het jaar, zolang de kalender van volgend jaar nog geen datum voor rest, papier of PMD heeft (AC-204, AC-220).
 
-Lukt het bijwerken weer, dan verdwijnt de balk zonder melding "weer gelukt", en worden de taken aangevuld. Een latere, nieuwe storing geeft opnieuw één melding.
+Ook tijdens de storing verschijnen de taken voor al bekende ophaaldagen binnen de 14 dagen gewoon (AC-204). Lukt het bijwerken weer, dan verdwijnt de balk zonder melding "weer gelukt", en worden de wijzigingen van de gemeente verwerkt (BR-51). Een latere, nieuwe storing geeft opnieuw één melding.
 **Toets:** Unit + Int + E2E
 
 ### AC-206 — Zomer- en wintertijd (WP3b; BR-59, BR-40)
@@ -1313,6 +1322,8 @@ CP4 bevat de afvaltoestanden.
 19. **De storingsbalk blijft tot het herstel.** Is een storing gemeld, dan blijft de balk staan tot het bijwerken weer lukt, ook als de oorzaak intussen verandert. De tekst volgt dan de nieuwe oorzaak.
 20. **Jaareinde.** Eind november en in december, na de laatste ophaaldag van het jaar, geeft de app geen storing zolang de gemeente het nieuwe jaar nog niet online heeft. Een kalender met alleen kerstbomen telt daarbij als "nog niet online". Beheerders zien dan alleen een stille regel. Is de nieuwe kalender op 1 januari nog steeds leeg, dan komt er na een uur wel een melding. Een nieuw adres instellen lukt in die periode pas als de nieuwe kalender online staat.
 
+21. **Tijdens een storing blijven de taken voor al bekende ophaaldagen gewoon verschijnen.** De app haalt dan geen taken weg en verschuift niets, en vergeten taken vervallen zoals altijd. Alleen wijzigingen van de gemeente komen er pas bij als het bijwerken weer lukt.
+
 ### Controlelijst
 - **Moet-punt 1 (D+7):** staat in BR-54, BR-59 (D+7 00:00), AC-210 (geval 6 okt → 13 okt), AC-234, de §6-rij "Binnenzetten vergeten" en interpretaties 2 en 18. Nergens staat nog D+2. Dat UX §13.4, §13.7.4, §13.15 en §13.17 nog D+2 noemen, moet de designer aanpassen.
 - **Moet-punt 2 (jaareinde):**
@@ -1324,6 +1335,7 @@ CP4 bevat de afvaltoestanden.
   - AC-183 heeft (a) en (b), met T-90b, 0 taken en de P0-datum 27 oktober. AC-237 verwijst naar "AC-183 (b)", en AC-237 heeft geen (c) meer;
   - nagelopen verwijzingen die kloppen: AC-204 (b) en (c), AC-205 (b) naar AC-204 (b), AC-220 naar AC-204 (b) en AC-205, AC-236 naar BR-52 storing (b), AC-186 naar AC-237, AC-209 naar AC-210, AC-226 naar AC-211, AC-230 en AC-231;
   - de delen 1b, 2a en 2d zijn volledig meegenomen, met r4 punten 13–17.
+- **Plan-critic ronde 4, punt 1 (planning tijdens een storing):** verwerkt in BR-50, BR-52 (onbereikbaar, leeg antwoord, "Opnieuw proberen", "Lukt het weer"), §6 (twee rijen), AC-204 (DAN, voorbeeld 20 oktober, toets), AC-205 en interpretatie 21. Voor de architect: TD §18.15 rij 204 (Int) wordt "geen taak verwijderd, verschoven of hernoemd", plus het geval "bewaarde datum schuift het venster in → taak klaargezet".
 - **Aanbeveling 8:** "leeg" en "komende ophaaldag" gaan overal alleen over rest, papier en PMD. Dat staat in BR-47, BR-48, BR-52 (jaareinde, T-73, helemaal leeg), de Afspraken, AC-196, AC-204, AC-220 (c) en AC-237.
 - **U0.2 (`{}`):** verwerkt in BR-52, §6, §9, de Afspraken, AC-204 (c) (met toets), de AC-205-tabel en de Dekking.
 - **Andere teksten:**
