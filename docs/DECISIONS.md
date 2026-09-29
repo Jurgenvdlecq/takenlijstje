@@ -191,3 +191,4 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
     - T-44 verschijnt al bij het verlaten van het veld;
     - de sectie is opgesplitst in vier bestanden.
   - **`maxDuration = 30`** op `/instellingen`: opzoeken en bevestigen (tot 12 s bij de gemeente) worden niet afgebroken, ook niet als Fluid compute uit staat.
+- **D-049: grens op adres opzoeken (V-59, "Ja").** Hooguit 20 opzoekingen (zoeken en bevestigen samen) per huishouden per uur, geteld in `waste_lookup_windows` via de RPC `waste_lookup_allowed` (alleen service role, na `requireAdmin()`). Boven de grens krijgt de beheerder de bestaande uitkomst "nu niet bereikbaar" (T-63/T-63b) en gaat er geen verzoek naar de gemeente. Bevestigen krijgt nooit T-79 (AC-222 blijft). Geen nieuwe tekst, dus geen wijziging aan de bevroren UX. Migratie `…_340`.

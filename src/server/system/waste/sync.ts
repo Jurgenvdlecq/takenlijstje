@@ -278,6 +278,17 @@ export async function syncHousehold(
   return { health: calendarHealth(after, now), attemptedAt: now.toISOString() };
 }
 
+/** Hooguit zoveel opzoekingen (zoeken + bevestigen) per huishouden per uur (V-59, D-049) */
+export const WASTE_LOOKUP_LIMIT_PER_HOUR = 20;
+
+/** Telt één opzoeking; `false` = grens bereikt, dan gaat er geen verzoek naar buiten */
+export async function allowWasteLookup(householdId: string, now: Date): Promise<boolean> {
+  const db = createAdminClient();
+  return Boolean(
+    check(await db.rpc("waste_lookup_allowed", { p_household_id: householdId, p_limit: WASTE_LOOKUP_LIMIT_PER_HOUR, p_now: now.toISOString() })),
+  );
+}
+
 /** Claim voor "Opnieuw proberen"; geen rij = `too_soon` (zonder verzoek naar buiten) */
 export async function claimForRetry(householdId: string, now: Date): Promise<boolean> {
   const db = createAdminClient();

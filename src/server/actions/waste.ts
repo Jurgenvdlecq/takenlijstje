@@ -16,6 +16,7 @@ import { check, runAction, UserError, type ActionResult } from "../errors";
 import { HOUSEHOLD_TIMEZONE } from "../services/scheduling";
 import { getWasteSettings, type WasteSettings } from "../services/waste-read";
 import {
+  allowWasteLookup,
   applyConfirmedSameAddress,
   claimForRetry,
   saveWasteCalendar,
@@ -64,7 +65,9 @@ function parseAddress(raw: unknown) {
   return normalized.address;
 }
 
-async function lookup(address: ReturnType<typeof parseAddress>, now: Date): Promise<WasteLookup> {
+async function lookup(householdId: string, address: ReturnType<typeof parseAddress>, now: Date): Promise<WasteLookup> {
+  // Boven de grens: de bestaande uitkomst "nu niet bereikbaar" (T-63), niets bewaard (V-59, D-049)
+  if (!(await allowWasteLookup(householdId, now))) return { kind: "unreachable" };
   return lookupWasteCalendar(address, now, HOUSEHOLD_TIMEZONE, { signal: AbortSignal.timeout(WASTE_FETCH_BUDGET_MS) });
 }
 
@@ -80,9 +83,9 @@ export async function getWasteSettingsAction(): Promise<ActionResult<WasteSettin
 /** Opzoeken. Schrijft niets. */
 export async function lookupWasteAddressAction(raw: WasteAddressInput): Promise<ActionResult<WasteLookupResult>> {
   return runAction("lookupWasteAddress", async () => {
-    await requireAdmin();
+    const ctx = await requireAdmin();
     const address = parseAddress(raw);
-    return forBrowser(await lookup(address, new Date()));
+    return forBrowser(await lookup(ctx.household.id, address, new Date()));
   });
 }
 
@@ -92,7 +95,7 @@ export async function confirmWasteAddressAction(raw: WasteAddressInput): Promise
     const ctx = await requireAdmin();
     const address = parseAddress(raw);
     const now = new Date();
-    const result = await lookup(address, now);
+    const result = await lookup(ctx.household.id, address, now);
     if (result.kind !== "found") return forBrowser(result) as WasteConfirmResult;
 
     const rows = check(

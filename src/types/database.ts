@@ -273,6 +273,7 @@ export type Database = {
       shopping_lists: Table<ShoppingListRow>;
       shopping_items: Table<ShoppingItemRow>;
       waste_calendars: Table<WasteCalendarRow>;
+      waste_lookup_windows: Table<{ household_id: string; window_start: string; lookups: number }>;
     };
     Views: Record<never, never>;
     Functions: {
@@ -345,6 +346,8 @@ export type Database = {
         Returns: { stale: boolean; removed: number; moved: number; renamed: number; inserted: number };
       };
       disable_waste_calendar: { Args: Record<string, never>; Returns: number };
+      /** Alleen service_role (V-59, D-049) */
+      waste_lookup_allowed: { Args: { p_household_id: string; p_limit: number; p_now: string }; Returns: boolean };
       waste_calendar_enabled: { Args: Record<string, never>; Returns: boolean };
     };
     Enums: {
