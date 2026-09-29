@@ -67,6 +67,20 @@ describe("cron-tick: authenticatie", () => {
     expect(await res.json()).toEqual({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, failed: [] });
   });
 
+  it("faalde een stap: status 500, body blijft alleen tellingen en codes (code-review WP3, punt 2)", async () => {
+    const report = { households: 1, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: { tasks: 0 }, failed: ["meldingen"] };
+    tick.runTick.mockResolvedValueOnce(report);
+    const res = await GET(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual(report);
+  });
+
+  it("faalden alle stappen: ook 500", async () => {
+    tick.runTick.mockResolvedValueOnce({ households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, failed: ["plannen", "overslaan", "meldingen", "opruimen"] } as never);
+    const res = await POST(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
+    expect(res.status).toBe(500);
+  });
+
   it("de functie krijgt 60 s (§6.5), ruim boven het pushbudget van 45 s", () => {
     expect(maxDuration).toBe(60);
   });

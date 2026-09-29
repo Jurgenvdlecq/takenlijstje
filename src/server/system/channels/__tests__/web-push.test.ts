@@ -40,7 +40,7 @@ function nepDb() {
 const sub: PushSubscriptionRow = {
   id: "sub-1",
   user_id: "u-1",
-  endpoint: "https://push.example.test/geheim-endpoint",
+  endpoint: "https://fcm.googleapis.com/fcm/send/geheim-endpoint",
   p256dh: "p",
   auth: "a",
 };
@@ -72,7 +72,7 @@ describe("sendPush", () => {
   });
 
   it("laat het abonnement staan bij een andere fout en logt alleen de statuscode, niet het endpoint", async () => {
-    webpush.sendNotification.mockRejectedValue(Object.assign(new Error("server kapot https://push.example.test/geheim-endpoint"), { statusCode: 500 }));
+    webpush.sendNotification.mockRejectedValue(Object.assign(new Error("server kapot https://fcm.googleapis.com/fcm/send/geheim-endpoint"), { statusCode: 500 }));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const { db, acties } = nepDb();
     expect(await sendPush(db, sub, message)).toBe(false);
@@ -83,12 +83,40 @@ describe("sendPush", () => {
     expect(regels).not.toContain("Afwas");
   });
 
+  it.each([
+    "https://evil.com/fcm/send/abc",
+    "https://fcm.googleapis.com.evil.com/x",
+    "https://user:pass@fcm.googleapis.com/x",
+    "https://fcm.googleapis.com:8443/x",
+  ])("niet-toegestaan endpoint %s: niet aangeschreven, abonnement verwijderd", async (endpoint) => {
+    const { db, acties } = nepDb();
+    expect(await sendPush(db, { ...sub, endpoint }, message)).toBe(false);
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+    expect(acties).toEqual([{ actie: "delete", id: "sub-1" }]);
+  });
+
   it("een time-out (geen statuscode) verwijdert niets en gooit niet", async () => {
     webpush.sendNotification.mockRejectedValue(new Error("ETIMEDOUT"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { db, acties } = nepDb();
     await expect(sendPush(db, sub, message)).resolves.toBe(false);
     expect(acties).toEqual([]);
+  });
+});
+
+describe("sendPush met een ongeldige VAPID-configuratie (code-review WP3, punt 9)", () => {
+  it("gooit niet: geeft false, verwijdert niets en logt zonder sleutel", async () => {
+    vi.resetModules();
+    webpush.setVapidDetails.mockImplementationOnce(() => {
+      throw new Error("Vapid private key should be 32 bytes long test-vapid-prive");
+    });
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const vers = await import("../web-push");
+    const { db, acties } = nepDb();
+    await expect(vers.sendPush(db, sub, message)).resolves.toBe(false);
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+    expect(acties).toEqual([]);
+    expect(log.mock.calls.map((c) => c.join(" ")).join("\n")).not.toContain("test-vapid-prive");
   });
 });
 

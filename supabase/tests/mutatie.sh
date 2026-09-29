@@ -18,6 +18,8 @@ A = '20260928000100_rechten_actief_lid.sql'
 E = '20260928000200_scope_expand.sql'
 C = '20260928000210_scope_contract.sql'
 P = '20260929000300_retentie.sql'
+U = '20260928000220_undo_hercontrole.sql'
+S = '20260927000100_schema.sql'
 # WP2b: …_210 vervangt guard_task_changes en undo_complete_task en herhaalt de
 # revoke in private. Mutaties op die onderdelen gelden daarom ook voor C.
 muts = {
@@ -126,7 +128,7 @@ create policy "push: bijwerken als actief lid\""""),
   select * into v_task from public.tasks where id = p_task_id;
   if not found or v_task.deleted_at is not null or not private.is_member(v_task.household_id) then""", """begin
   select * into v_task from public.tasks where id = p_task_id;
-  if not found or v_task.deleted_at is not null then""") for f in (E, C)],
+  if not found or v_task.deleted_at is not null then""") for f in (E, C, U)],
   'schrijversnaam_van_client': (E, "  new.author_name := coalesce(\n", "  new.author_name := coalesce(new.author_name,\n"),
   'guard_notitie_laat_alles_door': (E, "  raise exception 'Een notitie kan niet worden gewijzigd' using errcode = '42501';", "  return new;"),
   'naam_sync_weg': (E, """create trigger household_members_sync_comment_author
@@ -200,7 +202,8 @@ where c.author_name is null;"""),
   # equivalent, want de FK member_id → household_members is "on delete cascade" en
   # het wissen van de leden zonder account neemt die uitnodigingen al mee.)
   'wissen_raakt_bijgewerkt_op': (C, "alter table public.tasks disable trigger tasks_updated_at;\n", ""),
-  'undo_niet_vervangen': (C, "create or replace function public.undo_complete_task(p_task_id uuid)", "create or replace function private.undo_ongebruikt(p_task_id uuid)"),
+  # …_220 vervangt undo_complete_task opnieuw: de mutatie moet beide vervangingen weghalen
+  'undo_niet_vervangen': [(f, "create or replace function public.undo_complete_task(p_task_id uuid)", "create or replace function private.undo_ongebruikt(p_task_id uuid)") for f in (C, U)],
   'guard_taken_niet_vervangen': (C, "create or replace function private.guard_task_changes()", "create or replace function private.guard_ongebruikt()"),
   'huishouden_direct_verwijderen': (E, 'drop policy if exists "households: beheerder verwijdert" on public.households;', ""),
   # ---- WP3 (…_300 retentie; AC-077, AC-078, D-040) ----
@@ -225,6 +228,21 @@ where c.author_name is null;"""),
   'reeks_zonder_datumregel': (P, "(occurrence_date is null or occurrence_date < v_today - 30)", "true"),
   'reeks_datumgrens_inclusief': (P, "occurrence_date < v_today - 30)", "occurrence_date <= v_today - 30)"),
   'actieve_taken_ook_weg': (P, "where deleted_at < p_now - interval '90 days'", "where coalesce(deleted_at, created_at) < p_now - interval '90 days'"),
+  # ---- WP2b-herstel (…_220) en security-review WP2b ----
+  'undo_zonder_hercontrole': (U, """  select * into v_task from public.tasks where id = p_task_id for update;
+  if not found or v_task.deleted_at is not null then""", """  select * into v_task from public.tasks where id = p_task_id for update;
+  if not found then"""),
+  'purge_laat_lege_huishoudens_staan': (P, """  delete from public.households h
+  where not exists (select 1 from public.household_members m where m.household_id = h.id);""", "  perform 1;"),
+  'purge_wist_ook_huishoudens_zonder_beheerder': (P, """  delete from public.households h
+  where not exists (select 1 from public.household_members m where m.household_id = h.id);""", """  delete from public.households h
+  where not exists (select 1 from public.household_members m where m.household_id = h.id and m.role = 'admin' and m.is_active);"""),
+  'purge_telt_uitgezette_beheerder': (P, "m.household_id = h.id and m.role = 'admin' and m.is_active", "m.household_id = h.id and m.role = 'admin'"),
+  'created_by_zonder_set_null': (S, "created_by uuid references public.users (id) on delete set null,", "created_by uuid references public.users (id),"),
+  'nieuwe_persoonkolom': (P, "create index if not exists tasks_deleted_idx", "alter table public.shopping_items add column checked_by_member_id uuid;\ncreate index if not exists tasks_deleted_idx"),
+  'nieuwe_persoon_fk': (P, "create index if not exists tasks_deleted_idx", "alter table public.shopping_lists add column eigenaar uuid references public.users (id);\ncreate index if not exists tasks_deleted_idx"),
+  'anon_extra_functie': (P, "grant execute on function public.run_purge() to service_role;", "grant execute on function public.run_purge() to service_role;\ngrant execute on function public.my_membership() to anon;"),
+  'authenticated_extra_functie': (P, "grant execute on function public.run_purge() to service_role;", "grant execute on function public.run_purge() to service_role;\ngrant execute on function private.purge_expired_data(timestamptz) to authenticated;\ncreate function public.extra_rpc() returns int language sql as 'select 1';"),
   'tick_index_weg': (P, """create index if not exists tasks_open_sched_idx
   on public.tasks (scheduled_date)
   where status in ('todo', 'in_progress') and deleted_at is null;
