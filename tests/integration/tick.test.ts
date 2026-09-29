@@ -516,18 +516,20 @@ describe("Pushbudget per abonnement (code-review WP3, punt 8)", () => {
 });
 
 describe("Push-allowlist in de tick", () => {
-  it("een abonnement bij een onbekende host wordt niet aangeschreven en verwijderd; een toegestaan wel", async () => {
+  it("een abonnement bij een onbekende host komt niet in de database (CHECK, …_310); een toegestaan wordt wel aangeschreven", async () => {
     const gezin = await maakGezin("Allowlist", [{ naam: "Jurgen", rol: "admin", prefs: pushAan }]);
     const { userId } = gezin.leden.Jurgen;
     const ok = await abonneer(userId, "ok");
-    const kwaad = `https://fcm.googleapis.com.evil.example/${RUN}/${userId}`;
-    must(await testDb().from("push_subscriptions").insert({ user_id: userId, endpoint: kwaad, p256dh: "p", auth: "a" }).select("id"), "kwaad abonnement");
+    for (const kwaad of [`https://fcm.googleapis.com.evil.example/${RUN}`, `https://evil.com;.fcm.googleapis.com/${RUN}`]) {
+      const { error } = await testDb().from("push_subscriptions").insert({ user_id: userId, endpoint: kwaad, p256dh: "p", auth: "a" }).select("id");
+      expect((error as { code?: string } | null)?.code, kwaad).toBe("23514");
+    }
     await losseTaak(gezin.householdId, "Allowlist ramen", { due_at: minuten(NOW, 180), reminder_minutes_before: [200] });
 
     await runTick(NOW);
 
-    expect(sendsTo(kwaad)).toBe(0);
     expect(sendsTo(ok)).toBe(1);
+    expect(push.sends.some((s) => s.endpoint.includes("evil"))).toBe(false);
     expect(await abonnementen(userId)).toEqual([ok]);
   });
 });

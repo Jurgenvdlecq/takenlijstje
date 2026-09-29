@@ -19,6 +19,7 @@ E = '20260928000200_scope_expand.sql'
 C = '20260928000210_scope_contract.sql'
 P = '20260929000300_retentie.sql'
 U = '20260928000220_undo_hercontrole.sql'
+K = '20260929000310_push_endpoint_check.sql'
 S = '20260927000100_schema.sql'
 # WP2b: …_210 vervangt guard_task_changes en undo_complete_task en herhaalt de
 # revoke in private. Mutaties op die onderdelen gelden daarom ook voor C.
@@ -243,6 +244,11 @@ where c.author_name is null;"""),
   'nieuwe_persoon_fk': (P, "create index if not exists tasks_deleted_idx", "alter table public.shopping_lists add column eigenaar uuid references public.users (id);\ncreate index if not exists tasks_deleted_idx"),
   'anon_extra_functie': (P, "grant execute on function public.run_purge() to service_role;", "grant execute on function public.run_purge() to service_role;\ngrant execute on function public.my_membership() to anon;"),
   'authenticated_extra_functie': (P, "grant execute on function public.run_purge() to service_role;", "grant execute on function public.run_purge() to service_role;\ngrant execute on function private.purge_expired_data(timestamptz) to authenticated;\ncreate function public.extra_rpc() returns int language sql as 'select 1';"),
+  # ---- WP3-herstel (…_310; security-review WP3 punt 1 en 2) ----
+  'push_check_weg': (K, "alter table public.push_subscriptions\n  add constraint push_subscriptions_endpoint_allowlist check (", "alter table public.push_subscriptions\n  add constraint push_subscriptions_endpoint_allowlist check (true or "),
+  'push_check_host_ruim': (K, r"    and endpoint ~ '^https://([a-z0-9-]+\.)*", r"    and endpoint ~ '^https://([^/]+\.)*"),
+  'push_check_elke_poort': (K, r"notify\.windows\.com)(:443)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );", r"notify\.windows\.com)(:[0-9]+)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );"),
+  'push_check_zonder_lengte': (K, "    char_length(endpoint) <= 1000\n    and endpoint ~", "    true\n    and endpoint ~"),
   'tick_index_weg': (P, """create index if not exists tasks_open_sched_idx
   on public.tasks (scheduled_date)
   where status in ('todo', 'in_progress') and deleted_at is null;

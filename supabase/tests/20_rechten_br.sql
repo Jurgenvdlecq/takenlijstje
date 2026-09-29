@@ -804,22 +804,22 @@ select pg_temp.assert((select (t).id is not null and (t).recurrence_id is null f
 -- =============================================================================
 select pg_temp.als(:'u_kai');
 insert into public.push_subscriptions (user_id, endpoint, p256dh, auth)
-values (:'u_kai', 'https://push.example/kai-1', 'k', 'a');
+values (:'u_kai', 'https://fcm.googleapis.com/fcm/send/kai-1', 'k', 'a');
 select pg_temp.als(:'u_jurgen');
 update public.household_members set is_active = false where id = :'kai';
 select pg_temp.als(:'u_kai');
 select pg_temp.expect_sqlstate(format(
-  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://push.example/kai-2', 'k', 'a')$$, :'u_kai'), '42501',
+  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://fcm.googleapis.com/fcm/send/kai-2', 'k', 'a')$$, :'u_kai'), '42501',
   'D-015: uitgezet lid meldt nieuw apparaat aan');
-select pg_temp.expect_sqlstate($$update public.push_subscriptions set p256dh = 'x' where endpoint = 'https://push.example/kai-1'$$, '42501',
+select pg_temp.expect_sqlstate($$update public.push_subscriptions set p256dh = 'x' where endpoint = 'https://fcm.googleapis.com/fcm/send/kai-1'$$, '42501',
   'D-015: uitgezet lid werkt abonnement bij');
-select pg_temp.assert(pg_temp.rows($$delete from public.push_subscriptions where endpoint = 'https://push.example/kai-1'$$) = 1,
+select pg_temp.assert(pg_temp.rows($$delete from public.push_subscriptions where endpoint = 'https://fcm.googleapis.com/fcm/send/kai-1'$$) = 1,
   'D-015: uitgezet lid meldt eigen apparaat af');
 select pg_temp.als(:'u_jurgen');
 update public.household_members set is_active = true where id = :'kai';
 select pg_temp.als(:'u_bas');
 select pg_temp.expect_error(format(
-  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://push.example/nep', 'k', 'a')$$, :'u_lynn'),
+  $$insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values (%L, 'https://fcm.googleapis.com/fcm/send/nep', 'k', 'a')$$, :'u_lynn'),
   'D-015: abonnement op naam van een ander');
 
 -- =============================================================================
