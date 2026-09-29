@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Moon,
+  Recycle,
   Settings2,
   Sun,
   type LucideIcon,
@@ -21,6 +22,7 @@ import { EmptyState, SectionTitle } from "@/components/ui/misc";
 import { useHousehold } from "@/features/household/store";
 import { useTaskUi } from "@/features/tasks/task-ui-context";
 import { useNow } from "@/hooks/use-now";
+import { WASTE_TEXT } from "@/domain/waste/messages";
 import { cn } from "@/lib/utils";
 import type { NotificationRow, NotificationType } from "@/types/database";
 import { groupByDay, relativeTime } from "./format";
@@ -34,6 +36,8 @@ const TYPE_STYLE: Record<NotificationType, TypeStyle> = {
   task_completed: { icon: CheckCircle2, className: "bg-done-bg text-done", label: "Gedaan" },
   daily_summary: { icon: Sun, className: "bg-today-bg text-today", label: "Dagoverzicht" },
   evening_summary: { icon: Moon, className: "bg-progress-bg text-progress", label: "Avondoverzicht" },
+  // T-39c; geen rood (DS §7.13.4)
+  waste_sync_failed: { icon: Recycle, className: "bg-muted text-muted-foreground", label: WASTE_TEXT.notificationLabel },
 };
 
 /** Oude meldingen van vervallen soorten (tot ze in WP2b verdwijnen) krijgen een neutrale stijl */

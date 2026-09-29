@@ -3,7 +3,9 @@
  * De cron (iedere ~15 minuten) roept dit aan; dubbele meldingen worden
  * voorkomen via de dedupe-sleutel.
  */
-import { zonedDate, zonedInstant, zonedTime, type ISODate } from "./dates";
+import { addDays, zonedDate, zonedInstant, zonedTime, type ISODate } from "./dates";
+import { wasteReminderText, type WasteDirection } from "./waste/messages";
+import { WASTE_IN_REMINDER, WASTE_OUT_REMINDER } from "./waste/plan";
 import type { MemberRow, NotificationType, PreferencesRow } from "@/types/database";
 
 export interface ReminderTask {
@@ -146,8 +148,11 @@ export function summaryMessages(
   return messages;
 }
 
-/** Welke voorkeur bepaalt of iemand een soort melding wil ontvangen */
-export const PREFERENCE_FOR_TYPE: Record<NotificationType, keyof PreferencesRow> = {
+/**
+ * Welke voorkeur bepaalt of iemand een soort melding wil ontvangen. De
+ * storingsmelding van de afvalkalender heeft geen voorkeur (§18.9.3).
+ */
+export const PREFERENCE_FOR_TYPE: Record<Exclude<NotificationType, "waste_sync_failed">, keyof PreferencesRow> = {
   reminder: "notify_reminders",
   deadline_soon: "notify_deadline_soon",
   overdue: "notify_overdue",
@@ -164,12 +169,42 @@ export const PREFERENCE_FOR_TYPE: Record<NotificationType, keyof PreferencesRow>
  */
 export function recipientsFor(
   type: NotificationType,
-  members: Pick<MemberRow, "id" | "user_id" | "is_active">[],
+  members: (Pick<MemberRow, "id" | "user_id" | "is_active"> & { role?: MemberRow["role"] })[],
   prefs: (Partial<PreferencesRow> & { member_id: string })[],
 ): string[] {
+  const withAccount = members.filter((m) => m.is_active && m.user_id);
+  // Storing van de afvalkalender: alle actieve beheerders, los van de voorkeuren (§18.9.3)
+  if (type === "waste_sync_failed") return withAccount.filter((m) => m.role === "admin").map((m) => m.id);
   const key = PREFERENCE_FOR_TYPE[type];
-  return members
-    .filter((m) => m.is_active && m.user_id)
-    .filter((m) => Boolean(prefs.find((p) => p.member_id === m.id)?.[key]))
-    .map((m) => m.id);
+  return withAccount.filter((m) => Boolean(prefs.find((p) => p.member_id === m.id)?.[key])).map((m) => m.id);
+}
+
+// ---------------------------------------------------------------------------
+// Afvaltaken (BR-55, §18.9.1): vervangt taskMessages volledig, dus nooit
+// "deadline nadert" of "verlopen" (AC-211)
+// ---------------------------------------------------------------------------
+
+export interface WasteReminderTask {
+  id: string;
+  title: string;
+  status: "todo" | "in_progress" | "done" | "skipped";
+  pickupDate: ISODate;
+  direction: WasteDirection;
+  streamCount: number;
+}
+
+/** Anker: buiten om (D−1) 21:00, binnen om D 18:00 */
+export function wasteReminderAnchor(pickupDate: ISODate, direction: WasteDirection, timeZone: string): string {
+  return direction === "out"
+    ? zonedInstant(addDays(pickupDate, -1), WASTE_OUT_REMINDER, timeZone)
+    : zonedInstant(pickupDate, WASTE_IN_REMINDER, timeZone);
+}
+
+export function wasteReminder(task: WasteReminderTask, now: Date, timeZone: string): DueMessage | null {
+  if (task.status !== "todo" && task.status !== "in_progress") return null;
+  const anchor = wasteReminderAnchor(task.pickupDate, task.direction, timeZone);
+  const since = (now.getTime() - new Date(anchor).getTime()) / 60_000;
+  if (since < 0 || since >= GRACE_MINUTES) return null;
+  const text = wasteReminderText(task.title, task.direction, task.streamCount);
+  return { type: "reminder", title: text.title, body: text.body, taskId: task.id, dedupeKey: `waste:${task.id}:${anchor}` };
 }
