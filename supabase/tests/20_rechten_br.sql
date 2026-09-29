@@ -144,6 +144,7 @@ grant execute on all functions in schema pg_temp to authenticated;
 \set u_solo   '20000000-0000-0000-0000-0000000000a7'
 \set u_zonder '20000000-0000-0000-0000-0000000000a8'
 \set u_weg    '20000000-0000-0000-0000-0000000000a9'
+\set u_kind   '20000000-0000-0000-0000-0000000000b0'
 
 insert into auth.users (id, email, raw_user_meta_data) values
   (:'u_jurgen', 'jurgen.br@example.com', '{"display_name":"Jurgen"}'),
@@ -154,7 +155,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   (:'u_noor',   'noor.br@example.com',   '{"display_name":"Noor"}'),
   (:'u_solo',   'solo.br@example.com',   '{"display_name":"Solo"}'),
   (:'u_zonder', 'zonder.br@example.com', '{"display_name":"Zonder"}'),
-  (:'u_weg',    'weg.br@example.com',    '{"display_name":"Weg"}');
+  (:'u_weg',    'weg.br@example.com',    '{"display_name":"Weg"}'),
+  (:'u_kind',   'kind.br@example.com',   '{"display_name":"Kind"}');
 
 set role authenticated;
 
@@ -384,15 +386,17 @@ select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'in_pro
 select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'skipped' where id = %L$$, :'t_ellen'), '42501',
   'D-017: lid zet gedane taak direct op overgeslagen');
 select pg_temp.als(:'u_jurgen');
-select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'todo', completed_at = null, completed_by_member_id = null where id = %L$$, :'t_ellen'), '42501',
+select pg_temp.expect_sqlstate(format($$update public.tasks set status = 'todo', completed_at = null where id = %L$$, :'t_ellen'), '42501',
   'D-017: ook een beheerder zet een gedane taak niet direct terug');
 select pg_temp.als(:'u_lynn');
 select pg_temp.expect_sqlstate(format(
   $$insert into public.tasks (household_id, title, scheduled_date, created_by_member_id, completed_at) values (%L, 'Al gedaan', current_date, %L, now())$$,
   :'fam', :'lynn'), '42501', 'D-017: taak aanmaken met completed_at');
+-- WP2b: completed_by_member_id bestaat niet meer (40_wp2b.sql toetst dat); de
+-- nog wel bestaande route "nieuwe taak die al gedaan is" blijft verboden
 select pg_temp.expect_sqlstate(format(
-  $$insert into public.tasks (household_id, title, scheduled_date, created_by_member_id, completed_by_member_id) values (%L, 'Al gedaan', current_date, %L, %L)$$,
-  :'fam', :'lynn', :'lynn'), '42501', 'D-017: taak aanmaken met completed_by_member_id');
+  $$insert into public.tasks (household_id, title, scheduled_date, created_by_member_id, status) values (%L, 'Al gedaan', current_date, %L, 'done')$$,
+  :'fam', :'lynn'), '42501', 'D-017: taak aanmaken met status done');
 select public.complete_task(:'t_ellen', '20000000-1111-0000-0000-0000000000e2');
 select pg_temp.assert((select count(*) = 1 from public.task_completions where task_id = :'t_ellen'),
   'D-017: na de pogingen levert opnieuw afvinken geen tweede registratie op');
@@ -789,33 +793,11 @@ select pg_temp.assert((select (t).id is not null and (t).recurrence_id is null f
   'Reekskoppeling (d): FK zet recurrence_id op null');
 
 -- =============================================================================
--- Security punt 6 (D-021): een ruilverzoek kan alleen worden ingetrokken
+-- Security punt 6 (D-021) — ruilverzoeken: VERVALLEN in WP2b
+-- De tabel task_swap_requests en accept_swap_request bestaan niet meer (…_210,
+-- V-21). Dat ze weg zijn, toetst 40_wp2b.sql; de oude guard-tests op een
+-- ruilverzoek zijn daarom verwijderd.
 -- =============================================================================
-select pg_temp.als(:'u_lynn');
-insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
-values (:'fam', 'Auto wassen', current_date, :'lynn') returning id as t_swap \gset
-insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
-values (:'fam', 'Auto stofzuigen', current_date, :'lynn') returning id as t_swap2 \gset
-insert into public.task_swap_requests (household_id, task_id, requested_by_member_id)
-values (:'fam', :'t_swap', :'lynn') returning id as swap \gset
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set task_id = %L where id = %L$$, :'t_swap2', :'swap'), '42501',
-  'D-021: lid wijzigt task_id van eigen ruilverzoek');
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set requested_by_member_id = %L where id = %L$$, :'ellen', :'swap'), '42501',
-  'D-021: lid zet eigen ruilverzoek op naam van een ander');
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set status = 'accepted', accepted_by_member_id = %L where id = %L$$, :'lynn', :'swap'), '42501',
-  'D-021: lid zet ruilverzoek direct op geaccepteerd');
-select pg_temp.als(:'u_jurgen');
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set requested_by_member_id = %L where id = %L$$, :'jurgen', :'swap'), '42501',
-  'D-021: ook een beheerder herschrijft de aanvrager niet');
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set household_id = %L where id = %L$$, :'buren', :'swap'), '42501',
-  'D-021: ruilverzoek naar ander huishouden');
-select pg_temp.expect_sqlstate(format($$update public.task_swap_requests set accepted_by_member_id = %L where id = %L$$, :'jurgen', :'swap'), '42501',
-  'D-021: accepted_by zetten zonder accepteren');
-select pg_temp.als(:'u_lynn');
-select pg_temp.assert((select task_id = :'t_swap' and requested_by_member_id = :'lynn' and status = 'open'
-                       from public.task_swap_requests where id = :'swap'), 'D-021: ruilverzoek ongewijzigd');
-select pg_temp.assert(pg_temp.rows(format($$update public.task_swap_requests set status = 'cancelled', resolved_at = now() where id = %L$$, :'swap')) = 1,
-  'D-021: eigen ruilverzoek intrekken mag');
 
 -- =============================================================================
 -- D-015: een uitgezet lid kan zijn pushabonnement alleen nog afmelden
@@ -847,7 +829,11 @@ select pg_temp.expect_error(format(
 select pg_temp.als(:'u_weg');
 select public.create_household('Weg', 'Weg') as weg_h \gset
 select id as weg_admin from public.household_members where household_id = :'weg_h' \gset
-insert into public.household_members (household_id, display_name) values (:'weg_h', 'Kind');
+-- WP2b: een tweede lid heeft altijd een account en komt er via een uitnodiging in
+insert into public.household_invitations (household_id, email, invited_by_member_id)
+values (:'weg_h', 'kind.br@example.com', :'weg_admin') returning token as tok_kind \gset
+select pg_temp.als(:'u_kind'); select public.accept_invitation(:'tok_kind', 'Kind');
+select pg_temp.als(:'u_weg');
 insert into public.tasks (household_id, title, scheduled_date, created_by_member_id) values (:'weg_h', 'Opruimen', current_date, :'weg_admin');
 -- WP2a: verwijderen gaat via de RPC delete_household (TD §3.1, §4.6)
 select public.delete_household('Weg') as weg_verwijderd \gset
@@ -856,6 +842,7 @@ select pg_temp.assert(:'weg_verwijderd'::boolean,
 reset role;
 select pg_temp.assert((select count(*) = 0 from public.household_members where household_id = :'weg_h'), 'FK-cascade: leden mee weg');
 select pg_temp.assert((select count(*) = 0 from public.tasks where household_id = :'weg_h'), 'FK-cascade: taken mee weg');
+select pg_temp.assert((select count(*) = 2 from public.users where id in (:'u_weg', :'u_kind')), 'FK-cascade: de accounts blijven bestaan');
 set role authenticated;
 -- =============================================================================
 -- Notities: plaatsen als jezelf, verwijderen eigen of beheerder (TD §5.2)
