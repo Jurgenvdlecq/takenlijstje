@@ -195,7 +195,9 @@ where c.author_name is null;"""),
   'enum_houdt_task_assigned': (C, "  'reminder', 'deadline_soon', 'overdue',", "  'task_assigned', 'reminder', 'deadline_soon', 'overdue',"),
   'oude_taak_gedaan_meldingen_blijven': (C, "where type in ('task_assigned', 'swap_request', 'swap_accepted', 'task_completed', 'daily_summary', 'evening_summary');",
                                          "where type in ('task_assigned', 'swap_request', 'swap_accepted');"),
-  'uitnodiging_lid_zonder_account_blijft': (C, "delete from public.household_invitations where member_id is not null and accepted_at is null;\n", ""),
+  # (Geen mutatie op "delete from public.household_invitations where member_id is not null …":
+  # equivalent, want de FK member_id → household_members is "on delete cascade" en
+  # het wissen van de leden zonder account neemt die uitnodigingen al mee.)
   'wissen_raakt_bijgewerkt_op': (C, "alter table public.tasks disable trigger tasks_updated_at;\n", ""),
   'undo_niet_vervangen': (C, "create or replace function public.undo_complete_task(p_task_id uuid)", "create or replace function private.undo_ongebruikt(p_task_id uuid)"),
   'guard_taken_niet_vervangen': (C, "create or replace function private.guard_task_changes()", "create or replace function private.guard_ongebruikt()"),
