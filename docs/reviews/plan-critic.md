@@ -1,142 +1,150 @@
-# Plan-critic — W-03 afvalkalender — ronde 1 — 2026-09-29
+# Plan-critic — W-03 afvalkalender — ronde 2 — 2026-09-29
 
-> Deze beoordeling gaat alleen over wijzigingsverzoek **W-03 (afvalkalender, WP3b)**. De vorige beoordeling van het hoofdontwerp (ronde 4, 2026-09-28, uitkomst JA) staat in de git-geschiedenis van dit bestand.
+> Deze beoordeling gaat alleen over wijzigingsverzoek **W-03 (afvalkalender, WP3b en de W-03-regels voor WP4–WP9)**. Ronde 1 van W-03 (NEE, 9 moet-punten en 8 aanbevelingen) en de rondes van het hoofdontwerp (laatste: ronde 4, JA) staan in de git-geschiedenis van dit bestand.
 
 Gelezen:
-- concepten `docs/wijzigingen/W-03/`: `product-analyst-r2.md` (volledig; BR-47…BR-59, AC-183…AC-219), `product-designer-r1.md` (UX §13), `visual-designer-r1.md` (DS-aanvulling), `solution-architect-r2.md` (TD §18, WP3b-regel, aanvullingen). De r1-concepten van analist en architect heb ik alleen als context gebruikt, via de afwijkingslijsten in r2;
-- `docs/PROGRESS.md`: W-03, V-41…V-57, de status van WP3 (nog niet live: planner, geheim en meting staan open) en de uitgestelde punten;
-- `docs/DECISIONS.md` D-040…D-045;
-- `docs/ACCEPTANCE_CRITERIA.md` (AC-076, AC-138, AC-182 als ankers), `docs/PRODUCT_SPEC.md` (BR-16, §3 "vergeten"), `docs/TECHNICAL_DESIGN.md` §15 (rijen WP4–WP8);
-- code: `src/server/system/tick.ts`, `src/server/actions/tasks.ts` (setStatus en move), `src/features/notifications/notifications-page.tsx` (terugvalstijl voor onbekend meldingstype), `src/features/tasks/use-task-actions.ts`, migraties `…0927000100_schema` (`task_comments` → `on delete cascade`), `…0928000210_scope_contract` (huidige `guard_task_changes`), en de `update public.tasks`-plekken in alle RPC's;
-- screenshots (met Read bekeken): `docs/screenshots/prototype/w03-01` t/m `w03-06` en `w03-05-…-donker`.
+- concepten `docs/wijzigingen/W-03/`: `product-analyst-r3.md` (volledig: PRODUCT_SPEC §14 met BR-47…BR-59, aanvullingen §5–§13, AC-183…AC-237, dekking, controlelijst), `product-designer-r2.md` (volledig: UX §13 r2 met tekstentabel §13.16 en §13.17), `solution-architect-r3.md` (volledig: TD §18 r3, §15-regels WP3b en WP4–WP9, deel C en D), `visual-designer-r1.md` (DS-aanvulling, ongewijzigd sinds ronde 1);
+- `docs/PROGRESS.md` (V-41…V-57, WP3 live sinds 2026-09-29 met `planner.sql`, pg_net in `extensions`, restpunt L3/L4), `docs/DECISIONS.md` D-040…D-046;
+- bestaande documenten op aansluiting: kopjesstructuur van `PRODUCT_SPEC.md` (§0–§13), `UX_SPEC.md` (§0–§12), `DESIGN_SYSTEM.md` (§7.10–§7.12, §8, §12, §13), `TECHNICAL_DESIGN.md` (§15 volledig, §17 laatste sectie), `ACCEPTANCE_CRITERIA.md` (hoogste nummer AC-182, WP-secties), en "vergeten" in PRODUCT_SPEC/UX/TD (BR-16, Overzicht);
+- screenshots (met Read bekeken): `docs/screenshots/prototype/w03-01`, `w03-02`, `w03-03`, `w03-04`, `w03-05`;
+- controle: `docs/wijzigingen/W-03/probe/` bestaat niet; P0 is dus nog niet uitgevoerd.
 
 ## Bevindingen
 
-1. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §18.1.6 en §18.16 (U0), PRODUCT_SPEC §9: de bron is nooit gezien, maar de probe staat pas vóór de livegang gepland.
-   Wat er vastligt zonder dat iemand het gezien heeft: het koppelcontract (endpoints A/B/C, veldnamen, iconnamen als `zak-grijs-rest`), het BAG-formaat (als `CHECK` in de database), het gedrag van J+1, en de gemeenteregels 22:00/07:45 (alleen via zoekresultaten, analist punt 7). In U0 wordt dit pas gecontroleerd als alle migraties, de UI en de tests al af zijn. Verder klopt TD §18.1.6 route (b) nu niet: "pg_net staat daar sinds WP3" is nog niet waar, want WP3 is niet live en `planner.sql` is nog niet uitgevoerd (PROGRESS). Niemand heeft ook gecontroleerd of de site verzoeken uit een datacenter (Vercel `fra1`) toelaat.
-   Gevolg: blijkt bij U0 dat de API anders werkt, dat datacenter-IP's geblokkeerd worden, of dat `robots.txt` of de voorwaarden `/rest/` uitsluiten, dan is heel WP3b voor niets gebouwd. Het bevroren TD klopt dan niet meer, en een wijzigingsverzoek plus een nieuwe freeze volgt. Wijkt de 07:45-regel af, dan staan in bevroren BR's, AC's, teksten en DB-velden verkeerde tijden.
+1. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §18.1.6/§18.16 (P0), PRODUCT_SPEC §9 "Beslisregel na P0" — de bron is nog steeds door niemand gezien, terwijl de probe nu wél kan.
+   Wat goed is: P0 staat als harde eerste stap vóór elke migratie, code en UI. De beslisregel (TD §18.1.7 en PRODUCT_SPEC §9) is concreet, legt vooraf vast wat een uitvoeringskeuze is en wat stoppen-en-naar-Jurgen is, en maakt de restgrens eerlijk zichtbaar (de IP-adressen van Vercel zijn niet exact die van pg_net; dat blijkt pas bij U5). Het grootste risico uit ronde 1, "alles bouwen en dan pas ontdekken dat de bron niet werkt", is daarmee weg.
+   Wat nog niet goed is: sinds 2026-09-29 staat pg_net op live (PROGRESS, WP3 livegang deel 2). Route (b) is dus nu uitvoerbaar, vóór `/design-go`, met alleen leesbare verzoeken en schrijfwerk in `docs/wijzigingen/W-03/probe/` (dat mag de poort vóór de freeze). De kosten zijn ongeveer een uur. Toch ligt het plan klaar om te bevriezen op een aanname die **scope** (is de functie haalbaar en toegestaan) en **gegevens** raakt (wat er naar buiten gaat, wat er bewaard wordt, het BAG-formaat als `CHECK`), en op gemeentetijden die in BR-49, AC-192, T-16/T-17/T-21/T-22 en M-01 staan.
+   Antwoord op de vraag "mag de freeze met P0 als harde eerste bouwstap en een vooraf vastgelegde beslisregel?":
+   - **Als terugvaloptie: ja, verantwoord.** Er wordt niets gebouwd vóór P0, dus een stoppunt kost na de freeze alleen een wijzigingsverzoek en een nieuwe `/design-go`, geen weggegooid werk. Voor de restgrens (blokkade alleen van Vercel-IP's, pas zichtbaar bij U5) is dit ook de enige redelijke aanpak.
+   - **Als standaardroute: nee, niet nu.** P0 is goedkoop en nu mogelijk. Bevriezen vóór P0 betekent bewust tekenen voor een document dat misschien direct na de freeze al niet meer klopt (vooral de tijden 22:00/07:45 en het adrescodeformaat). Dat gaat in tegen "eerst begrijpen, dan ontwerpen". Mijn regels laten ook geen JA toe zolang een onbevestigde aanname scope of gegevens raakt.
+   Gevolg: bevriezen vóór P0 geeft een reële kans op een wijzigingsverzoek op dag 1, en de tijden in bevroren BR's, AC's en teksten zijn nooit aan de bron getoetst.
    Nodig:
-   - De probe wordt **stap 0 van WP3b, vóór migraties en UI**, en bij voorkeur al vóór `/design-go` als Jurgen de allowlist van V-57 zet. Leg dit zo vast in TD §18.1.6 en in de WP3b-regel van §15, niet alleen in U0.
-   - Voeg aan de probe toe: de gemeenteregel (22:00/07:45, minicontainers) op de pagina zelf, en een verzoek vanuit een datacenter (pg_net zodra WP3 live is, of een preview-functie) om blokkade uit te sluiten.
-   - Corrigeer de pg_net-zin: route (b) kan pas nadat WP3 live is.
-   - Leg vooraf vast welke afwijkingen een uitvoeringskeuze zijn (in `DECISIONS.md`: veldnamen, iconnamen, BAG-regex, J+1-gedrag) en welke een wijzigingsverzoek (een andere adresflow, geen JSON-API, andere tijden, blokkade of verbod: dan stoppen en naar Jurgen).
+   - P0 nu uitvoeren (P0.1–P0.6), met het verslag in `docs/wijzigingen/W-03/probe/`, en de uitkomsten volgens §18.1.7 in de concepten verwerken;
+   - het uitgaande verzoek vanuit productie in één zin bij Jurgen melden, zoals de architect voorstelt. Het is geen databasewijziging, dus het valt niet vanzelf onder de toestemming "wijzigingen aan de live database";
+   - de controle "na afloop L4 (D-042: geen `execute` op `net.*`)" in TD §18.1.6 klopt niet meer. Volgens D-046 zijn die rechten op live niet in te trekken, en hebben `anon`/`authenticated` zelfs SELECT op `net._http_response`. Formuleer de controle zoals in D-046 (`net` niet bij de exposed schemas), en voer P0.6 (opruimen op id) direct na het lezen uit;
+   - kan P0 om een onvoorziene reden niet vóór de freeze, dan is bevriezen een expliciete keuze van Jurgen in het totaalvoorstel ("ik accepteer dat een stoppunt uit de beslisregel na de freeze een wijzigingsverzoek wordt"), vastgelegd in PROGRESS. Het is dan geen stille aanname.
 
-2. [MOET VÓÓR BOUW WORDEN OPGELOST] PRODUCT_SPEC BR-49 (voorbeeld "Restafval, papier en PMD binnenzetten"), AC-193 ("Restafval binnenzetten"), AC-195 ("Restafval en papier binnenzetten") tegenover UX §13.3 en TD §18.4.1 ("Restafvalbak binnenzetten", "Restafval- en papierbak binnenzetten", "Restafval-, papier- en PMD-bak binnenzetten").
-   Gevolg: de bevroren documenten spreken elkaar tegen over een exacte, toetsbare string. De test-writer toetst tegen de AC's en keurt dan de UX-namen af, of andersom. De architect meldde dit zelf (punt 2), maar de analist heeft het nog niet verwerkt. De `[AANNAME]` in PRODUCT_SPEC §13 ("de precieze woorden kiest de product-designer") staat er ook nog.
-   Nodig: de analist trekt BR-49, AC-193 en AC-195 gelijk met UX §13.3 (of verwijst ernaar), en haalt de aanname uit §13 weg of markeert hem als opgelost.
+2. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §18.11, §18.15 (rij AC-222), §18.16 (U3) en §15 (WP3b-regel) volgen UX r2 en analist r3 nog niet. De architect schreef r3 vóór die twee rondes.
+   - §18.11: `saved`/`saved unchanged` → "toast 'Opgeslagen'". UX en AC zeggen T-90 (aanzetten), T-91 (nieuw adres) of T-92 (hetzelfde adres).
+   - §18.11: `too_soon` → "toast". UX §13.7.6 en AC-236 (c) zeggen uitdrukkelijk: regel T-79 **in de balk, geen melding onderin**.
+   - §18.11: "Fout bij opslaan" → T-65. `no_upcoming` → "rij no_upcoming" → toestand F2 (T-64/T-64b).
+   - §18.15, rij 222: E2E "toast 'Opgeslagen'" → T-92.
+   - §18.16 U3 vraagt screenshots van "toasts (opgeslagen, `too_soon`, …)". Die `too_soon`-toast bestaat volgens UX niet.
+   - §15 WP3b-regel en de "Basis" van §18 noemen "AC-183…AC-223". AC-236 ("Opnieuw proberen") en AC-237 (instellen zonder komende ophaaldagen) ontbreken, en §18.15 heeft voor die twee geen testregels (bijvoorbeeld claim → `too_soon`, T-78 na mislukking; `isWindowEmpty` bij lookup → `no_upcoming`).
+   - Twee lijsten voor CP-W03: UX §13.13.3 en TD §18.16 U3 zijn niet gelijk. UX mist onder meer H2, G″ (december), offline, "opslaan mislukt" en de meldingenlijst. TD mist "H na nog steeds fout" en I bij n = 0 niet, maar noemt H per `reason` (`stale`/`empty`) in plaats van per `last_error_code` (H1/H2/H3). AC-217 verwijst naar beide.
+   Gevolg: de bouwer en de test-writer vinden in het bevroren TD een andere terugkoppeling dan in UX en de AC's (toast tegenover regel in de balk). visual-qa krijgt twee verschillende checkpointlijsten, en voor twee WP3b-criteria is geen test gepland.
+   Nodig: een korte r4 van de architect die §18.11, §18.15 en §18.16 U3 omzet naar de tekst-ID's en toestanden van UX §13.16/§13.8, AC-236/AC-237 opneemt in §15, de "Basis" en §18.15, en voor CP-W03 één lijst vastlegt: de vereniging van beide, met H1/H2/H3. AC-217 en UX §13.13.3 verwijzen dan naar die ene lijst.
 
-3. [MOET VÓÓR BOUW WORDEN OPGELOST] Letterlijke teksten in de AC's en BR's wijken af van UX §13.
-   - AC-188 en BR-48 eisen letterlijk "De huisvuilkalender is nu niet bereikbaar. Probeer het later opnieuw." UX §13.7.1 en toestand F zeggen "De huisvuilkalender van de gemeente is nu niet bereikbaar. Er is niets opgeslagen. Probeer het over een paar minuten opnieuw."
-   - AC-205 en BR-52 zeggen "Afvalkalender niet bijgewerkt sinds <datum>". UX H en DS §7.13.4 zeggen "Niet bijgewerkt sinds za 26 sep".
-   - BR-52 citeert de meldingstekst "… Kijk voor de zekerheid zelf op de site van de gemeente." UX §13.10 heeft een andere tekst, met twee varianten.
-   Gevolg: tests op de AC's slagen niet tegen de ontworpen UI. Of de bouwer kiest stil een van beide, en dan wijkt de code af van een bevroren document.
-   Nodig: de AC's en BR's verwijzen voor exacte teksten naar UX §13.7/§13.10, of nemen die tekst letterlijk over. Eén bron per tekst.
+3. [MOET VÓÓR BOUW WORDEN OPGELOST] DESIGN_SYSTEM-aanvulling (`visual-designer-r1.md`) en prototype-screenshots zijn niet bijgewerkt na UX r2. De product-designer vroeg daarom ("KLAAR VOOR VISUEEL ONTWERP, als lichte bijwerking"), maar dat is niet gebeurd.
+   Tegenstrijdigheden in de invoegtekst voor DS:
+   - §7.13.4: "Te snel (`too_soon`): de melding onderin …". UX §13.7.6 zegt: regel T-79 in de balk, geen melding onderin;
+   - §7.13.5: bak zonder datum "geen ophaaldag in de komende weken". UX §13.16 vervangt dat door T-45b "nog geen ophaaldag bekend" en zet de oude tekst bij de vervallen teksten;
+   - (5) oude UI, punt 2: "D en validatie: de bestaande foutstijl van `Field`/`Input`". UX §13.8.1/§13.13.1 en DS §7.13.4 zelf zeggen: D zonder rode rand om de velden, alleen de tekststijl van de veldfout. Dit is precies de tegenspraak uit ronde 1, punt 4, die nu in UX is opgelost maar in de DS-tekst niet;
+   - F2 (sunken-balk met primaire knop "Adres zoeken"), H2 en H3 (twee tekstknoppen "Adres controleren" en "Opnieuw proberen" in het vlak) zijn in DS §7.13.4 niet beschreven. De regel "geen secundaire knop in `sunken`" laat open hoe H3 eruitziet;
+   - §8-regel "Storing externe bron (afvalkalender > 48 uur)": een storing ontstaat ook na een aanhoudend leeg antwoord van ruim een uur (BR-52 b).
+   Screenshots met teksten die volgens UX §13.16 vervallen of anders zijn:
+   - w03-05: "De site van de gemeente gaf geen antwoord." (vervallen) en "geen ophaaldag in de komende weken" (vervallen); H1 moet T-75/T-76 tonen;
+   - w03-02: de oude uitleg met puntkomma ("… huishouden ziet de taken; het adres zien alleen beheerders."), zonder de herinnering van 18:00 (T-46 is anders);
+   - w03-01: de uitleg "De avond ervoor komt er een taak buitenzetten …" in plaats van T-52.
+   Gevolg: DS en UX spreken elkaar na de freeze tegen over een toestand (too_soon), een tekst en de weergave van D. Jurgen keurt in het totaalvoorstel schermen goed met teksten die niet gebouwd worden, en visual-qa toetst bij CP-W03 tegen een design system dat iets anders zegt dan UX.
+   Nodig: een lichte r2 van de visual-designer: de invoegtekst gelijktrekken met UX §13.16/§13.8 (too_soon, T-45b, D zonder rode rand in de oude UI, F2, H2, H3, §8-regel), en w03-01, w03-02 en w03-05 (ook donker) opnieuw renderen met de definitieve teksten. Bekijk ze daarna met Read.
 
-4. [MOET VÓÓR BOUW WORDEN OPGELOST] UX §13 is nog niet gelijkgetrokken met de visuele en technische ronde. Er zijn nieuwe teksten en toestanden zonder bevestiging van de product-designer.
-   - **"morgen" of "di 6 okt":** binnenzetten op D−1 in Binnenkort toont in UX §13.14 "di 6 okt", in DS §7.13.3 en screenshot w03-03 "morgen". De tabel in UX §13.4 heeft voor dit moment geen rij.
-   - **D en F:** in UX §13.14 zien D en F er hetzelfde uit (ⓘ). In DS §7.13.4 is D een regel in `overdue` en F een `sunken`-balk. De oude-UI-tekst van de visual-designer (punt 5.2) geeft D "de foutstijl van Field/Input", terwijl DS §7.13.4 zegt: "zonder rode rand om de velden".
-   - **Voorstelteksten:** "Zo kent de gemeente jullie adres." en "Iedereen in het huishouden ziet de taken; het adres zien alleen beheerders." (staat al in screenshot w03-02).
-   - **Toestand `no_upcoming`** (instellen eind december) ontbreekt in UX §13.8. De architect koppelt hem aan F met een eigen tekst (TD §18.11).
-   - **Toast `too_soon`** en de terugkoppeling na "Opnieuw proberen" (gelukt / lukt nog steeds niet) staan niet in UX.
-   - **De balk H heeft één tekst** ("De gemeente-site gaf geen antwoord"). Die klopt niet voor `SUSPECT_EMPTY`, `FORMAT` en `ADDRESS_GONE`. Bij `ADDRESS_GONE` moet de beheerder juist het adres controleren.
-   - **Omschrijvingen uit TD §18.4.2** zijn nieuwe teksten die de UI toont. "Binnenzetten vanaf 12:00, uiterlijk vandaag." is feitelijk onjuist als de taak op D−1 (Binnenkort) of op D+1 (Verlopen) wordt gelezen. In de oude UI verschijnt de omschrijving ook naast de infolijst uit UX §13.6, dus dubbel.
-   Gevolg: in de oude UI (die live gaat) kiest de bouwer zelf, en de nieuwe UI in WP5–WP7 wijkt daar later van af. Niveau 2 eist voor elke toestand een vastgelegd beeld.
-   Nodig: een korte ronde van de product-designer die deze punten in UX §13 vastlegt: rij in §13.4, toestanden in §13.8, teksten per foutoorzaak, en de omschrijvingstekst (bijvoorbeeld "uiterlijk einde van de ophaaldag", en of die in de oude UI naast de infolijst staat).
+4. [MOET VÓÓR BOUW WORDEN OPGELOST] UX §13.8.2 en §13.10 tegenover TD §18.8.5: een storing zonder foutcode heeft geen balk en geen melding.
+   TD §18.8.5 geeft `failed`, reden `stale`, ook "zonder poging (bijv. als de tick stil lag)". Dan is `last_error_code` null. Dat gebeurt bijvoorbeeld als de planner 48 uur niet draaide, of als de ophaalstap steeds wordt overgeslagen omdat de tick al 10 s loopt. UX kiest de balk (H1/H2/H3) en de melding (M-03/M-04/M-05) alleen op `last_error_code`. Voor null is er niets vastgelegd. De analist meldde dit zelf (punt 3), maar de designer heeft het niet verwerkt, en de tick kan in dit geval wel `dispatcher.notify` aanroepen.
+   Gevolg: in precies de situatie waarin het meest mis is (de achtergrondtaak ligt stil), kiest de bouwer zelf een tekst, of toont de beheerder een lege of kapotte balk.
+   Nodig: de product-designer legt vast dat `last_error_code` null bij `failed` H1 (T-75/T-76) en M-03 gebruikt (voorstel van de analist; de tekst past). Dat komt in §13.8.2 en §13.10, en als geval in AC-205 of §18.15.
 
-5. [MOET VÓÓR BOUW WORDEN OPGELOST] UX §13 verwijst nog naar de AC-nummers van analist-ronde 1. In r2 is alles vanaf AC-188 verschoven.
-   Voorbeelden: §13.7.1 "Twee keer tikken … (BR-50, AC-190)" moet AC-191 zijn; §13.7.2 "(AC-211)" → AC-214; §13.7.3 "(AC-210)" → AC-213; §13.7.5 "(AC-203)" → AC-205; §13.10 "(BR-58, AC-209)" → AC-212; §13.13 "(AC-192)" → AC-193.
-   Gevolg: na de freeze wijzen die verwijzingen naar het verkeerde criterium. AC-190 gaat bijvoorbeeld over wie het adres ziet, niet over dubbel tikken. Dat verwart test-writer en reviewers.
-   Nodig: alle AC-verwijzingen in UX §13 omzetten naar de r2-nummering.
+5. [MOET VÓÓR BOUW WORDEN OPGELOST] UX §13.16 T-52 en wireframe G: "De app kijkt elke ochtend of de gemeente iets veranderd heeft."
+   BR-51, AC-221 en TD §18.8.3 zeggen twee keer per dag (06:00 en 17:00), en na een mislukking elk uur. De tekst die de gebruiker ziet, is dus feitelijk onjuist.
+   Gevolg: een bevroren, zichtbare tekst spreekt de businessregel tegen, en de beheerder verwacht een wijziging van de middag pas de volgende ochtend.
+   Nodig: T-52 aanpassen, bijvoorbeeld "Taken staan 14 dagen vooraf klaar. De app kijkt 's ochtends en aan het eind van de middag of de gemeente iets veranderd heeft." Neem dit mee in dezelfde korte designerronde als punt 4, en in de nieuwe render van w03-01 (punt 3).
 
-6. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §18.8.2 / §18.7 (`waste_sync`) tegenover BR-51 en BR-53: een verschoven ophaaldag wordt "verwijderen + opnieuw aanmaken".
-   `task_comments` hangt met `on delete cascade` aan `tasks` (`…0927000100_schema`, regel 359). Bij een verschuiving door een feestdag verdwijnen dus stil de notities bij de open afvaltaak, en de stand "bezig" gaat verloren. BR-51 zegt dat de taken "meeschuiven", en BR-53 staat notities uitdrukkelijk toe. AC-198 toetst alleen de datums.
-   Gevolg: stil dataverlies van wat een gezinslid schreef ("bak is kapot, nieuwe aangevraagd"), precies rond de feestdagen.
-   Nodig: kies en leg vast.
-   - (a) Verschuiven als update van dezelfde open rij: `waste_pickup_date`, `scheduled_date`, `available_from` en `due_at` gaan mee, alleen als de doelsleutel vrij is. Anders geldt de huidige regel.
-   - (b) Of de spec zegt expliciet dat notities en "bezig" bij een verschuiving vervallen.
+6. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §18.8.5, regel `failed`/`empty`: "`last_attempt_at − error_since ≥ 60 min`" meet de verkeerde tijd.
+   `last_attempt_at` wordt door de **claim** gezet (§18.8.3), vóórdat de uitkomst bekend is. `error_since` wordt pas in `waste_sync` bijgewerkt. Twee gevallen gaan daardoor mis:
+   - (a) Een poging die na de claim niet tot `waste_sync` komt, bijvoorbeeld door een time-out of afbreken van de server action of de tick, of een onverwachte fout vóór de RPC. Dan staat `last_attempt_at` op 07:15 en `last_error_code = SUSPECT_EMPTY` met `error_since = 06:00`. De volgende tick berekent `failed/empty` en stuurt de storingsmelding, terwijl er maar **één** leeg antwoord was. Dat is in strijd met BR-52 (b) en met "geen storing: één leeg antwoord" in AC-205.
+   - (b) In de ≤ 12 s tussen claim en uitkomst geeft `getWasteSettings` al `failed`. Een beheerder die op dat moment de pagina opent, ziet dan kort balk H2.
+   Gevolg: een onterecht alarm aan alle beheerders, precies het "alarm na één leeg antwoord" dat de regel moest voorkomen. Omdat de dedupe-sleutel per `last_success_at` is, komt er daarna bij een echte storing ook geen melding meer.
+   Nodig: de tijd van het laatste **vastgelegde** lege antwoord gebruiken, niet de claimtijd. Bijvoorbeeld een kolom `last_failure_at`, die alleen `waste_sync` bij `'failure'` zet, met de regel `last_failure_at − error_since ≥ 60 min`. Of laat `waste_sync` de alarmtoestand zelf vastleggen. Voeg in §18.15 bij AC-205 een test toe: "claim zonder uitkomst na één leeg antwoord → geen `failed`".
 
-   Voorkeur (a). Breid AC-198 uit met "notitie en bezig blijven".
+7. [AANBEVELING] TD §18.8.1, volgorde `no_streams` vóór `no_upcoming`, en `fetchYear` "404 of [] → ok []".
+   In januari wordt C(J+1) niet opgehaald. Instellen op bijvoorbeeld 2 januari, als de kalender van het nieuwe jaar nog niet online staat, geeft C(J) = `[]`, dus `hadAnyDate = false` en daarmee `no_streams`. De beheerder ziet dan T-62 ("Gebruiken jullie een ondergrondse container?") in plaats van F2 (T-64, "de kalender van het nieuwe jaar komt meestal eind december online"). De F2-toestand is juist voor dit geval ontworpen.
+   Voorstel: `no_streams` baseren op de afvalstromen uit B (rest, papier of PMD staat er niet in), of in januari ook C(J−1) meenemen voor `hadAnyDate`. Zet het geval in de unittest van AC-186/AC-237.
 
-7. [MOET VÓÓR BOUW WORDEN OPGELOST] BR-52 en AC-204 ("volledig leeg antwoord … terwijl er eerder ophaaldagen in dat bereik bekend waren") tegenover TD §18.8.4 (`isSuspectEmpty` = alle drie samen leeg in het venster, zonder die voorwaarde).
-   Letterlijk toegepast werkt de spec-regel juist bij het eigen voorbeeld niet. Op 1 januari staan in de bewaarde datums geen januaridagen, dus waren er "eerder geen ophaaldagen in dat bereik bekend", en is er volgens de tekst geen storing. De architect laat de voorwaarde daarom vallen ("structureel waar"), maar de spec en de AC zeggen nog iets anders.
-   Daarnaast telt de regel `failure_count ≥ 2` (TD §18.8.5) opeenvolgende mislukkingen van élke soort. Eén `UNREACHABLE` gevolgd door één leeg antwoord geeft dus al een alarm, terwijl de bedoeling "twee lege antwoorden, minstens een uur uit elkaar" is.
-   Gevolg: de test-writer kan AC-204 niet eenduidig toetsen, en er kan een onterecht of te vroeg alarm komen.
-   Nodig:
-   - BR-52 en AC-204 gelijktrekken met de TD-regel: alle drie samen leeg in [vandaag, vandaag + 14] = verdacht, twee keer achter elkaar met minstens een uur ertussen = storing;
-   - in TD tellen hoe vaak `SUSPECT_EMPTY` achter elkaar voorkomt, bijvoorbeeld door `failure_count` bij een andere foutcode terug te zetten naar 1.
+8. [AANBEVELING] TD §18.8.5: na een alarm door een leeg antwoord kan de balk verdwijnen zonder dat het weer gelukt is.
+   Scenario: eerst twee lege antwoorden, dus `failed/empty` en een melding. Daarna geeft een poging `UNREACHABLE`. Dan zet `error_since` opnieuw, `failed` vervalt (minder dan 48 uur), en de beheerder ziet alleen de stille regel T-71. Dat is terwijl hij net een storingsmelding kreeg en er niets hersteld is. Het is letterlijk in lijn met BR-52 (b), maar verwarrend.
+   Voorstel: `failed` blijft staan tot het eerstvolgende succes zodra het alarm is gegeven. Dat kan bijvoorbeeld afgeleid worden uit het bestaan van de melding met dedupe-sleutel `waste-failed:<last_success_at>`. Leg anders bewust vast dat dit gedrag zo blijft.
 
-8. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §15 (rijen WP4–WP8) en ACCEPTANCE_CRITERIA: de W-03-onderdelen voor de nieuwe UI staan alleen in TD §18.14 en UX §13.13. Ze staan niet in de werkpakketregels en hebben geen criteria.
-   Het gaat om:
-   - WP4: de expliciete kolomlijst van de snapshot, met `waste_*`;
-   - WP5: rij en detail;
-   - WP6: informatierij in Taken › Terugkerend, en `?bewerk=<id>` → detail;
-   - WP7: subpagina, en doorsturen vanaf `/instellingen#afvalkalender`;
-   - WP8: slepen uit, meldingenlijst, en in het Overzicht de groepering "Afval buitenzetten" / "Bakken binnenzetten".
+9. [AANBEVELING] AC-205 ("leeg om 06:00 en 06:30 … bijvoorbeeld door 'Opnieuw proberen'") en AC-236 ("drie keer 'Opnieuw proberen' binnen een uur maakt een lege-antwoordstoring niet eerder").
+   "Opnieuw proberen" bestaat volgens UX alleen in balk H, dus alleen als er al een storing is. In toestand G′ is er geen knop. Het scenario is via de interface niet te bereiken en dus niet als E2E te toetsen.
+   Voorstel: formuleer beide als regel-/unittest (`wasteSyncHealth`), zonder "Opnieuw proberen" als oorzaak, of noem een route die wel bestaat (bijvoorbeeld twee beheerders in balk H1 tijdens een 48-uurstoring).
 
-   AC-217 zegt alleen: "in de nieuwe schermen moet hetzelfde kunnen".
-   Gevolg: bij WP4–WP8 leest de bouwer de WP-regel en de AC's van dat WP. Afvaltaken zijn dan makkelijk te vergeten. Zonder expliciete kolomlijst zijn de afvalkenmerken in de nieuwe UI bijvoorbeeld onzichtbaar, en een oude storingsmelding linkt naar een anker dat niet meer bestaat. De reviewers hebben voor deze onderdelen niets om tegen te toetsen.
-   Nodig: in TD §15 bij WP4–WP8 een W-03-regel toevoegen, en per onderdeel een criterium (AC-220 en verder, of aanvullingen op de WP5–WP8-criteria).
+10. [AANBEVELING] BR-54 / TD §18.8.6, vervallen van binnenzetten: "tot de dag van de volgende buitenzet-taak".
+    Bestaat er geen volgende buitenzet-taak binnen het venster (een lange pauze, of tijdens een storing zonder nieuwe datums), dan blijft binnenzetten onbeperkt bij Verlopen staan.
+    Voorstel: een bovengrens, bijvoorbeeld uiterlijk aan het begin van D+7, of vastleggen dat dit zo bedoeld is.
 
-9. [MOET VÓÓR BOUW WORDEN OPGELOST] TD §15, WP3b-regel: "geen formeel CP … zelf bekeken" en geen ux-reviewer of visual-qa.
-   WP3b zet een **nieuwe flow** live voor het gezin, in de oude UI, die de visual-designer alleen in tekst heeft beschreven (DS-aanvulling punt 5). Het prototype toont de nieuwe UI. Het taakdetail van een afvaltaak, de sheet "uitzetten", toestand J en de oude-UI-varianten zijn nergens op beeld beoordeeld. De werkwijze (§5 en §9, niveau 2) vraagt visual-qa op elk screenshot-checkpoint en ux-review van een kernflow.
-   Gevolg: er gaat een ongereviewde UI live. Het precedent van WP2a gold voor het weghalen van onderdelen, niet voor een nieuwe flow.
-   Nodig:
-   - neem in de WP3b-regel op dat de rook-screenshots (A, B, C, C2, D, E, F, G, H, I, J, Vandaag met buiten en binnen, taakdetail, overslaan-toast) vóór U3 door visual-qa en de ux-reviewer (licht) worden beoordeeld;
-   - noem ze als checkpoint in PROGRESS.
-
-10. [AANBEVELING] TD §18.16 "Terugrollen": na een Vercel-rollback naar de code van vóór WP3b ziet de oude tick afvaltaken als gewone taken.
-    Omdat `due_at` gezet is, verstuurt hij dan "deadline nadert" (bij buitenzetten rond 05:45) en "verlopen". Dat is precies wat V-50 uitsluit.
-    Voorstel: bij een rollback die langer duurt dan een paar uur ook de afvalkalender uitzetten (of de open afvaltaken verwijderen). Neem dat als stap op in het terugrolplan.
-
-11. [AANBEVELING] TD §18.8.3: eén ophaling per dag, rond 06:00.
-    Verschuift de gemeente overdag een ophaaldag naar morgen, dan komt de buitenzet-taak pas de volgende ochtend. Dat is te laat voor 21:00. BR-51 (24 uur) laat dat toe, maar het doel is juist "niet vergeten".
-    Voorstel: een tweede dagelijkse ophaling rond 17:00–18:00. Dat kost 2–3 GET's.
-
-12. [AANBEVELING] TD §18.8.4, punt 5 van de architect: in december, als het venster al in januari valt en C(J+1) leeg is of 404 geeft, ontbreken de januaritaken stil tot het hele venster leeg is.
-    Voorstel: in dat geval de stille regel "retrying" tonen ("kalender volgend jaar nog niet beschikbaar"), zodat de beheerder dat vóór de eerste januari-ophaaldag ziet.
-
-13. [AANBEVELING] UX §13.6, infolijst "Herinnering: ma 5 okt 21:00": voor wie "Herinneringen" uit heeft (standaard Lynn en Kai) belooft dit iets dat niet komt.
-    Voorstel: de regel alleen tonen als de eigen instelling aan staat, of er "(als herinneringen aan staan)" bij zetten.
-
-14. [AANBEVELING] TD §18.6 `confirmWasteAddressAction`: is het adres gelijk aan het bewaarde, dan loopt het via `syncHousehold`, met de claim van 60 s. Een bevestiging vlak na een tick of na "Opnieuw proberen" krijgt dan geen claim.
-    Voorstel: vastleggen dat de beheerder dan gewoon "opgeslagen" ziet (er verandert niets). Anders ziet hij onterecht "te snel".
-
-15. [AANBEVELING] TD §18.12 (voor de security-review van WP3b):
-    - controleren of Vercel Observability uitgaande verzoeken met het volledige pad bewaart (dat pad bevat de postcode en het huisnummer bij endpoint A);
-    - `net._http_response` na een pg_net-probe leegmaken.
-
-16. [AANBEVELING] Voor het totaalvoorstel aan Jurgen, in gewone taal, expliciet noemen:
-    - dat de bron een onofficiële, ongedocumenteerde koppeling is die zonder aankondiging kan wegvallen;
-    - dat naast postcode en huisnummer ook de adrescode van de gemeente (BAG-id) wordt bewaard;
-    - de interpretaties die hij niet letterlijk besliste: overslaan van buitenzetten slaat ook binnenzetten over; binnenzetten vervalt vanzelf; een aanhoudend leeg antwoord geeft al na ruim een uur een melding, niet pas na 48 uur;
-    - dat er dubbele taken staan tot hij zijn eigen reeks stopt.
-
-17. [AANBEVELING] UX §13.7.3: de sheet "uitzetten" noemt "(4 taken)". Vastleggen wat er staat bij 0 open taken: de zin weglaten, in plaats van "(0 taken)".
+11. [AANBEVELING] Totaalvoorstel aan Jurgen: naast de 17 interpretaties van de analist en de lijst van de architect ook in gewone taal noemen:
+    - dat P0 een verzoek vanuit de live database naar de gemeentesite is, met een openbaar testadres;
+    - dat de restgrens (blokkade van alleen Vercel) pas bij zijn eigen rooktest zichtbaar wordt;
+    - dat bij een noodterugrol notities bij open afvaltaken verloren gaan (analist punt 17).
 
 ## Opgelost sinds vorige ronde
-- Eerste ronde voor W-03. De tegenstrijdigheden tussen analist-r1 en architect-r1 zijn in r2 aantoonbaar rechtgetrokken (TD §18.17):
-  - sleutel per huishouden, datum en richting;
-  - adres alleen voor beheerders (RLS `is_admin` plus `waste_calendar_enabled()`);
-  - niets bewaren bij een onbereikbare bron;
-  - lege-antwoordbewaking over de drie bakken samen;
-  - niemand wijzigt of verwijdert een afvaltaak (guard, policies, `delete_task`);
-  - 18:00-herinnering, storingsmeldingstype en automatisch vervallen.
-- Wat ik nagelopen heb en in orde vind:
-  - de guard-uitbreiding past bij de bestaande `complete_task`/`undo_complete_task`: die raken alleen `status` en `completed_at`;
-  - `setTaskStatusAction` wijzigt alleen `status`;
-  - een onbekend meldingstype valt in de oude UI terug op een standaardstijl, dus een rollback breekt de meldingenlijst niet;
-  - de tickstap zit binnen het pushbudget, omdat de deadline absoluut vanaf de start van de tick loopt;
-  - SSRF-maatregelen (vaste host, `redirect: "error"`, override alleen loopback);
-  - idempotentie via unieke sleutel, `version`, claim en dedupe-sleutel.
+- **1. Probe pas na het bouwen** → deels opgelost. P0 is de harde eerste stap vóór migraties, code en UI, met datacentertoets, gemeenteregel, opruimen en een vooraf vastgelegde beslisregel (TD §18.1.6–§18.1.7, PRODUCT_SPEC §9). De pg_net-zin is gecorrigeerd. P0 zelf is nog niet uitgevoerd: zie bevinding 1.
+- **2. Taaknamen met "bak"** → opgelost. BR-49, AC-193 en AC-195 gebruiken T-01…T-14 uit UX §13.3. De aanname in §13 vervalt.
+- **3. Letterlijke teksten in BR/AC** → opgelost aan de kant van de analist. UX §13.16 is de enige bron, de BR's en AC's noemen tekst-ID's met letterlijke kopieën, en er is een controlelijst. Nagelopen: T-60, T-62, T-63/T-63b, T-64, T-71/T-71b, T-73, T-75, T-78, T-79, T-81, T-90…T-94 en M-01/M-02 zijn gelijk. De TD- en DS-kant loopt nog achter (bevindingen 2 en 3).
+- **4. UX niet gelijkgetrokken** → grotendeels opgelost:
+  - "morgen" in §13.4;
+  - D en F apart;
+  - F2 voor `no_upcoming`;
+  - terugkoppeling van "Opnieuw proberen" in de balk;
+  - H1/H2/H3 per oorzaak;
+  - geen omschrijving;
+  - herinneringsrij volgens de eigen instelling.
+  Nog open: storing zonder code (bevinding 4) en T-52 (bevinding 5).
+- **5. AC-verwijzingen in UX** → opgelost (§13.17). De nummering is in r3 niet verschoven.
+- **6. Notities weg bij een verschuiving** → opgelost. Een verschuiving is een update van dezelfde rij (≤ 3 dagen, een gemeenschappelijke bak, doelsleutel vrij), met volgorde remove → move → rename → insert onder het slot. AC-198 toetst notitie en "bezig". De guard laat de service role door.
+- **7. Lege-antwoordregel** → opgelost in spec en AC (`isWindowEmpty` zonder "eerder bekend", `error_since` per code, ook bij het instellen). Er is wel een nieuwe fout in de meetregel ontstaan (bevinding 6).
+- **8. W-03 in WP4–WP8** → opgelost. Er zijn regels in TD §15 bij WP4–WP9, en AC-224…AC-235.
+- **9. Geen beeldreview op WP3b** → opgelost. CP-W03 staat in U3, met visual-qa en ux-reviewer (licht) vóór de livegang, en in AC-217. Er zijn wel twee verschillende lijsten (bevinding 2).
+- **10. Terugrollen** → opgelost (`waste_rollback.sql` direct na de rollback).
+- **11. Tweede ophaalmoment** → opgelost (06:00 en 17:00, AC-221). T-52 loopt achter (bevinding 5).
+- **12. December** → opgelost (`notice`, T-73, AC-220).
+- **13. Herinneringsrij** → opgelost (T-25 alleen bij eigen instelling aan, AC-211).
+- **14. Bevestigen van hetzelfde adres** → opgelost (zonder claim, T-92, AC-222). TD §18.11 noemt nog "Opgeslagen" (bevinding 2).
+- **15. Platformlogs** → opgelost (TD §18.12: Vercel External APIs en `net._http_response`).
+- **16. Punten voor het totaalvoorstel** → opgelost als plan (analist, 17 interpretaties; architect, lijst). Aanvulling in bevinding 11.
+- **17. Uitzetten met 0 taken** → opgelost (T-81c, AC-213).
+
+Aansluiting op de bevroren documenten (letterlijk invoegen):
+- De nummers en koppen botsen niet:
+  - PRODUCT_SPEC heeft §0–§13, dus §14 is nieuw;
+  - UX_SPEC eindigt op §12, dus §13 is nieuw;
+  - TECHNICAL_DESIGN eindigt op §17, dus §18 is nieuw;
+  - DESIGN_SYSTEM heeft §7.12 als laatste component, dus §7.13 is nieuw;
+  - ACCEPTANCE_CRITERIA eindigt op AC-182, dus AC-183…AC-237 zijn vrij;
+  - de WP3b-regel past in de zes kolommen van TD §15.
+- "Vergeten = verlopen of overgeslagen" (UX §5, TD `stats.ts`) past bij het vanzelf overslaan uit BR-54.
+- Wat na invoegen wél botst, staat in de bevindingen 2, 3, 4 en 5 (TD ↔ UX, DS ↔ UX, T-52 ↔ BR-51).
 
 ## Onbevestigde aannames
-- **Koppelcontract en bereikbaarheid van huisvuilkalender.denhaag.nl** (endpoints, velden, iconen, BAG-formaat, J+1-gedrag, geen blokkade van datacenter-IP's, `robots.txt`/voorwaarden) — raakt: **scope** (haalbaarheid van de hele functie) en **gegevens** (wat er naar buiten gaat en wat bewaard wordt). Wordt pas opgeheven door de probe (bevinding 1).
-- **Gemeenteregels 22:00 en 07:45 voor minicontainers**, alleen via zoekresultaten gezien — raakt: UX en de businessregels (tijden in BR-49, AC-192, DB-velden).
-- **Adrescode (BAG-id) bewaren naast postcode en huisnummer.** V-45 noemt alleen postcode en huisnummer. Inhoudelijk is het gelijkwaardig, maar het is een extra bewaard persoonsgegeven — raakt: **gegevens**. Laten bevestigen in het totaalvoorstel (bevinding 16).
-- **Interpretaties van de analist** (overslaan werkt door naar binnenzetten, binnenzetten vervalt vanzelf, alarm bij een aanhoudend leeg antwoord los van de 48 uur) — raakt: UX. Geen rechten, gegevens of scope, maar wel noemen in het totaalvoorstel.
-- **"pg_net staat live sinds WP3"** (TD §18.1.6) — nu onjuist, want WP3 is nog niet live. Raakt: de uitvoerbaarheid van probe-route (b).
+- **Koppelcontract en toegang tot huisvuilkalender.denhaag.nl** (endpoints, velden, iconen, adrescodeformaat, J+1-gedrag, `robots.txt`/voorwaarden, geen blokkade vanuit het datacenter) — raakt: **scope** en **gegevens**. Op te heffen met P0, dat nu kan (bevinding 1).
+- **Gemeentetijden 22:00 en 07:45 voor minicontainers** (alleen via zoekresultaten gezien) — raakt: businessregels en UX (BR-49, AC-192, T-16/T-17/T-21/T-22, M-01). Op te heffen met P0.4.
+- **Blokkade van alleen de IP-adressen van Vercel** (restgrens na P0.3) — raakt: **scope**. Pas zichtbaar bij U5; aanvaardbaar via de beslisregel, mits Jurgen dit in het totaalvoorstel hoort (bevinding 11).
+- **Adrescode (BAG-id) bewaren naast postcode en huisnummer** — raakt: **gegevens**. Staat als punt voor het totaalvoorstel, maar is door Jurgen nog niet bevestigd.
+- **Uitgaand verzoek vanuit de productiedatabase voor P0** — raakt: toestemming en externe partij. Valt niet vanzelf onder "wijzigingen aan de live database"; in één zin melden (bevinding 1).
+- **De interpretaties van de analist (1–17)** — raakt: UX. Geen rechten of gegevens, behalve nr. 6 (adrescode, zie hierboven). Noemen in het totaalvoorstel.
 
 ## Conclusie
-Geen blokkerende fouten: het rechtenmodel, de privacy, SSRF en idempotentie zijn degelijk en sluiten aan op de bestaande code. Er staan wel negen moet-punten open: tegenstrijdige teksten en namen tussen analist, designer en architect, verouderde AC-verwijzingen, stil verlies van notities bij een verschuiving, geen W-03-criteria voor WP4–WP8, geen visual-qa of ux-review op de oude UI die live gaat, en een externe bron die pas na het bouwen gecontroleerd wordt. Daarnaast raakt een onbevestigde aanname scope en gegevens.
+Het plan is inhoudelijk sterk vooruitgegaan: rechten, privacy, idempotentie, verschuiving met behoud van notities, P0 vóór het bouwen en de beeldreview op WP3b zijn goed geregeld, en de analist heeft de teksten sluitend gemaakt. Freeze is toch nog niet mogelijk om drie redenen:
+- de concepten van architect en visual-designer zijn niet gelijkgetrokken met UX r2 (toast tegenover balkregel, vervallen teksten in DS en screenshots, AC-236/AC-237 zonder tests);
+- er ontbreken twee dingen in UX (storing zonder foutcode, T-52) en de alarmregel heeft een meetfout;
+- P0 wordt uitgesteld tot na de freeze terwijl het nu kan, en de aanname over de bron raakt scope en gegevens.
+
+Nodig voor ronde 3:
+- P0 uitvoeren en verwerken;
+- architect r4 (bevindingen 2 en 6);
+- een korte designerronde (bevindingen 4 en 5);
+- visual-designer r2 met nieuwe screenshots (bevinding 3).
+
+Bevriezen met P0 als eerste bouwstap is alleen verantwoord als P0 vóór de freeze aantoonbaar niet kan, en dan als expliciete keuze van Jurgen.
 
 DESIGN FREEZE MOGELIJK: NEE
