@@ -72,6 +72,14 @@ Volgende stap: (1) WP3b afmaken (K-3): tests hervatten (test-writers), performan
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
 ## Open vragen
+- W-04 (product-analyst r1, 2026-09-29, gesteld), zie `docs/wijzigingen/W-04/product-analyst-r1.md`:
+  - V-60 Tellen Lynn en Kai mee in "om de beurt" en de balans, of alleen via routines "Altijd Lynn/Kai"? Voorstel: alleen "Altijd <naam>", niet in de balans van Ellen en Jurgen; afvinkingen wel op naam.
+  - V-61 Draagt Ellen K-1 mee (namen, onthouden wie afvinkte, balans)? Voorstel: samen bespreken vóór de freeze.
+  - V-62 Eén dagmoment per persoon (standaard 19:30, zelf te wijzigen) dat het ochtend- én avondoverzicht vervangt? Voorstel: ja.
+  - V-63 Telt "deze keer overslaan" bij "X na de vorige keer" als gedaan (volgende = X na het overslaan)? Voorstel: ja.
+  - V-64 De 8 bestaande afvinkingen zonder persoon: "onbekend" laten of op Jurgens naam? Voorstel: onbekend laten.
+  - V-65 Naam bij een afvinking na 90 dagen loskoppelen (de afvinking zelf blijft 2 jaar)? Voorstel: ja.
+  - V-66 "Namens een ander" afvinken? Voorstel: nee; overnemen en zelf afvinken.
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
 - ~~V-59~~ beantwoord, zie Antwoorden. (Was: W-03, security-review WP3b punt 1, GEMIDDELD, 2026-09-29): mag er een grens komen op het opzoeken van een adres bij de gemeente (hooguit 20 keer per uur per huishouden; daarboven de bestaande tekst T-63 "nu niet bereikbaar")? Reden: wie zelf een account aanmaakt kan de app anders als doorgeefluik naar de gemeentesite gebruiken, met kans dat de gemeente de app blokkeert. Alternatieven: bewust accepteren (open registratie wordt niet aangeboden), of de open registratie sluiten. Voorstel: grens invoeren.
