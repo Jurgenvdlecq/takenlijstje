@@ -201,10 +201,16 @@ select pg_temp.expect_sqlstate(format(
   $$insert into public.household_members (household_id, user_id, display_name) values (%L, %L, 'Nogmaals ik')$$, :'fam', :'u_jurgen'), '42501',
   'D-016: beheerder voegt eigen account nogmaals toe');
 select pg_temp.assert((select count(*) = 0 from public.household_members where user_id = :'u_zonder'), 'D-016: geen vreemd account gekoppeld');
--- Een lid zonder account toevoegen mag wel; een account eraan hangen niet
-insert into public.household_members (household_id, display_name) values (:'fam', 'Baby') returning id as baby \gset
-select pg_temp.expect_sqlstate(format($$update public.household_members set user_id = %L where id = %L$$, :'u_zonder', :'baby'), '42501',
-  'D-016: beheerder koppelt account aan lid zonder account');
+-- WP2b (…_210): een lid zonder account bestaat niet meer en de policy
+-- "members: beheerder voegt toe" is weg. Vroeger mocht een beheerder hier een
+-- lid zonder account ("Baby") toevoegen; dat is nu een negatieve test (40_wp2b.sql
+-- toetst het uitgebreider). Een ander account aan een bestaand lid hangen blijft verboden.
+select pg_temp.expect_sqlstate(format(
+  $$insert into public.household_members (household_id, display_name) values (%L, 'Baby')$$, :'fam'), '42501',
+  'WP2b: beheerder voegt lid zonder account toe');
+select pg_temp.expect_sqlstate(format($$update public.household_members set user_id = %L where id = %L$$, :'u_zonder', :'kai'), '42501',
+  'D-016: beheerder koppelt ander account aan bestaand lid');
+select pg_temp.assert((pg_temp.lid(:'kai')).user_id = :'u_kai', 'D-016: Kai houdt zijn eigen account');
 select pg_temp.als(:'u_lynn');
 select pg_temp.expect_sqlstate(format(
   $$insert into public.household_members (household_id, display_name) values (%L, 'Door Lynn')$$, :'fam'), '42501',
