@@ -61,7 +61,18 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 ## Open vragen
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
-- V-48…V-54 (W-03, product-analyst ronde 1, `docs/wijzigingen/W-03/product-analyst-r1.md`): V-48 binnenzetten vanaf hoe laat + herinnering (voorstel 12:00, herinnering 18:00) · V-49 gemeente: buiten pas vanaf 22:00, uiterlijk 07:45 — herinnering 21:00 houden? · V-50 wie krijgt afvalherinneringen en storingsmelding · V-51 meerdere bakken op één dag: één taak of per bak · V-52 hoe ver vooruit (voorstel 14 dagen) · V-53 wie ziet/stelt het adres in (voorstel alleen beheerders) · V-54 afvaltaken hernoemen/verplaatsen/verwijderen (voorstel nee). Nog niet aan Jurgen gesteld: eerst bundelen met de vragen van de architect.
+- V-48…V-57 (W-03; bronnen: `docs/wijzigingen/W-03/product-analyst-r1.md` en `solution-architect-r1.md`; gebundeld aan Jurgen gesteld op 2026-09-29):
+  - V-48 binnenzetten: vanaf 12:00 op de ophaaldag, uiterlijk einde van de dag, herinnering 18:00?
+  - V-49 gemeenteregel (via zoekresultaten, nog te bevestigen op de pagina): buiten pas vanaf 22:00 de avond ervoor, uiterlijk 07:45. Herinnering 21:00 houden met de tekst "mag vanaf 22:00 buiten"?
+  - V-50 afvalherinnering volgt de gewone instelling "Herinneringen", geen "deadline nadert/verlopen" voor afvaltaken; bij een storing > 48 uur één melding aan de beheerders?
+  - V-51 meerdere bakken op één dag: één gecombineerde taak?
+  - V-52 14 dagen vooruit?
+  - V-53 adres alleen zichtbaar en instelbaar voor beheerders? (analist: alleen beheerders zien het; architect: iedereen mag het zien — keuze voor Jurgen)
+  - V-54 afvaltaken niet hernoemen/verplaatsen/verwijderen; wel afvinken, bezig, notitie, overslaan; vergeten buitenzetten vervalt na de ophaaldag vanzelf?
+  - V-55 welke van rest, papier en PMD zijn bij jullie een container (binnenzetten) en welke een zak?
+  - V-56 op live bestaat een handmatige reeks "Afvalcontainer buiten zetten" (actief). Stoppen zodra de afvalkalender werkt?
+  - V-57 (technisch, voor Jurgen alleen ter info/keuze) de gemeentesite is vanuit de ontwikkelomgeving geblokkeerd; toestaan in de omgevingsinstellingen (huisvuilkalender.denhaag.nl) maakt testen met echte antwoorden mogelijk. Anders test de bouwer na WP3 via de database met een openbaar testadres.
+- Bron W-03 (architect): de huisvuilkalender draait op het platform van Opzet; er is een interne, niet-gedocumenteerde JSON-API (adres → BAG-id → afvalsoorten + jaarkalender), geen sleutel nodig, al jaren gebruikt door open-source integraties. Risico: kan zonder aankondiging veranderen; opvang via BR-52.
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
