@@ -2,18 +2,14 @@
 -- WP2b — Scopewijziging, stap "contract" (TECHNICAL_DESIGN §3.1, §3.2, §12.4 M6)
 --
 -- !!! DESTRUCTIEF !!!
--- Alleen uitvoeren na:
---   M1 voorcontroles (supabase/ops/precheck_v2.sql) zonder blokkade,
---   M3 back-up (backup_v2.sql), M4 restore-test (restore_check_v2.sql),
---   M5 het letterlijke antwoord "ja, wissen" van Jurgen in dezelfde sessie.
--- Dit bestand staat daarom NIET in supabase/migrations/. Het gaat daar pas
--- heen (en draait lokaal mee) in WP2b, na M6 op live.
+-- Op live uitgevoerd op 2026-09-29 (M6), na M1 voorcontroles, M3 back-up
+-- (schema backup_v2_20260929), M4 restore-test (17/17 identiek) en M5 het
+-- antwoord van Jurgen ("Ja. Wissen") in dezelfde sessie. Uitgevoerd ongewijzigd
+-- via de SQL-uitvoering (één transactie), daarna geregistreerd als migratie
+-- 20260929073700 "scope_contract". Lokaal draait het mee met de andere migraties.
 --
--- Terugrollen: supabase/ops/restore_v2.sql (getest in M0).
--- Het script staat in één transactie (begin … commit). Uitvoerroute voor M6:
--- het bestand ONGEWIJZIGD via de SQL-uitvoering (MCP execute_sql of psql),
--- niet via apply_migration (dat opent zelf al een transactie). Na afloop wordt
--- het als migratie geregistreerd in WP2b.
+-- Terugrollen: supabase/ops/restore_v2.sql (getest in M0), zolang het
+-- back-upschema bestaat (30 dagen, V-33).
 -- =============================================================================
 
 begin;

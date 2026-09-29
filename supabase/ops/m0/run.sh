@@ -25,9 +25,10 @@ echo "→ schema tot en met WP1 (…_110) toegepast"
 echo "→ live-achtige testgegevens geladen"
 for f in supabase/migrations/*.sql; do
   [[ "$(basename "$f")" > "20260928000110_zzz" ]] || continue
+  [[ "$(basename "$f")" == *_scope_contract.sql ]] && continue
   "${T[@]}" -f "$f"
 done
-echo "→ expand (…_200 en later) toegepast op de bestaande gegevens"
+echo "→ expand (…_200) toegepast op de bestaande gegevens"
 "${PSQL[@]}" -d "$DB" -At <<'SQL'
 select 'AC-053 gezinsleden_met_meldingen_aan=' || count(*) from public.user_preferences p
 join public.household_members m on m.id = p.member_id
@@ -50,7 +51,7 @@ sub supabase/ops/restore_check_v2.sql | "${PSQL[@]}" -d "$DB" -P pager=off -f - 
 if grep -q " f$" /tmp/m0_restore_check.txt; then echo "✗ restore-test wijkt af"; exit 1; fi
 
 echo "── M6 contract ──"
-"${T[@]}" -f supabase/ops/wp2b/20260928000210_scope_contract.sql
+"${T[@]}" -f supabase/migrations/20260928000210_scope_contract.sql
 echo "→ contract (…_210) uitgevoerd in één transactie"
 "${PSQL[@]}" -d "$DB" -P pager=off -At <<'SQL'
 select 'privacy_kolommen=' || count(*) from information_schema.columns
