@@ -202,7 +202,8 @@ test.describe("AC-045: geen 'Wie?', punten, spaardoel, ruilen, afwezigheid of 'n
       error: "Een offline wijziging hoort bij een functie die niet meer bestaat (toewijzen) en is niet uitgevoerd.",
     });
     const { data } = await adminDb().from("tasks").select("*").eq("id", task.id).single();
-    expect((data as Record<string, unknown>).assigned_member_id ?? null).toBeNull();
+    // WP2b (…_210): de kolom bestaat niet meer
+    expect(Object.keys(data as Record<string, unknown>)).not.toContain("assigned_member_id");
   });
 
   test("een v1-afvinking 'namens' Lynn registreert geen persoon", async ({ page }) => {
@@ -213,8 +214,9 @@ test.describe("AC-045: geen 'Wie?', punten, spaardoel, ruilen, afwezigheid of 'n
     expect(await res.json()).toMatchObject({ ok: true });
     const { data: taak } = await adminDb().from("tasks").select("*").eq("id", task.id).single();
     const { data: hist } = await adminDb().from("task_completions").select("*").eq("task_id", task.id).single();
-    expect((taak as Record<string, unknown>).completed_by_member_id ?? null).toBeNull();
-    expect((hist as Record<string, unknown>).member_id ?? null).toBeNull();
+    // WP2b (…_210): de kolommen bestaan niet meer
+    expect(Object.keys(taak as Record<string, unknown>)).not.toContain("completed_by_member_id");
+    expect(Object.keys(hist as Record<string, unknown>)).not.toContain("member_id");
     expect(JSON.stringify([taak, hist])).not.toContain(lid("Lynn").id);
   });
 });

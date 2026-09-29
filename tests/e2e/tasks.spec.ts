@@ -41,11 +41,11 @@ test.describe("taken (Jurgen)", () => {
     await expect(page.getByText("Morgen", { exact: true }).first()).toBeVisible();
     await page.getByRole("button", { name: "Toevoegen", exact: true }).click();
     await expectToast(page, new RegExp(`${title}.*toegevoegd`));
-    // select("*"): na WP2b bestaat de kolom niet meer; dan is hij hier undefined
+    // select("*"): sinds WP2b (…_210) bestaat de kolom niet meer
     const { data } = await adminDb().from("tasks").select("*").eq("title", title).single();
     const row = data as Record<string, unknown>;
     expect(row.scheduled_date).toBe(todayAmsterdam(1));
-    expect(row.assigned_member_id ?? null).toBeNull();
+    expect(Object.keys(row)).not.toContain("assigned_member_id");
     await page.goto("/taken");
     const card = page.getByText(title).first();
     await expect(card).toBeVisible();

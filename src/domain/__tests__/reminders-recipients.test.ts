@@ -5,8 +5,8 @@ import type { MemberRow, NotificationType, PreferencesRow } from "@/types/databa
 /**
  * WP2a — ontvangers van meldingen (TECHNICAL_DESIGN §6.1, §3.3; AC-073, V-23, V-38a).
  * Gezin uit de voorbeelddata: Jurgen en Ellen (beheerder), Lynn (gezinslid),
- * Kai (uitgezet). "Zonder account" bestaat na WP2b niet meer, maar kan tot die
- * tijd nog in de database staan (user_id null).
+ * Kai (uitgezet). Een lid zonder account kan sinds WP2b (…_210, user_id not null)
+ * niet meer in de database staan; recipientsFor blijft er defensief tegen bestand.
  */
 type Member = Pick<MemberRow, "id" | "user_id" | "is_active">;
 type Prefs = Partial<PreferencesRow> & { member_id: string };
@@ -15,7 +15,7 @@ const jurgen: Member = { id: "jurgen", user_id: "u-jurgen", is_active: true };
 const ellen: Member = { id: "ellen", user_id: "u-ellen", is_active: true };
 const lynn: Member = { id: "lynn", user_id: "u-lynn", is_active: true };
 const kai: Member = { id: "kai", user_id: "u-kai", is_active: false };
-// Oud lid zonder account (vóór WP2b nog mogelijk): user_id is dan null
+// Oud lid zonder account (vóór WP2b mogelijk; nu uitgesloten door de database): user_id null
 const oma: Member = { id: "oma", user_id: null as unknown as string, is_active: true };
 
 const alles: Member[] = [jurgen, ellen, lynn, kai, oma];
