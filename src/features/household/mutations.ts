@@ -25,6 +25,28 @@ function patchTask(s: Snapshot, taskId: string, patch: Partial<Snapshot["tasks"]
   return { ...s, tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, ...patch } : t)) };
 }
 
+/**
+ * Buitenzetten overslaan neemt binnenzetten van dezelfde ophaaldag mee, en
+ * terugzetten zet het weer terug (BR-53, AC-209). Zelfde regel als de trigger
+ * in de database, zodat de lijst direct klopt, ook offline.
+ */
+function wasteSkipCascade(next: Snapshot, before: Snapshot, taskId: string, status: TaskStatus): Snapshot {
+  const out = before.tasks.find((t) => t.id === taskId);
+  if (!out || out.waste_direction !== "out" || !out.waste_pickup_date) return next;
+  const sameDayIn = (t: Snapshot["tasks"][number]) =>
+    t.household_id === out.household_id && t.waste_direction === "in" && t.waste_pickup_date === out.waste_pickup_date;
+  if (status === "skipped") {
+    return {
+      ...next,
+      tasks: next.tasks.map((t) => (sameDayIn(t) && (t.status === "todo" || t.status === "in_progress") ? { ...t, status: "skipped" } : t)),
+    };
+  }
+  if (status === "todo" && out.status === "skipped") {
+    return { ...next, tasks: next.tasks.map((t) => (sameDayIn(t) && t.status === "skipped" ? { ...t, status: "todo" } : t)) };
+  }
+  return next;
+}
+
 export const mutations = {
   complete: {
     offline: true,
@@ -70,7 +92,7 @@ export const mutations = {
 
   setStatus: {
     offline: true,
-    optimistic: (s, p) => patchTask(s, p.taskId, { status: p.status }),
+    optimistic: (s, p) => wasteSkipCascade(patchTask(s, p.taskId, { status: p.status }), s, p.taskId, p.status),
     send: (p) => postOutbox("setStatus", p),
   } satisfies MutationDef<{ taskId: string; status: Exclude<TaskStatus, "done"> }>,
 

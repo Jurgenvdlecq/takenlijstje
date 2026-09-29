@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { shortTime } from "@/domain/dates";
 import { describeRule } from "@/domain/recurrence/rule";
 import { isOpen } from "@/domain/status";
+import { isWasteTask, wasteCalendarTime } from "@/domain/waste/display";
 import { TaskCard } from "@/features/tasks/task-card";
 import type { TaskView } from "@/features/tasks/selectors";
 import { useTaskUi } from "@/features/tasks/task-ui-context";
@@ -17,9 +18,9 @@ export interface DragData {
   task: TaskView;
 }
 
-/** Sleepbaar omhulsel: alleen open taken; tikken blijft gewoon werken. */
+/** Sleepbaar omhulsel: alleen open taken, nooit afvaltaken (BR-53); tikken blijft gewoon werken. */
 function Draggable({ task, children, className }: { task: TaskView; children: React.ReactNode; className?: string }) {
-  const enabled = isOpen(task);
+  const enabled = isOpen(task) && !isWasteTask(task);
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: `task:${task.id}`,
     data: { task } satisfies DragData,
@@ -42,7 +43,7 @@ function Draggable({ task, children, className }: { task: TaskView; children: Re
 export function DraggableTaskCard({ task }: { task: TaskView }) {
   return (
     <Draggable task={task}>
-      <TaskCard task={task} compact />
+      <TaskCard task={task} compact planning />
     </Draggable>
   );
 }
@@ -75,8 +76,13 @@ export function TaskChip({
       style={{ borderLeftColor: "var(--color-border)" }}
     >
       <span className="min-w-0 flex-1">
-        {task.scheduled_time && (
-          <span className="block text-[10px] leading-tight text-muted-foreground tabular-nums">{shortTime(task.scheduled_time)}</span>
+        {isWasteTask(task) ? (
+          // Nooit "21:00": de kalender toont het moment waarop het mag (UX §13.4)
+          <span className="block text-[10px] leading-tight text-muted-foreground">{wasteCalendarTime(task.waste_direction)}</span>
+        ) : (
+          task.scheduled_time && (
+            <span className="block text-[10px] leading-tight text-muted-foreground tabular-nums">{shortTime(task.scheduled_time)}</span>
+          )
         )}
         <span className={cn("block truncate font-medium", finished && "text-muted-foreground line-through")}>{task.title}</span>
       </span>

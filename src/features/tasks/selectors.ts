@@ -2,7 +2,7 @@
  * Afgeleide gegevens voor de schermen (dashboard, lijsten, kalender).
  */
 import { addDays, todayIn, type ISODate } from "@/domain/dates";
-import { displayStatus, isOpen, PRIORITY_ORDER, type DisplayStatus } from "@/domain/status";
+import { displayStatus, isAvailable, isOpen, PRIORITY_ORDER, type DisplayStatus } from "@/domain/status";
 import type { Snapshot } from "@/lib/data/snapshot";
 import type { MemberRow, TaskRow } from "@/types/database";
 
@@ -54,9 +54,21 @@ export function dashboardData(snapshot: Snapshot, now: Date): DashboardData {
   const weekEnd = addDays(today, 7);
   const views = toViews(snapshot.tasks, now, tz).sort(compareTasks);
 
-  const todayTasks = views.filter((t) => t.scheduled_date === today && t.display !== "overdue");
+  // Afvaltaken (UX §13.13.1): buitenzetten van D−1 blijft tot D 07:45 onder Vandaag;
+  // binnenzetten vóór 12:00 staat bovenaan Binnenkort
+  const wasteOutStillToday = (t: TaskView) =>
+    t.waste_direction === "out" && t.waste_pickup_date === today && isOpen(t) && t.display !== "overdue";
+  const wasteInNotYet = (t: TaskView) =>
+    t.waste_direction === "in" && t.scheduled_date === today && isOpen(t) && !isAvailable({ status: t.status, scheduledDate: t.scheduled_date, dueAt: t.due_at, availableFrom: t.available_from }, now);
+
+  const todayTasks = views.filter(
+    (t) => (t.scheduled_date === today && t.display !== "overdue" && !wasteInNotYet(t)) || wasteOutStillToday(t),
+  );
   const overdue = views.filter((t) => t.display === "overdue");
-  const upcoming = views.filter((t) => t.scheduled_date > today && t.scheduled_date <= weekEnd && isOpen(t));
+  const upcoming = [
+    ...views.filter(wasteInNotYet),
+    ...views.filter((t) => t.scheduled_date > today && t.scheduled_date <= weekEnd && isOpen(t)),
+  ];
 
   const openWithDeadline = views
     .filter((t) => isOpen(t) && t.due_at && t.display !== "overdue")

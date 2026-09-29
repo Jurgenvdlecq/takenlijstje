@@ -1,9 +1,11 @@
 "use client";
 
-import { AlertTriangle, CheckIcon, Clock, Loader2, Repeat, SkipForward } from "lucide-react";
+import { AlertTriangle, CheckIcon, Clock, Loader2, Recycle, Repeat, SkipForward } from "lucide-react";
 import * as React from "react";
 import { shortTime, todayIn, zonedDate } from "@/domain/dates";
 import { deadlineText, relativeDayLabel } from "@/domain/status";
+import { isWasteTask, wasteCalendarTime, wasteListTime } from "@/domain/waste/display";
+import { WASTE_TEXT } from "@/domain/waste/messages";
 import { Badge } from "@/components/ui/badge";
 import { useSnapshot } from "@/features/household/store";
 import { useNow } from "@/hooks/use-now";
@@ -58,10 +60,13 @@ export function TaskCard({
   task,
   showDate = false,
   compact = false,
+  planning = false,
 }: {
   task: TaskView;
   showDate?: boolean;
   compact?: boolean;
+  /** Kalender: afvaltaken tonen het geplande moment, los van nu */
+  planning?: boolean;
 }) {
   const snapshot = useSnapshot();
   const { openTask } = useTaskUi();
@@ -69,15 +74,25 @@ export function TaskCard({
   const tz = snapshot.household.timezone;
   const done = task.status === "done";
   const skipped = task.status === "skipped";
+  const waste = isWasteTask(task);
   const rawDeadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
-  // Rustig houden: alleen tonen als het iets toevoegt (bijna/te laat, of deadline op een andere dag)
+  // Rustig houden: alleen tonen als het iets toevoegt (bijna/te laat, of deadline op een andere dag).
+  // Afvaltaken: alleen "… te laat" (V-50, UX §13.4)
   const deadline =
     rawDeadline &&
     (task.display === "overdue" ||
-      rawDeadline.startsWith("verloopt") ||
-      (task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))
+      (!waste &&
+        (rawDeadline.startsWith("verloopt") || (task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))))
       ? rawDeadline
       : null;
+  // Afvaltaken: nooit "21:00", wel "vanaf 22:00" / "vóór 07:45" / "vanaf 12:00"; bij Verlopen geen klokje
+  const time = waste
+    ? task.display === "overdue"
+      ? null
+      : planning
+        ? wasteCalendarTime(task.waste_direction)
+        : wasteListTime(task, now, tz)
+    : shortTime(task.scheduled_time);
 
   return (
     <div
@@ -106,10 +121,16 @@ export function TaskCard({
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {showDate && <span>{relativeDayLabel(task.scheduled_date, todayIn(tz, now))}</span>}
-          {task.scheduled_time && (
+          {waste && (
+            <span className="inline-flex items-center gap-1">
+              <Recycle className="size-3" aria-hidden />
+              {WASTE_TEXT.badge}
+            </span>
+          )}
+          {time && (
             <span className="inline-flex items-center gap-1">
               <Clock className="size-3" />
-              {shortTime(task.scheduled_time)}
+              {time}
             </span>
           )}
           {task.recurring && <Repeat className="size-3" aria-label="Terugkerend" />}
@@ -120,7 +141,7 @@ export function TaskCard({
               Overgeslagen
             </span>
           )}
-          {!compact && !done && !skipped && <span>{CATEGORY_LABELS[task.category]}</span>}
+          {!compact && !done && !skipped && !waste && <span>{CATEGORY_LABELS[task.category]}</span>}
           {task.status === "in_progress" && (
             <Badge variant="progress">
               <Loader2 className="animate-spin" />
