@@ -39,7 +39,8 @@ export function normalizeWasteAddress(input: WasteAddressInput): NormalizeResult
   const postcode = input.postcode.toUpperCase().replace(/\s/g, "");
   if (!POSTCODE_RE.test(postcode)) errors.postcode = true;
 
-  const match = /^\s*(\d{1,5})\s*[-\s]?\s*([A-Za-z0-9]*)\s*$/.exec(input.houseNumber);
+  // Het hele cijferblok is het nummer: "100000" wordt nooit 10000 + toevoeging "0" (AC-184)
+  const match = /^\s*(\d+)\s*[-\s]?\s*([A-Za-z][A-Za-z0-9]*|\d*)\s*$/.exec(input.houseNumber);
   const number = match ? Number(match[1]) : NaN;
   if (!match || !Number.isInteger(number) || number < 1 || number > 99_999) errors.houseNumber = true;
   const fromNumber = match?.[2] ? cleanSuffix(match[2]) : "";

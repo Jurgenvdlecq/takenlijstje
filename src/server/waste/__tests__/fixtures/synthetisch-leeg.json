@@ -1,0 +1,78 @@
+{
+  "adres": [
+    {
+      "bagId": "0518200000000111",
+      "latitude": 52.0801,
+      "postcode": "2511AB",
+      "longitude": 4.3102,
+      "gemeenteId": 518,
+      "huisletter": "",
+      "huisnummer": 9,
+      "woonplaatsId": 1245,
+      "woonplaatsNaam": "'s-Gravenhage",
+      "openbareRuimteNaam": "Leegstraat",
+      "huisnummerToevoeging": ""
+    }
+  ],
+  "robots": "User-agent: *\nDisallow:\n",
+  "afvalstromen": [
+    {
+      "id": 1,
+      "icon": "appel-gft",
+      "slug": "",
+      "tags": null,
+      "title": "GFT",
+      "parent_id": 0,
+      "menu_title": "GFT",
+      "page_title": "Groente, Fruit en Tuinafval",
+      "ophaaldatum": null
+    },
+    {
+      "id": 2,
+      "icon": "petfles-blik-drankpak_pmd",
+      "slug": "",
+      "tags": null,
+      "title": "PMD",
+      "parent_id": 0,
+      "menu_title": "PMD",
+      "page_title": "Plastic verpakkingen, blik en drinkpakken",
+      "ophaaldatum": null
+    },
+    {
+      "id": 3,
+      "icon": "doos-karton-papier",
+      "slug": "",
+      "tags": "",
+      "title": "Papier",
+      "parent_id": 0,
+      "menu_title": "Papier",
+      "page_title": "Papier",
+      "ophaaldatum": null
+    },
+    {
+      "id": 4,
+      "icon": "zak-grijs-rest",
+      "slug": "",
+      "tags": "",
+      "title": "Rest",
+      "parent_id": 0,
+      "menu_title": "Rest",
+      "page_title": "Rest",
+      "ophaaldatum": null
+    },
+    {
+      "id": 5,
+      "icon": "kerstboom-zonder-kruis",
+      "slug": "",
+      "tags": null,
+      "title": "Kerstbomen",
+      "parent_id": 0,
+      "menu_title": "Kerstbomen",
+      "page_title": "Kerstbomen",
+      "ophaaldatum": null
+    }
+  ],
+  "kalender_2026": [],
+  "kalender_2027": [],
+  "adres_onbekend": []
+}

@@ -1,0 +1,22 @@
+{
+  "adres": [
+    {
+      "bagId": "0518200000000000",
+      "latitude": 52.0801,
+      "postcode": "2511AB",
+      "longitude": 4.3102,
+      "gemeenteId": 518,
+      "huisletter": "",
+      "huisnummer": 1,
+      "woonplaatsId": 1245,
+      "woonplaatsNaam": "'s-Gravenhage",
+      "openbareRuimteNaam": "Weg",
+      "huisnummerToevoeging": ""
+    }
+  ],
+  "robots": "User-agent: *\nDisallow:\n",
+  "afvalstromen": {},
+  "kalender_2026": [],
+  "kalender_2027": [],
+  "adres_onbekend": []
+}

@@ -1,0 +1,135 @@
+{
+  "adres": [
+    {
+      "bagId": "0518200000813196",
+      "latitude": 52.092559,
+      "postcode": "2591BB",
+      "longitude": 4.360263,
+      "gemeenteId": 518,
+      "huisletter": "",
+      "huisnummer": 87,
+      "woonplaatsId": 1245,
+      "woonplaatsNaam": "'s-Gravenhage",
+      "openbareRuimteNaam": "Zwedenburg",
+      "huisnummerToevoeging": ""
+    }
+  ],
+  "robots": "User-agent: *\nDisallow:\n",
+  "afvalstromen": [
+    {
+      "id": 1,
+      "icon": "appel-gft",
+      "slug": "",
+      "tags": null,
+      "title": "GFT",
+      "parent_id": 0,
+      "menu_title": "GFT",
+      "page_title": "Groente, Fruit en Tuinafval",
+      "ophaaldatum": null
+    },
+    {
+      "id": 2,
+      "icon": "petfles-blik-drankpak_pmd",
+      "slug": "",
+      "tags": null,
+      "title": "PMD",
+      "parent_id": 0,
+      "menu_title": "PMD",
+      "page_title": "Plastic verpakkingen, blik en drinkpakken",
+      "ophaaldatum": null
+    },
+    {
+      "id": 3,
+      "icon": "doos-karton-papier",
+      "slug": "",
+      "tags": "",
+      "title": "Papier",
+      "parent_id": 0,
+      "menu_title": "Papier",
+      "page_title": "Papier",
+      "ophaaldatum": "2026-09-29"
+    },
+    {
+      "id": 4,
+      "icon": "zak-grijs-rest",
+      "slug": "",
+      "tags": "",
+      "title": "Rest",
+      "parent_id": 0,
+      "menu_title": "Rest",
+      "page_title": "Rest",
+      "ophaaldatum": null
+    },
+    {
+      "id": 5,
+      "icon": "kerstboom-zonder-kruis",
+      "slug": "",
+      "tags": null,
+      "title": "Kerstbomen",
+      "parent_id": 0,
+      "menu_title": "Kerstbomen",
+      "page_title": "Kerstbomen",
+      "ophaaldatum": null
+    }
+  ],
+  "kalender_2026": [
+    {
+      "ophaaldatum": "2026-01-07",
+      "afvalstroom_id": 5
+    },
+    {
+      "ophaaldatum": "2026-01-14",
+      "afvalstroom_id": 5
+    },
+    {
+      "ophaaldatum": "2026-01-20",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-02-17",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-03-17",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-04-14",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-05-12",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-06-09",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-07-07",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-08-04",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-09-01",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-09-29",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-10-27",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-11-24",
+      "afvalstroom_id": 3
+    }
+  ],
+  "kalender_2027": [],
+  "adres_onbekend": []
+}

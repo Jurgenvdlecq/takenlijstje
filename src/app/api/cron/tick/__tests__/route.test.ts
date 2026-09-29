@@ -8,10 +8,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import type { TickReport } from "@/server/system/tick";
+import type { WasteStepReport } from "@/server/system/waste/sync";
+
+/** Afvalstap (W-03, §18.8.6): alleen tellingen, ook verschuivingen en storingsmeldingen */
+const AFVAL: WasteStepReport = vi.hoisted(() => ({
+  calendars: 1, fetched: 1, fetchFailed: 0, inserted: 2, moved: 1, renamed: 0, removed: 0, expired: 1, alerted: 1,
+}));
 
 const tick = vi.hoisted(() => ({
   runTick: vi.fn(
-    async (): Promise<TickReport> => ({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, failed: [] }),
+    async (): Promise<TickReport> => ({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, waste: AFVAL, failed: [] }),
   ),
 }));
 vi.mock("@/server/system/tick", () => tick);
@@ -78,11 +84,11 @@ describe("cron-tick: authenticatie", () => {
     const res = await handler(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
     expect(res.status).toBe(200);
     expect(tick.runTick).toHaveBeenCalledTimes(1);
-    expect(await res.json()).toEqual({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, failed: [] });
+    expect(await res.json()).toEqual({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, waste: AFVAL, failed: [] });
   });
 
   it("faalde een stap: status 500, body blijft alleen tellingen en codes (code-review WP3, punt 2)", async () => {
-    const report = { households: 1, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: { tasks: 0 }, failed: ["meldingen"] };
+    const report: TickReport = { households: 1, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: { tasks: 0 }, waste: AFVAL, failed: ["meldingen"] };
     tick.runTick.mockResolvedValueOnce(report);
     const res = await GET(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
     expect(res.status).toBe(500);
@@ -90,8 +96,22 @@ describe("cron-tick: authenticatie", () => {
   });
 
   it("faalden alle stappen: ook 500", async () => {
-    tick.runTick.mockResolvedValueOnce({ households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, failed: ["plannen", "overslaan", "meldingen", "opruimen"] });
+    tick.runTick.mockResolvedValueOnce({ households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, waste: null, failed: ["plannen", "overslaan", "afval", "meldingen", "opruimen"] });
     const res = await POST(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
+    expect(res.status).toBe(500);
+  });
+
+  it("afvalstap (W-03): waste.moved en waste.alerted gaan als tellingen mee, zonder adres of adrescode", async () => {
+    const res = await GET(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
+    const body = await res.json();
+    expect(body.waste.moved).toBe(1);
+    expect(body.waste.alerted).toBe(1);
+    expect(Object.values(body.waste).every((v) => typeof v === "number")).toBe(true);
+  });
+
+  it("faalde alleen de afvalstap: ook 500", async () => {
+    tick.runTick.mockResolvedValueOnce({ households: 1, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: { tasks: 0 }, waste: null, failed: ["afval"] });
+    const res = await GET(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
     expect(res.status).toBe(500);
   });
 

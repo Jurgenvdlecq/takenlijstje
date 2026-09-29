@@ -1,0 +1,555 @@
+{
+  "adres": [
+    {
+      "bagId": "0518200000000101",
+      "latitude": 52.0801,
+      "postcode": "2511AB",
+      "longitude": 4.3102,
+      "gemeenteId": 518,
+      "huisletter": "",
+      "huisnummer": 12,
+      "woonplaatsId": 1245,
+      "woonplaatsNaam": "'s-Gravenhage",
+      "openbareRuimteNaam": "Voorbeeldstraat",
+      "huisnummerToevoeging": ""
+    }
+  ],
+  "robots": "User-agent: *\nDisallow:\n",
+  "afvalstromen": [
+    {
+      "id": 1,
+      "icon": "appel-gft",
+      "slug": "",
+      "tags": null,
+      "title": "GFT",
+      "parent_id": 0,
+      "menu_title": "GFT",
+      "page_title": "Groente, Fruit en Tuinafval",
+      "ophaaldatum": null
+    },
+    {
+      "id": 2,
+      "icon": "petfles-blik-drankpak_pmd",
+      "slug": "",
+      "tags": null,
+      "title": "PMD",
+      "parent_id": 0,
+      "menu_title": "PMD",
+      "page_title": "Plastic verpakkingen, blik en drinkpakken",
+      "ophaaldatum": null
+    },
+    {
+      "id": 3,
+      "icon": "doos-karton-papier",
+      "slug": "",
+      "tags": "",
+      "title": "Papier",
+      "parent_id": 0,
+      "menu_title": "Papier",
+      "page_title": "Papier",
+      "ophaaldatum": null
+    },
+    {
+      "id": 4,
+      "icon": "zak-grijs-rest",
+      "slug": "",
+      "tags": "",
+      "title": "Rest",
+      "parent_id": 0,
+      "menu_title": "Rest",
+      "page_title": "Rest",
+      "ophaaldatum": null
+    },
+    {
+      "id": 5,
+      "icon": "kerstboom-zonder-kruis",
+      "slug": "",
+      "tags": null,
+      "title": "Kerstbomen",
+      "parent_id": 0,
+      "menu_title": "Kerstbomen",
+      "page_title": "Kerstbomen",
+      "ophaaldatum": null
+    }
+  ],
+  "kalender_2026": [
+    {
+      "ophaaldatum": "2026-01-05",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-01-06",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-01-07",
+      "afvalstroom_id": 5
+    },
+    {
+      "ophaaldatum": "2026-01-09",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-01-13",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-01-14",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-01-14",
+      "afvalstroom_id": 5
+    },
+    {
+      "ophaaldatum": "2026-01-19",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-01-20",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-01-23",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-01-27",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-02-02",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-02-03",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-02-06",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-02-10",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-02-11",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-02-16",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-02-17",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-02-20",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-02-24",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-03-02",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-03-03",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-03-06",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-03-10",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-03-11",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-03-16",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-03-17",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-03-20",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-03-24",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-03-30",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-03-31",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-04-03",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-04-07",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-04-08",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-04-13",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-04-14",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-04-17",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-04-21",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-04-27",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-04-28",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-05-01",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-05-05",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-05-06",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-05-11",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-05-12",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-05-15",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-05-19",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-05-25",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-05-26",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-05-29",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-06-02",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-06-03",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-06-08",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-06-09",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-06-12",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-06-16",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-06-22",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-06-23",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-06-26",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-06-30",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-07-01",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-07-06",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-07-07",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-07-10",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-07-14",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-07-20",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-07-21",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-07-24",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-07-28",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-07-29",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-08-03",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-08-04",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-08-07",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-08-11",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-08-17",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-08-18",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-08-21",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-08-25",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-08-26",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-08-31",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-09-01",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-09-04",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-09-08",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-09-14",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-09-15",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-09-18",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-09-22",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-09-23",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-09-28",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-09-29",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-10-02",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-10-06",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-10-12",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-10-13",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-10-16",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-10-20",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-10-21",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-10-26",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-10-27",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-10-30",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-11-03",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-11-09",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-11-10",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-11-13",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-11-17",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-11-18",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-11-23",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-11-24",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-11-27",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-12-01",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-12-07",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-12-08",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-12-11",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-12-15",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-12-16",
+      "afvalstroom_id": 3
+    },
+    {
+      "ophaaldatum": "2026-12-21",
+      "afvalstroom_id": 1
+    },
+    {
+      "ophaaldatum": "2026-12-22",
+      "afvalstroom_id": 4
+    },
+    {
+      "ophaaldatum": "2026-12-25",
+      "afvalstroom_id": 2
+    },
+    {
+      "ophaaldatum": "2026-12-29",
+      "afvalstroom_id": 4
+    }
+  ],
+  "kalender_2027": [],
+  "adres_onbekend": []
+}

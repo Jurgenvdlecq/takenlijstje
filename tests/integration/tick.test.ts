@@ -354,10 +354,12 @@ describe("AC-076: een fout in één stap blokkeert de andere niet", () => {
   }
 
   function alleenTellingenEnCodes(report: TickReport) {
-    expect(Object.keys(report).sort()).toEqual(["failed", "households", "notified", "planned", "purged", "pushed", "skipped"]);
+    // WP3b (§18.8.6): de afvalstap komt als `waste` mee, ook alleen tellingen
+    expect(Object.keys(report).sort()).toEqual(["failed", "households", "notified", "planned", "purged", "pushed", "skipped", "waste"]);
     for (const key of ["households", "notified", "planned", "pushed", "skipped"] as const) expect(typeof report[key]).toBe("number");
     for (const value of Object.values(report.purged ?? {})) expect(typeof value).toBe("number");
-    for (const code of report.failed) expect(["plannen", "overslaan", "meldingen", "opruimen"]).toContain(code);
+    for (const value of Object.values(report.waste ?? {})) expect(typeof value).toBe("number");
+    for (const code of report.failed) expect(["plannen", "overslaan", "afval", "meldingen", "opruimen"]).toContain(code);
   }
 
   it("meldingenstap faalt: plannen en opruimen draaien toch; antwoord en log bevatten alleen tellingen en codes", async () => {

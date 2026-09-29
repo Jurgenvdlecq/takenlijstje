@@ -414,7 +414,9 @@ select coalesce(string_agg(x, ', ' order by x), '') as auth_fn from (
     'undo_complete_task(uuid)', 'my_membership()', 'clear_series_occurrences(uuid,date,date,boolean)',
     'pause_series(uuid,date,date)', 'resume_series(uuid)', 'stop_series(uuid)', 'delete_task(uuid,text)',
     'complete_task(uuid,uuid,text,timestamp with time zone)', 'archive_shopping_list(uuid)',
-    'unarchive_shopping_list(uuid)', 'delete_household(text)'])
+    'unarchive_shopping_list(uuid)', 'delete_household(text)',
+    -- WP3b (TD §18.5.1, §18.7): uitzetten en aan/uit lezen; waste_save/waste_sync bewust NIET
+    'disable_waste_calendar()', 'waste_calendar_enabled()'])
 ) v \gset
 select pg_temp.assert(:'auth_fn' = '', 'Onverwachte functie aanroepbaar voor authenticated: ' || :'auth_fn');
 select pg_temp.assert(not has_function_privilege('authenticated', 'public.run_purge()', 'execute'),

@@ -7,7 +7,9 @@
 #  4. (WP2b) twee leden vinken dezelfde taak tegelijk af, elk met een eigen mutationId
 #     → één registratie (BR-11, AC-036/AC-037; unique (task_id) uit …_210 + rijlock);
 #  5. (WP2b-herstel, …_220) undo terwijl de taak tussen lezen en lock zacht verwijderd
-#     wordt → "Taak niet gevonden" en de historie blijft (security-review WP2b, punt 4).
+#     wordt → "Taak niet gevonden" en de historie blijft (security-review WP2b, punt 4);
+#  6. (WP3b) twee beheerders bevestigen tegelijk een ander adres → één adres (AC-191);
+#  7. (WP3b) twee claims binnen 60 s → één claim (AC-236, §18.8.3).
 # Twee echte sessies: sessie 1 houdt zijn transactie 1,5 s open, sessie 2 start 0,3 s later.
 # Gebruik: bash supabase/tests/gelijktijdig.sh <database of connectiestring>
 set -uo pipefail
@@ -92,6 +94,55 @@ if ! grep -q "Taak niet gevonden" "$UNDO_OUT"; then
   exit 1
 fi
 rm -f "$UNDO_OUT"
+# 6. (WP3b, AC-191) twee beheerders bevestigen tegelijk een ander adres (waste_save als
+#    service role, ná requireAdmin) → één adres, alleen taken van dat adres, geen dubbele
+#    (ophaaldag, richting). Sessie 1 houdt zijn transactie open; sessie 2 wacht op de rij.
+HH="$("${P[@]}" -c "select household_id from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a1'")"
+LID_A="$("${P[@]}" -c "select id from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a1'")"
+LID_B="$("${P[@]}" -c "select id from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a2'")"
+afval_taak() { # <dagen vooruit> <out|in>
+  local d="$1" dir="$2"
+  if [[ "$dir" == "out" ]]; then
+    echo "jsonb_build_object('title','Restafval buitenzetten','scheduled_date',current_date + $d - 1,'scheduled_time','21:00','available_from',null,'due_at',((current_date + $d) + time '07:45') at time zone 'Europe/Amsterdam','waste_pickup_date',current_date + $d,'waste_direction','out','waste_streams',jsonb_build_array('rest'))"
+  else
+    echo "jsonb_build_object('title','Restafvalbak binnenzetten','scheduled_date',current_date + $d,'scheduled_time',null,'available_from',((current_date + $d) + time '12:00') at time zone 'Europe/Amsterdam','due_at',((current_date + $d + 1) + time '00:00') at time zone 'Europe/Amsterdam','waste_pickup_date',current_date + $d,'waste_direction','in','waste_streams',jsonb_build_array('rest'))"
+  fi
+}
+SAVE_A="select public.waste_save('$HH', '$LID_A', '2511AB', 12, '', '0518200000000001', jsonb_build_object('rest', jsonb_build_array(current_date + 3), 'papier', '[]'::jsonb, 'pmd', '[]'::jsonb), jsonb_build_array($(afval_taak 3 out), $(afval_taak 3 in)), now())"
+SAVE_B="select public.waste_save('$HH', '$LID_B', '2513EF', 1, '', '0518200000000002', jsonb_build_object('rest', jsonb_build_array(current_date + 5), 'papier', '[]'::jsonb, 'pmd', '[]'::jsonb), jsonb_build_array($(afval_taak 5 out), $(afval_taak 5 in)), now())"
+# Als de service role: zonder gebruikersclaim (de guard laat afvaltaken alleen zonder `sub` toe)
+SAVE_OUT="$(mktemp)"
+psql -X -At -d "$DB" -c "begin" -c "$SAVE_A" -c "select pg_sleep(1.5)" -c "commit" >"$SAVE_OUT" 2>&1 &
+p_s1=$!
+sleep 0.3
+psql -X -At -d "$DB" -c "begin" -c "$SAVE_B" -c "commit" >>"$SAVE_OUT" 2>&1 &
+p_s2=$!
+wait "$p_s1" "$p_s2" 2>/dev/null
+if grep -q "ERROR" "$SAVE_OUT"; then
+  echo "ERROR:  ASSERT MISLUKT: AC-191 waste_save-race: een van beide sessies gaf een fout: $(grep -m1 ERROR "$SAVE_OUT")" >&2
+  rm -f "$SAVE_OUT"
+  exit 1
+fi
+rm -f "$SAVE_OUT"
+# 7. (WP3b, AC-236, §18.8.3) twee claims binnen 60 s (twee ticks, of tick + "Opnieuw proberen")
+#    → precies één sessie krijgt de claim; de andere 0 rijen en dus geen verzoek naar buiten.
+VERSIE="$("${P[@]}" -c "select version from public.waste_calendars where household_id = '$HH'")"
+# waste_save zette zelf al een claim (last_attempt_at = p_now); die vervalt eerst, anders wint niemand
+"${P[@]}" -c "update public.waste_calendars set last_attempt_at = null where household_id = '$HH'" >/dev/null
+CLAIM="update public.waste_calendars set last_attempt_at = now() where household_id = '$HH' and version = $VERSIE and (last_attempt_at is null or last_attempt_at < now() - interval '60 seconds') returning 1"
+CLAIM1="$(mktemp)"; CLAIM2="$(mktemp)"
+psql -X -At -d "$DB" -c "begin" -c "$CLAIM" -c "select pg_sleep(1.5)" -c "commit" >"$CLAIM1" 2>&1 &
+p_c1=$!
+sleep 0.3
+psql -X -At -d "$DB" -c "begin" -c "$CLAIM" -c "commit" >"$CLAIM2" 2>&1 &
+p_c2=$!
+wait "$p_c1" "$p_c2" 2>/dev/null
+CLAIMS=$(( $(grep -c '^1$' "$CLAIM1") + $(grep -c '^1$' "$CLAIM2") ))
+rm -f "$CLAIM1" "$CLAIM2"
+if [[ "$CLAIMS" -ne 1 ]]; then
+  echo "ERROR:  ASSERT MISLUKT: AC-236 claim-race: $CLAIMS sessies kregen de claim binnen 60 s (verwacht 1)" >&2
+  exit 1
+fi
 # 1. delete_my_account is tot WP7 dicht voor authenticated (D-037); de logica als eigenaar met de claim
 race 60000000-0000-0000-0000-0000000000a1 60000000-0000-0000-0000-0000000000a2 \
   "select public.delete_my_account()" "select public.delete_my_account()" eigenaar
@@ -127,6 +178,28 @@ begin
   select count(*) into v_c from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a3';
   if v_c <> 1 then
     raise exception 'ASSERT MISLUKT: BR-44 gelijktijdig: % lidmaatschappen na twee keer tegelijk create_household', v_c;
+  end if;
+  -- 6. na twee gelijktijdige waste_save: één adres, en alleen open taken voor de ophaaldag van dat adres
+  select count(*) into v_t from public.waste_calendars c join public.households h on h.id = c.household_id where h.name = 'Gelijk';
+  if v_t <> 1 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % adressen na twee gelijktijdige waste_save', v_t;
+  end if;
+  select count(*) into v_t from public.tasks t join public.households h on h.id = t.household_id
+  where h.name = 'Gelijk' and t.waste_direction is not null and t.status in ('todo', 'in_progress')
+    and not exists (select 1 from public.waste_calendars c where c.household_id = t.household_id
+                    and c.pickups -> 'rest' ? t.waste_pickup_date::text);
+  if v_t <> 0 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % open afvaltaken van het verliezende adres', v_t;
+  end if;
+  select count(*) into v_t from public.tasks t join public.households h on h.id = t.household_id
+  where h.name = 'Gelijk' and t.waste_direction is not null and t.status in ('todo', 'in_progress');
+  if v_t <> 2 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % open afvaltaken (verwacht buiten + binnen van één adres)', v_t;
+  end if;
+  select count(*) into v_t from (select household_id, waste_pickup_date, waste_direction from public.tasks
+    where waste_direction is not null group by 1, 2, 3 having count(*) > 1) d;
+  if v_t <> 0 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: dubbele (ophaaldag, richting)';
   end if;
   select count(*) into v_d from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a4';
   if v_d <> 1 then

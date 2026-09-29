@@ -73,7 +73,7 @@ describe("recipientsFor — 'taak gedaan' (AC-073, V-38a)", () => {
 });
 
 describe("recipientsFor — elke soort volgt de eigen voorkeur (V-23)", () => {
-  const types = Object.keys(PREFERENCE_FOR_TYPE) as NotificationType[];
+  const types = Object.keys(PREFERENCE_FOR_TYPE) as Exclude<NotificationType, "waste_sync_failed">[];
 
   it("kent geen vervallen soorten meer (toewijzen, ruilen)", () => {
     expect(types.sort()).toEqual(
@@ -86,5 +86,34 @@ describe("recipientsFor — elke soort volgt de eigen voorkeur (V-23)", () => {
     const alleenDeze: Prefs = { ...prefs("lynn", false), [key]: true };
     const allesBehalveDeze: Prefs = { ...prefs("ellen", true), [key]: false };
     expect(recipientsFor(type, [lynn, ellen], [alleenDeze, allesBehalveDeze])).toEqual(["lynn"]);
+  });
+});
+
+describe("recipientsFor — storing van de afvalkalender (W-03, §18.9.3; AC-205)", () => {
+  type MetRol = Member & { role: MemberRow["role"] };
+  const jurgenA: MetRol = { ...jurgen, role: "admin" };
+  const ellenA: MetRol = { ...ellen, role: "admin" };
+  const lynnM: MetRol = { ...lynn, role: "member" };
+  const kaiA: MetRol = { ...kai, role: "admin" };
+  const omaA: MetRol = { ...oma, role: "admin" };
+  const gezin = [jurgenA, ellenA, lynnM, kaiA, omaA];
+
+  it("gaat naar iedere actieve beheerder met account, los van de voorkeuren: Jurgen en Ellen", () => {
+    expect(recipientsFor("waste_sync_failed", gezin, gezin.map((m) => prefs(m.id, false))).sort()).toEqual(["ellen", "jurgen"]);
+    expect(recipientsFor("waste_sync_failed", gezin, []).sort()).toEqual(["ellen", "jurgen"]);
+  });
+
+  it("Lynn (gezinslid) krijgt hem nooit, ook met alle voorkeuren aan", () => {
+    expect(recipientsFor("waste_sync_failed", gezin, gezin.map((m) => prefs(m.id, true)))).not.toContain("lynn");
+  });
+
+  it("een uitgezette beheerder (Kai) of een beheerder zonder account krijgt hem niet", () => {
+    const ontvangers = recipientsFor("waste_sync_failed", gezin, gezin.map((m) => prefs(m.id, true)));
+    expect(ontvangers).not.toContain("kai");
+    expect(ontvangers).not.toContain("oma");
+  });
+
+  it("zonder rol-informatie gaat hij naar niemand (nooit per ongeluk naar een gezinslid)", () => {
+    expect(recipientsFor("waste_sync_failed", [jurgen, lynn], [prefs("jurgen", true), prefs("lynn", true)])).toEqual([]);
   });
 });

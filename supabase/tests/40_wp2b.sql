@@ -343,8 +343,8 @@ select pg_temp.systeem();
 -- =============================================================================
 select pg_temp.assert((select string_agg(e.enumlabel, ',' order by e.enumsortorder) from pg_enum e
                        where e.enumtypid = 'public.notification_type'::regtype)
-                      = 'reminder,deadline_soon,overdue,task_completed,daily_summary,evening_summary',
-  'WP2b: notification_type heeft precies de zes blijvende soorten');
+                      = 'reminder,deadline_soon,overdue,task_completed,daily_summary,evening_summary,waste_sync_failed',
+  'WP2b: notification_type heeft precies de zes blijvende soorten, plus waste_sync_failed (WP3b, TD §18.3.3)');
 select pg_temp.expect_sqlstate(format(
   $$insert into public.notifications (household_id, member_id, type, title) values (%L, %L, 'task_assigned', 'Nieuwe taak')$$, :'fam', :'lynn'), '22P02',
   'WP2b: melding van soort task_assigned kan niet meer');
