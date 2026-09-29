@@ -16,7 +16,9 @@ async function handle(request: NextRequest) {
     return NextResponse.json({ error: "Niet toegestaan" }, { status: 401 });
   }
   const report = await runTick();
-  return NextResponse.json(report);
+  // Faalde een stap, dan geen 200: zo is een storing zichtbaar in de planner
+  // (net._http_response) en in AC-063. De body blijft alleen tellingen (D-040).
+  return NextResponse.json(report, { status: report.failed.length ? 500 : 200 });
 }
 
 export const GET = handle;

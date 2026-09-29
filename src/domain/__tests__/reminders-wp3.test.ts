@@ -165,3 +165,23 @@ describe("AC-067: pauze van 1 tot en met 14 november", () => {
     expect(plan(reeks({ freq: "monthly", interval: 1, monthDay: 5 } as SeriesDefinition["rule"]), "2026-10-20")).toEqual(["2026-12-05"]);
   });
 });
+
+describe("AC-064: herinnering uiterlijk T + 15 minuten, ook voor een taak van morgen vroeg", () => {
+  // Taak morgen om 00:30 lokaal, herinnering 60 min vooraf → T = vandaag 23:30 lokaal = 21:30Z
+  const vroeg: ReminderTask = { ...task, id: "vroeg", scheduledDate: "2026-10-07", scheduledTime: "00:30", dueAt: null, reminderMinutesBefore: [60] };
+  const T = new Date("2026-10-06T21:30:00Z");
+  const na = (min: number) => new Date(T.getTime() + min * 60_000);
+
+  it("vóór T nog niet", () => {
+    expect(taskMessages(vroeg, prefs, na(-1), TZ)).toEqual([]);
+  });
+
+  it("elke tick in [T, T + 15] maakt de herinnering, met steeds dezelfde sleutel", () => {
+    const keys = [0, 1, 7, 14, 15].map((m) => {
+      const msgs = taskMessages(vroeg, prefs, na(m), TZ);
+      expect(msgs.map((x) => x.type)).toEqual(["reminder"]);
+      return msgs[0].dedupeKey;
+    });
+    expect(new Set(keys).size).toBe(1);
+  });
+});

@@ -17,6 +17,14 @@
 
 begin;
 
+-- Verwijzingen naar leden of accounts die na M6 zijn verwijderd, worden leeg
+-- (in plaats van een FK-fout die alles terugdraait), en een verwijderd account
+-- komt nooit terug (security-review WP2b, punt 3)
+create function pg_temp.lid(p_id uuid) returns uuid language sql stable as
+  $f$ select id from public.household_members where id = p_id $f$;
+create function pg_temp.gebruiker(p_id uuid) returns uuid language sql stable as
+  $f$ select id from public.users where id = p_id $f$;
+
 -- Wat …_210 extra toevoegde, weer weghalen; de insert-policy van WP1 terug
 drop index if exists public.shopping_lists_one_active_idx;
 alter table public.households drop constraint if exists households_timezone_amsterdam;
@@ -62,7 +70,8 @@ insert into public.household_members (id, household_id, user_id, display_name, c
 select b.id, b.household_id, b.user_id, b.display_name, b.color, b.icon, b.role::public.member_role, b.is_active, b.sort_order, b.created_at
 from __BACKUP__.household_members b
 where not exists (select 1 from public.household_members m where m.id = b.id)
-  and exists (select 1 from public.households h where h.id = b.household_id);
+  and exists (select 1 from public.households h where h.id = b.household_id)
+  and (b.user_id is null or exists (select 1 from public.users u where u.id = b.user_id));
 
 update public.household_members m
 set avatar_url = b.avatar_url, email = b.email
@@ -98,8 +107,8 @@ alter table public.task_recurrences
 update public.task_recurrences r
 set points = b.points,
     assignment_strategy = b.assignment_strategy::public.assignment_strategy,
-    fixed_member_id = b.fixed_member_id,
-    rotation_member_ids = b.rotation_member_ids
+    fixed_member_id = pg_temp.lid(b.fixed_member_id),
+    rotation_member_ids = array(select x from unnest(b.rotation_member_ids) x where pg_temp.lid(x) is not null)
 from __BACKUP__.task_recurrences b
 where b.id = r.id;
 
@@ -114,9 +123,9 @@ alter table public.tasks
     foreign key (completed_by_member_id, household_id) references public.household_members (id, household_id) on delete set null (completed_by_member_id);
 create index tasks_assigned_idx on public.tasks (assigned_member_id, status) where deleted_at is null;
 update public.tasks t
-set assigned_member_id = b.assigned_member_id,
+set assigned_member_id = pg_temp.lid(b.assigned_member_id),
     assignment_reason = b.assignment_reason,
-    completed_by_member_id = b.completed_by_member_id,
+    completed_by_member_id = pg_temp.lid(b.completed_by_member_id),
     points = b.points
 from __BACKUP__.tasks b
 where b.id = t.id;
@@ -128,7 +137,7 @@ alter table public.task_completions
   add constraint task_completions_member_id_household_id_fkey
     foreign key (member_id, household_id) references public.household_members (id, household_id) on delete set null (member_id);
 update public.task_completions c
-set member_id = b.member_id, points = b.points
+set member_id = pg_temp.lid(b.member_id), points = b.points
 from __BACKUP__.task_completions b
 where b.id = c.id;
 
@@ -136,9 +145,9 @@ alter table public.household_invitations
   add column member_id uuid,
   add constraint household_invitations_member_id_household_id_fkey
     foreign key (member_id, household_id) references public.household_members (id, household_id) on delete cascade;
-update public.household_invitations i set member_id = b.member_id from __BACKUP__.household_invitations b where b.id = i.id;
+update public.household_invitations i set member_id = pg_temp.lid(b.member_id) from __BACKUP__.household_invitations b where b.id = i.id;
 insert into public.household_invitations (id, household_id, member_id, email, role, token, invited_by_member_id, expires_at, accepted_at, accepted_by, created_at)
-select b.id, b.household_id, b.member_id, b.email, b.role::public.member_role, b.token, b.invited_by_member_id, b.expires_at, b.accepted_at, b.accepted_by, b.created_at
+select b.id, b.household_id, pg_temp.lid(b.member_id), b.email, b.role::public.member_role, b.token, pg_temp.lid(b.invited_by_member_id), b.expires_at, b.accepted_at, pg_temp.gebruiker(b.accepted_by), b.created_at
 from __BACKUP__.household_invitations b
 where not exists (select 1 from public.household_invitations i where i.id = b.id)
   and exists (select 1 from public.households h where h.id = b.household_id);
@@ -175,7 +184,7 @@ alter table public.shopping_lists
   add column created_by_member_id uuid,
   add constraint shopping_lists_created_by_member_id_household_id_fkey
     foreign key (created_by_member_id, household_id) references public.household_members (id, household_id) on delete set null (created_by_member_id);
-update public.shopping_lists l set created_by_member_id = b.created_by_member_id from __BACKUP__.shopping_lists b where b.id = l.id;
+update public.shopping_lists l set created_by_member_id = pg_temp.lid(b.created_by_member_id) from __BACKUP__.shopping_lists b where b.id = l.id;
 
 alter table public.shopping_items
   add column added_by_member_id uuid,
@@ -185,21 +194,21 @@ alter table public.shopping_items
   add constraint shopping_items_bought_by_member_id_household_id_fkey
     foreign key (bought_by_member_id, household_id) references public.household_members (id, household_id) on delete set null (bought_by_member_id);
 update public.shopping_items i
-set added_by_member_id = b.added_by_member_id, bought_by_member_id = b.bought_by_member_id
+set added_by_member_id = pg_temp.lid(b.added_by_member_id), bought_by_member_id = pg_temp.lid(b.bought_by_member_id)
 from __BACKUP__.shopping_items b
 where b.id = i.id;
 
 -- Verwijzingen naar teruggezette leden die bij het wissen op null zijn gezet
-update public.tasks t set created_by_member_id = b.created_by_member_id
+update public.tasks t set created_by_member_id = pg_temp.lid(b.created_by_member_id)
 from __BACKUP__.tasks b
 where b.id = t.id and t.created_by_member_id is null and b.created_by_member_id is not null;
-update public.task_recurrences r set created_by_member_id = b.created_by_member_id
+update public.task_recurrences r set created_by_member_id = pg_temp.lid(b.created_by_member_id)
 from __BACKUP__.task_recurrences b
 where b.id = r.id and r.created_by_member_id is null and b.created_by_member_id is not null;
-update public.task_comments c set member_id = b.member_id
+update public.task_comments c set member_id = pg_temp.lid(b.member_id)
 from __BACKUP__.task_comments b
 where b.id = c.id and c.member_id is null and b.member_id is not null;
-update public.household_invitations i set invited_by_member_id = b.invited_by_member_id
+update public.household_invitations i set invited_by_member_id = pg_temp.lid(b.invited_by_member_id)
 from __BACKUP__.household_invitations b
 where b.id = i.id and i.invited_by_member_id is null and b.invited_by_member_id is not null;
 
@@ -220,13 +229,14 @@ create table public.task_assignments (
 );
 create index task_assignments_task_idx on public.task_assignments (task_id);
 alter table public.task_assignments enable row level security;
+revoke all on public.task_assignments from anon;  -- zoals _rls voor alle tabellen (security-review WP2b, punt 3)
 create policy "assignments: leden lezen" on public.task_assignments
   for select to authenticated using (private.is_member(household_id));
 create policy "assignments: leden registreren" on public.task_assignments
   for insert to authenticated
   with check (private.is_member(household_id) and (assigned_by_member_id is null or private.is_my_member(assigned_by_member_id)));
 insert into public.task_assignments
-select b.id, b.household_id, b.task_id, b.member_id, b.assigned_by_member_id, b.reason, b.created_at
+select b.id, b.household_id, b.task_id, pg_temp.lid(b.member_id), pg_temp.lid(b.assigned_by_member_id), b.reason, b.created_at
 from __BACKUP__.task_assignments b
 where exists (select 1 from public.tasks t where t.id = b.task_id);
 
@@ -246,6 +256,7 @@ create table public.task_swap_requests (
 );
 create unique index task_swap_requests_one_open_idx on public.task_swap_requests (task_id) where status = 'open';
 alter table public.task_swap_requests enable row level security;
+revoke all on public.task_swap_requests from anon;  -- zoals _rls voor alle tabellen (security-review WP2b, punt 3)
 create policy "swaps: leden lezen" on public.task_swap_requests
   for select to authenticated using (private.is_member(household_id));
 create policy "swaps: eigen verzoek indienen" on public.task_swap_requests
@@ -259,7 +270,7 @@ create policy "swaps: eigen verzoek intrekken" on public.task_swap_requests
     and ((private.is_member(household_id) and private.is_my_member(requested_by_member_id)) or private.is_admin(household_id))
   );
 insert into public.task_swap_requests
-select b.id, b.household_id, b.task_id, b.requested_by_member_id, b.status, b.message, b.accepted_by_member_id, b.created_at, b.resolved_at
+select b.id, b.household_id, b.task_id, b.requested_by_member_id, b.status, b.message, pg_temp.lid(b.accepted_by_member_id), b.created_at, b.resolved_at
 from __BACKUP__.task_swap_requests b
 where exists (select 1 from public.tasks t where t.id = b.task_id)
   and exists (select 1 from public.household_members m where m.id = b.requested_by_member_id);
@@ -279,6 +290,7 @@ create table public.member_absences (
 );
 create index member_absences_member_idx on public.member_absences (member_id, starts_on, ends_on);
 alter table public.member_absences enable row level security;
+revoke all on public.member_absences from anon;  -- zoals _rls voor alle tabellen (security-review WP2b, punt 3)
 create policy "absences: leden lezen" on public.member_absences
   for select to authenticated using (private.is_member(household_id));
 create policy "absences: eigen of beheerder beheert" on public.member_absences
@@ -286,7 +298,7 @@ create policy "absences: eigen of beheerder beheert" on public.member_absences
   using (private.is_admin(household_id) or (private.is_member(household_id) and private.is_my_member(member_id)))
   with check (private.is_admin(household_id) or (private.is_member(household_id) and private.is_my_member(member_id)));
 insert into public.member_absences
-select b.id, b.household_id, b.member_id, b.starts_on, b.ends_on, b.strategy::public.absence_strategy, b.note, b.created_by_member_id, b.created_at
+select b.id, b.household_id, b.member_id, b.starts_on, b.ends_on, b.strategy::public.absence_strategy, b.note, pg_temp.lid(b.created_by_member_id), b.created_at
 from __BACKUP__.member_absences b
 where exists (select 1 from public.household_members m where m.id = b.member_id);
 

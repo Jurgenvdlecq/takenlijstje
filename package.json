@@ -11,7 +11,8 @@
     "test:db": "bash supabase/tests/run.sh",
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:int": "vitest run -c tests/integration/vitest.config.mts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

@@ -46,7 +46,14 @@ function occurrenceRows(row: RecurrenceRow, occurrences: PlannedOccurrence[]) {
   }));
 }
 
-/** Supabase geeft standaard hooguit 1000 rijen terug; lees in pagina's. */
+/** Vaste tijdzone van elk huishouden (V-39); terugval als de rij hem niet heeft */
+export const HOUSEHOLD_TIMEZONE = "Europe/Amsterdam";
+
+/**
+ * Supabase geeft standaard hooguit 1000 rijen terug; lees in pagina's (op id
+ * gesorteerd). Een gelijktijdige wijziging kan een rij verschuiven; voor de tick
+ * is dat onschadelijk, want de volgende run haalt het in (D-040).
+ */
 export async function selectAll<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
   const size = 1000;
   const all: T[] = [];
@@ -128,7 +135,7 @@ export async function planAllSeries(db: DbClient, now = new Date()): Promise<num
   );
   if (!series.length) return 0;
 
-  const todayOf = (householdId: string) => todayIn(tzOf.get(householdId) ?? "Europe/Amsterdam", now);
+  const todayOf = (householdId: string) => todayIn(tzOf.get(householdId) ?? HOUSEHOLD_TIMEZONE, now);
   const earliest = series.map((r) => addDays(todayOf(r.household_id), -1)).sort()[0];
   const existing = await selectAll<{ recurrence_id: string; occurrence_date: string | null; status: TaskRow["status"]; scheduled_date: string; deleted_at: string | null }>(
     (from, to) =>
@@ -148,22 +155,29 @@ export async function planAllSeries(db: DbClient, now = new Date()): Promise<num
   }
 
   const rows: ReturnType<typeof occurrenceRows> = [];
-  const horizonUpdates: { id: string; generatedUntil: string | null }[] = [];
+  const horizonUpdates: { id: string; from: string | null; to: string }[] = [];
+  let failed = 0;
   for (const row of series) {
-    const today = todayOf(row.household_id);
-    const own = (bySeries.get(row.id) ?? []).filter((t) => t.occurrence_date && t.occurrence_date >= addDays(today, -1));
-    const plan = planSeries({
-      series: toSeries(row),
-      today,
-      timeZone: tzOf.get(row.household_id) ?? "Europe/Amsterdam",
-      existingOccurrenceDates: new Set(own.map((t) => t.occurrence_date!)),
-      hasOpenUpcoming: own.some(
-        (t) => !t.deleted_at && (t.status === "todo" || t.status === "in_progress") && t.scheduled_date >= today,
-      ),
-    });
-    rows.push(...occurrenceRows(row, plan.occurrences));
-    if (plan.generatedUntil !== row.generated_until) horizonUpdates.push({ id: row.id, generatedUntil: plan.generatedUntil });
+    // Eén reeks met een onbruikbare regel houdt de rest niet tegen (code-review WP3, punt 7)
+    try {
+      const today = todayOf(row.household_id);
+      const own = (bySeries.get(row.id) ?? []).filter((t) => t.occurrence_date && t.occurrence_date >= addDays(today, -1));
+      const plan = planSeries({
+        series: toSeries(row),
+        today,
+        timeZone: tzOf.get(row.household_id) ?? HOUSEHOLD_TIMEZONE,
+        existingOccurrenceDates: new Set(own.map((t) => t.occurrence_date!)),
+        hasOpenUpcoming: own.some(
+          (t) => !t.deleted_at && (t.status === "todo" || t.status === "in_progress") && t.scheduled_date >= today,
+        ),
+      });
+      rows.push(...occurrenceRows(row, plan.occurrences));
+      if (plan.generatedUntil !== row.generated_until) horizonUpdates.push({ id: row.id, from: row.generated_until, to: plan.generatedUntil });
+    } catch {
+      failed++;
+    }
   }
+  if (failed) console.error(`[planner] ${failed} reeks(en) overgeslagen: planning mislukt`);
 
   let created = 0;
   if (rows.length) {
@@ -172,11 +186,11 @@ export async function planAllSeries(db: DbClient, now = new Date()): Promise<num
     );
     created = inserted.length;
   }
-  // generated_until alleen voor reeksen waarvan hij veranderde; gegroepeerd per waarde
-  const byValue = new Map<string | null, string[]>();
-  for (const u of horizonUpdates) byValue.set(u.generatedUntil, [...(byValue.get(u.generatedUntil) ?? []), u.id]);
-  for (const [value, ids] of byValue) {
-    check(await db.from("task_recurrences").update({ generated_until: value }).in("id", ids));
+  // generated_until alleen als hij sinds het lezen niet veranderde: een reekswijziging
+  // die tegelijk "opnieuw plannen" vroeg, wordt zo niet overschreven (code-review WP3, punt 5)
+  for (const u of horizonUpdates) {
+    const update = db.from("task_recurrences").update({ generated_until: u.to }).eq("id", u.id);
+    check(await (u.from === null ? update.is("generated_until", null) : update.eq("generated_until", u.from)));
   }
   return created;
 }
@@ -213,6 +227,17 @@ export async function skipAllSuperseded(db: DbClient, now = new Date()): Promise
     })),
     now,
   );
-  if (ids.length) check(await db.from("tasks").update({ status: "skipped" }).in("id", ids));
-  return ids.length;
+  if (!ids.length) return 0;
+  // Alleen wat nog open is: een taak die intussen is afgevinkt of verwijderd,
+  // blijft zoals hij is (code-review WP3, punt 1)
+  const skipped = check(
+    await db
+      .from("tasks")
+      .update({ status: "skipped" })
+      .in("id", ids)
+      .in("status", ["todo", "in_progress"])
+      .is("deleted_at", null)
+      .select("id"),
+  );
+  return skipped.length;
 }

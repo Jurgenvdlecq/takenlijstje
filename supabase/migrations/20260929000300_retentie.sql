@@ -29,6 +29,8 @@ declare
   v_lists integer;
   v_invitations integer;
   v_tasks integer;
+  v_households integer;
+  v_without_admin integer;
   v_today date := (p_now at time zone 'Europe/Amsterdam')::date;
 begin
   -- Afvinkhistorie: 2 jaar
@@ -56,12 +58,29 @@ begin
     and (occurrence_date is null or occurrence_date < v_today - 30);
   get diagnostics v_tasks = row_count;
 
+  -- Huishoudens zonder leden (bijv. na het verwijderen van het laatste account
+  -- via Supabase zelf, buiten delete_my_account om): alles gaat mee via de FK's
+  -- (security-review WP2b, punt 2)
+  delete from public.households h
+  where not exists (select 1 from public.household_members m where m.household_id = h.id);
+  get diagnostics v_households = row_count;
+
+  -- Alleen tellen, niet wissen: een huishouden met leden maar zonder actieve
+  -- beheerder. De tick logt dit getal; de bouwer lost het met Jurgen op.
+  select count(*) into v_without_admin
+  from public.households h
+  where not exists (
+    select 1 from public.household_members m where m.household_id = h.id and m.role = 'admin' and m.is_active
+  );
+
   return jsonb_build_object(
     'completions', v_completions,
     'notifications', v_notifications,
     'shopping_lists', v_lists,
     'invitations', v_invitations,
-    'tasks', v_tasks
+    'tasks', v_tasks,
+    'households_without_members', v_households,
+    'households_without_admin', v_without_admin
   );
 end;
 $$;

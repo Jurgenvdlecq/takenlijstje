@@ -16,14 +16,20 @@ import { isOverdue } from "@/domain/status";
 import type { NotificationMessage } from "@/server/notifications/types";
 import type { MemberRow, PreferencesRow, TaskRow } from "@/types/database";
 import { check } from "../errors";
-import { planAllSeries, selectAll, skipAllSuperseded } from "../services/scheduling";
+import { HOUSEHOLD_TIMEZONE, planAllSeries, selectAll, skipAllSuperseded } from "../services/scheduling";
 import { createAdminClient } from "./admin-client";
 import { PUSH_CONCURRENCY, runLimited, sendPush, type PushSubscriptionRow } from "./channels/web-push";
 import { toRow } from "./dispatcher";
 
 /** Na zoveel ms geen nieuwe pushes meer starten (§11.3); de functie mag 60 s */
 const PUSH_BUDGET_MS = 45_000;
-const DEFAULT_TZ = "Europe/Amsterdam";
+const DEFAULT_TZ = HOUSEHOLD_TIMEZONE;
+/**
+ * Hoe ver vooruit de meldingenstap taken leest: een herinnering mag tot 7 dagen
+ * vooraf (validation.ts), dus een taak over 7 dagen kan nu al aan de beurt zijn
+ * (code-review WP3, punt 13)
+ */
+const READ_AHEAD_DAYS = 7;
 
 export interface TickReport {
   households: number;
@@ -112,7 +118,7 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
         .select("id, household_id, title, status, scheduled_date, scheduled_time, due_at, reminder_minutes_before")
         .is("deleted_at", null)
         .in("status", ["todo", "in_progress"])
-        .lte("scheduled_date", addDays(latestToday, 1))
+        .lte("scheduled_date", addDays(latestToday, READ_AHEAD_DAYS))
         .order("id")
         .range(from, to),
     ),
@@ -221,10 +227,16 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
       for (const n of list) {
         if (Date.now() >= pushDeadline) return;
         const wantsPush = Boolean(prefsOf.get(n.pending.memberId)?.push_enabled);
+        let complete = true;
         for (const sub of wantsPush ? (subsOf.get(userId) ?? []) : []) {
+          // Het budget geldt ook per toestel (code-review WP3, punt 8)
+          if (Date.now() >= pushDeadline) {
+            complete = false;
+            break;
+          }
           if (await sendPush(db, sub, n.pending.message)) result.pushed++;
         }
-        handled.push(n.id);
+        if (complete) handled.push(n.id);
       }
     },
     pushDeadline,

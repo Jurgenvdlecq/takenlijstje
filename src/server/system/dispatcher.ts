@@ -16,6 +16,7 @@ import {
   type Recipient,
 } from "@/server/notifications/types";
 import type { MemberRow, PreferencesRow } from "@/types/database";
+import { check } from "../errors";
 import { createAdminClient, hasAdminClient } from "./admin-client";
 import { WebPushChannel } from "./channels/web-push";
 
@@ -46,12 +47,13 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
     }
 
     const db = createAdminClient();
-    const [{ data: members }, { data: prefs }] = await Promise.all([
-      db.from("household_members").select("id, user_id, is_active").eq("household_id", householdId),
-      db.from("user_preferences").select("*").eq("household_id", householdId),
+    // check(): een mislukte query komt in de catch en wordt gelogd (code-review WP3, punt 10)
+    const [members, prefs] = await Promise.all([
+      db.from("household_members").select("id, user_id, is_active").eq("household_id", householdId).then(check),
+      db.from("user_preferences").select("*").eq("household_id", householdId).then(check),
     ]);
-    const memberRows = (members ?? []) as Pick<MemberRow, "id" | "user_id" | "is_active">[];
-    const prefRows = (prefs ?? []) as PreferencesRow[];
+    const memberRows = members as Pick<MemberRow, "id" | "user_id" | "is_active">[];
+    const prefRows = prefs as PreferencesRow[];
 
     const recipients: Recipient[] = recipientsFor(message.type, memberRows, prefRows)
       .filter((id) => !only || only.has(id))
@@ -63,17 +65,19 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
       }));
     if (!recipients.length) return;
 
-    const { data: inserted } = await db
-      .from("notifications")
-      .upsert(
-        recipients.map((r) => toRow(householdId, r.memberId, message)),
-        { onConflict: "member_id,dedupe_key", ignoreDuplicates: true },
-      )
-      .select("id, member_id");
+    const inserted = check(
+      await db
+        .from("notifications")
+        .upsert(
+          recipients.map((r) => toRow(householdId, r.memberId, message)),
+          { onConflict: "member_id,dedupe_key", ignoreDuplicates: true },
+        )
+        .select("id, member_id"),
+    );
 
     // Alleen pushen naar wie de melding echt nieuw kreeg (dedupe). Een melding
     // zonder dedupe-sleutel botst nooit en komt dus altijd terug.
-    const fresh = new Map((inserted ?? []).map((n) => [n.member_id, n.id] as const));
+    const fresh = new Map(inserted.map((n) => [n.member_id, n.id] as const));
     const toDeliver = recipients.filter((r) => fresh.has(r.memberId));
 
     for (const channel of channelsFor(db)) {
@@ -84,11 +88,12 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
     // pushed_at op id, zodat oudere meldingen met dezelfde titel niet geraakt worden (§11.3)
     const ids = toDeliver.map((r) => fresh.get(r.memberId)!);
     if (ids.length) {
-      await db.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", ids);
+      check(await db.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", ids));
     }
   } catch (error) {
     // Een mislukte melding mag de eigenlijke actie nooit laten falen
-    console.error(`[notify] ${message.type} mislukt: ${(error as Error)?.name ?? "fout"}`);
+    const e = error as { code?: string; name?: string };
+    console.error(`[notify] ${message.type} mislukt: ${e?.code ?? e?.name ?? "fout"}`);
   }
 }
 

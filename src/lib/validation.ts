@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { isISODate } from "@/domain/dates";
+import { isAllowedPushEndpoint } from "@/lib/push-endpoints";
 import { recurrenceRuleSchema } from "@/domain/recurrence/rule";
 
 export const uuid = z.uuid();
@@ -151,7 +152,7 @@ export const preferencesInput = z.object({
 });
 
 export const pushSubscriptionInput = z.object({
-  endpoint: z.url().startsWith("https://"),
+  endpoint: z.url().startsWith("https://").refine(isAllowedPushEndpoint, "Onbekende pushdienst"),
   keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
 });
 

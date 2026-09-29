@@ -4,7 +4,9 @@ import webpush from "web-push";
 import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import type { DbClient } from "@/lib/supabase/server";
+import { isAllowedPushEndpoint } from "@/lib/push-endpoints";
 import type { NotificationChannel, NotificationMessage, Recipient } from "@/server/notifications/types";
+import type { PushSubscriptionRow as PushSubscriptionTableRow } from "@/types/database";
 
 let configured = false;
 
@@ -27,13 +29,7 @@ function configure(): boolean {
   return true;
 }
 
-export interface PushSubscriptionRow {
-  id: string;
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-}
+export type PushSubscriptionRow = Pick<PushSubscriptionTableRow, "id" | "user_id" | "endpoint" | "p256dh" | "auth">;
 
 export function pushPayload(message: NotificationMessage): string {
   return JSON.stringify({
@@ -49,8 +45,14 @@ export function pushPayload(message: NotificationMessage): string {
  * abonnement (404/410) wordt opgeruimd. Geeft terug of het gelukt is.
  */
 export async function sendPush(db: DbClient, sub: PushSubscriptionRow, message: NotificationMessage): Promise<boolean> {
-  if (!configure()) return false;
+  // Alleen de bekende pushdiensten; een ander adres wordt nooit aangeschreven
+  if (!isAllowedPushEndpoint(sub.endpoint)) {
+    await db.from("push_subscriptions").delete().eq("id", sub.id);
+    return false;
+  }
   try {
+    // Binnen de try: een ongeldige VAPID-sleutel mag de tick niet laten vallen (code-review WP3, punt 9)
+    if (!configure()) return false;
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       pushPayload(message),
@@ -99,7 +101,7 @@ export class WebPushChannel implements NotificationChannel {
   }
 
   async deliver(recipients: Recipient[], message: NotificationMessage): Promise<void> {
-    if (!configure()) return;
+    if (!isWebPushConfigured()) return;
     const userIds = [...new Set(recipients.map((r) => r.userId).filter((id): id is string => !!id))];
     if (!userIds.length) return;
 
