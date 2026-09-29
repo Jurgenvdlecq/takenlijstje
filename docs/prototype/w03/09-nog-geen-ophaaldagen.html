@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Instellingen › Afvalkalender — leeg met formulier (A)</title>
+<title>Instellingen › Afvalkalender — F2, nog geen komende ophaaldagen (2 januari)</title>
 <link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="w03.css"></head>
 <body>
 <div class="phone" data-tab="">
@@ -11,13 +11,15 @@
   </header>
 
   <main>
-    <p class="para" style="margin-top:8px">De app leest de huisvuilkalender van Den Haag en zet voor restafval, papier en PMD zelf de taken klaar: de avond ervoor <b>buitenzetten</b>, op de ophaaldag <b>binnenzetten</b>.</p>
+    <div class="notice nobtn" role="status">
+      <i data-ic="alert" class="sm"></i>
+      <div class="solo">De gemeente heeft nog geen ophaaldagen voor de komende weken online gezet. De kalender van het nieuwe jaar komt meestal rond de jaarwisseling online. Er is niets opgeslagen. Probeer het over een paar dagen opnieuw.</div>
+    </div>
 
     <form class="addr-grid" onsubmit="return false">
       <div>
         <label class="field-l" for="pc">Postcode</label>
-        <div class="input err"><span class="val num">2517 A</span></div>
-        <div class="help err"><i data-ic="alert" class="sm"></i>Vul een postcode in zoals 2517 AB</div>
+        <div class="input"><span class="val num">2517 AB</span></div>
       </div>
       <div>
         <label class="field-l" for="hn">Huisnummer</label>
@@ -25,7 +27,7 @@
       </div>
       <div class="suffix">
         <label class="field-l" for="tv">Toevoeging (optioneel)</label>
-        <div class="input"><span class="ph">A of 2</span></div>
+        <div class="input"><span class="val num">A</span></div>
       </div>
     </form>
 

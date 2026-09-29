@@ -42,3 +42,23 @@
 .addr-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px 12px; margin-top: 22px; }
 .addr-grid .suffix { grid-column: 1; }
 .input .val { letter-spacing: .02em; }
+
+/* Ronde 2 (UX §13 r3) */
+/* Resultaatregel in balk H: T-78 (nog steeds fout) en T-79 (te snel). Geen toast. */
+.notice .nr { margin-top: 8px; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--text-2); }
+/* H3: twee tekstknoppen naast elkaar, links uitgelijnd met de tekst */
+.notice .acts { display: flex; gap: 8px; margin-left: -8px; }
+.notice .acts .btn.text { margin-left: 0; }
+/* F en F2: balk zonder titel en zonder knop (hoofdactie staat onder het formulier) */
+.notice.nobtn { padding-bottom: 12px; }
+.nowrap { white-space: nowrap; }
+.notice .nt { text-wrap: balance; }
+.subhead .quiet { text-wrap: pretty; }
+.notice .solo { font-size: 15px; line-height: 20px; color: var(--text); }
+/* Stille regel onder de kop (G′, G″): text-meta, text-3, geen icoon, geen knop */
+.subhead .quiet { margin-top: 4px; font-size: 14px; line-height: 18px; color: var(--text-3); }
+/* D: antwoord van de bron als regel boven de velden, overdue, zonder rand om de velden */
+.formerr { display: grid; grid-template-columns: 16px 1fr; column-gap: 6px; margin-top: 16px; font-size: 14px; line-height: 18px; font-weight: 500; color: var(--overdue); }
+.formerr > svg { margin-top: 1px; }
+.formerr + .addr-grid { margin-top: 16px; }
+.notice + .addr-grid { margin-top: 20px; }
