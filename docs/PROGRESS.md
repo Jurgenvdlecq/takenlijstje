@@ -56,6 +56,7 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 - W-03 afvalkalender, antwoord op V-41…V-44 (2026-09-28): "Ik zou toch B dien. Heb je hier wat aan? https://huisvuilkalender.denhaag.nl Rest, papier en pmd gaat het om. Stel dat het 29 september is in de ochtend, dan wil ik 28 september in de avond een herinnering 21.00" → keuze B (de app leest de afvalkalender zelf in); bron: huisvuilkalender van de gemeente Den Haag (V-41); bakken: rest, papier en PMD, geen GFT (V-43); moment: de avond vóór de ophaaldag om 21:00 een herinnering (V-42/V-44). Een taak "binnenzetten" is niet genoemd.
 - Rooktest WP1 op live (2026-09-28): "Het werk goed."
 - Rooktest WP2a en V-45…V-47 (2026-09-29): "Alles werkt. Adres mag opgeslagen worden. Direct bouwen. Binnen zetten moet er ook bij. Vanaf die middag." → rooktest WP2a geslaagd · V-45 adres (postcode + huisnummer) mag worden bewaard · V-46 afvalkalender als eigen werkpakket direct na WP3, vóór de nieuwe schermen · V-47 ook een taak "bak binnenzetten", op de ophaaldag vanaf de middag.
+- WP2b M5, bevestiging wissen (2026-09-29, zelfde sessie als M3–M5): "Ja. Wissen" → toestemming voor M6 (`…_210_scope_contract` op live).
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
 ## Open vragen
