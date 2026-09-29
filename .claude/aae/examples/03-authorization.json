@@ -1,0 +1,83 @@
+{
+  "schema_version": 3,
+  "id": "AUTH-001",
+  "title": "Wijzig toegangsregels zonder toegang tot een ander huishouden",
+  "goal": "Wijzig toegangsregels zonder toegang tot een ander huishouden",
+  "phase": "implementation",
+  "mode": "high-assurance",
+  "risk": "high",
+  "uncertainty": "low",
+  "risk_flags": [
+    "authorization"
+  ],
+  "scope": {
+    "read": [
+      "src/auth"
+    ],
+    "write": [
+      "src/auth",
+      "tests/auth"
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC1",
+      "text": "De hoofdactie is herkenbaar en bestaande taken blijven correct beschikbaar."
+    }
+  ],
+  "test_plan": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "Controleer gericht scope met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    },
+    {
+      "kind": "functional",
+      "method": "inspection",
+      "description": "Controleer gericht functional met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    },
+    {
+      "kind": "regression",
+      "method": "inspection",
+      "description": "Controleer gericht regression met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    },
+    {
+      "kind": "authorization-positive",
+      "method": "command",
+      "description": "Voer de gerichte positieve/negatieve toegangstest uit op lokale fixtures; verwijs naar runnerreceipt."
+    },
+    {
+      "kind": "authorization-negative",
+      "method": "command",
+      "description": "Voer de gerichte positieve/negatieve toegangstest uit op lokale fixtures; verwijs naar runnerreceipt."
+    },
+    {
+      "kind": "tenant-isolation",
+      "method": "command",
+      "description": "Voer de gerichte positieve/negatieve toegangstest uit op lokale fixtures; verwijs naar runnerreceipt."
+    }
+  ],
+  "agents": [
+    {
+      "name": "aae-security-reviewer",
+      "question": "Kunnen gebruikers na de wijziging alleen de toegestane records van hun eigen huishouden bereiken?",
+      "files": [
+        "src/auth",
+        "tests/auth",
+        "docs/aae/evidence"
+      ],
+      "deliverable": "Actueel onafhankelijk oordeel met positieve en negatieve toegangsscenarios.",
+      "stop_when": "De relevante toegangsgrens is bewezen of concreet geblokkeerd.",
+      "model": "sonnet",
+      "max_calls": 1
+    }
+  ],
+  "commands": [],
+  "budget": {
+    "agent_calls": 2,
+    "max_parallel": 1,
+    "command_runs": 0
+  },
+  "approval_required": true,
+  "design_freeze": false
+}

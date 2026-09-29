@@ -1,0 +1,51 @@
+{
+  "schema_version": 3,
+  "id": "COPY-001",
+  "title": "Verduidelijk de bestaande knoptekst zonder gedrag te veranderen",
+  "goal": "Verduidelijk de bestaande knoptekst zonder gedrag te veranderen",
+  "phase": "implementation",
+  "mode": "lean",
+  "risk": "low",
+  "uncertainty": "low",
+  "risk_flags": [],
+  "scope": {
+    "read": [
+      "src"
+    ],
+    "write": [
+      "src/components/Today.tsx"
+    ]
+  },
+  "acceptance": [
+    {
+      "id": "AC1",
+      "text": "De hoofdactie is herkenbaar en bestaande taken blijven correct beschikbaar."
+    }
+  ],
+  "test_plan": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "Controleer gericht scope met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    },
+    {
+      "kind": "functional",
+      "method": "inspection",
+      "description": "Controleer gericht functional met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    },
+    {
+      "kind": "regression",
+      "method": "inspection",
+      "description": "Controleer gericht regression met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    }
+  ],
+  "agents": [],
+  "commands": [],
+  "budget": {
+    "agent_calls": 0,
+    "max_parallel": 1,
+    "command_runs": 0
+  },
+  "approval_required": false,
+  "design_freeze": false
+}

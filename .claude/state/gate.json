@@ -1,5 +1,5 @@
 {
-  "laatstVerwerkt": "design-go:41320cf3-a4c9-412f-9775-9517a11ec2e5",
+  "laatstVerwerkt": "onderhoud-go:3be32614-d96e-495d-a46c-cb840f51393a",
   "geschiedenis": [
     {
       "op": "2026-09-27T20:43:36.361Z",
@@ -27,6 +27,11 @@
       "actie": "design-go",
       "niveau": 2,
       "geforceerd": false
+    },
+    {
+      "op": "2026-09-29T20:42:24.056Z",
+      "actie": "onderhoud-go",
+      "tot": "2026-09-29T21:12:24.049Z"
     }
   ],
   "niveauJurgen": {
@@ -50,5 +55,5 @@
     "geforceerd": false,
     "openPuntenBijGo": []
   },
-  "onderhoudTot": "2026-09-28T20:59:26.351Z"
+  "onderhoudTot": "2026-09-29T21:12:24.049Z"
 }

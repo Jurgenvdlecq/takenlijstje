@@ -12,6 +12,7 @@ Volgende stap: WP3 live — migraties _220/_300/_310 via de koppeling, deploy ma
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-29T20:42 — onderhoud aan het agentensysteem vrijgegeven tot 21:12 UTC
 - 2026-09-29T07:49 — onderhoud aan het agentensysteem vrijgegeven tot 08:19 UTC
 - 2026-09-28T20:33 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-28T20:32 — Jurgen trekt de Design Freeze in
@@ -61,6 +62,8 @@ Volgende stap: WP3 live — migraties _220/_300/_310 via de koppeling, deploy ma
 - W-03, antwoorden op V-50, V-52, V-53, V-54, V-56, V-57 (2026-09-29): "5. 14 dagen 6. Voorstel voglen 7. Voorstel volgen 8. Voorstel volgen 9. Voorstel volgen 10. Hoe doe ik dit?" → V-52 afvaltaken 14 dagen vooruit · V-54 afvaltaken niet hernoemen/verplaatsen/verwijderen; wel afvinken, bezig, notitie, deze keer overslaan; vergeten buitenzetten vervalt na de ophaaldag vanzelf · V-56 de handmatige reeks "Afvalcontainer buiten zetten" stopt Jurgen zelf zodra de afvalkalender werkt · V-50 afvalherinnering volgt de instelling "Herinneringen"; geen "deadline nadert/verlopen" voor afvaltaken; na > 48 uur niet bijwerken één melding aan de beheerders · V-53 adres alleen voor beheerders (invullen, wijzigen, zien); gezinsleden zien "Afvalkalender staat aan" · V-57 uitleg gegeven hoe de netwerkinstelling werkt.
 - WP2b M5, bevestiging wissen (2026-09-29, zelfde sessie als M3–M5): "Ja. Wissen" → toestemming voor M6 (`…_210_scope_contract` op live).
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
+
+- Installatie Adaptive Agent Environment v3 (2026-09-29, na `/onderhoud-go`): installatieplan gemeld met 3 conflicten (aangepaste poortbestanden in `.claude/gate`). Keuzes van Jurgen: (1) "Archiveren en installeren" → `.claude/gate` wordt verplaatst naar `docs/archief/agentsysteem-v2/gate`, daarna plan opnieuw en `--apply` alleen bij 0 conflicten; (2) "Eigen regels behouden" → `CLAUDE.md` via `--resolved-claude` met de algemene regels (Nederlands, gewone taal, eerst PROGRESS.md lezen) plus de AAE-import; de oude niveau- en goedkeuringsregels vervallen. Werkbranch: `claude/agentsysteem-v3-install` (lokaal, geen commit/push).
 
 ## Open vragen
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
