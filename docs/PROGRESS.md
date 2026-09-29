@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bouwen — WP2b (back-up, restore-test, wissen); parallel: ontwerp W-03 afvalkalender
-Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen tonen en "ja, wissen" van Jurgen in dezelfde sessie, M6 contract. Parallel: W-03 ontwerpstappen (product, UX, techniek, plan-critic) → nieuwe `/design-go`; bouwen als WP direct na WP3.
+Fase: Bouwen — WP3 (live zetten); WP2b wacht op rooktest M7; parallel: ontwerp W-03 afvalkalender
+Volgende stap: WP3 live — migraties _220/_300/_310 via de koppeling, deploy main, geheim in Vault (Jurgen kopieert naar Vercel), supabase/ops/planner.sql, live-controles L1–L9 + advies, na 2 uur AC-063/AC-064 meten. WP2b: rooktest M7 door Jurgen; M8 (back-up weg) ≈ 2026-10-29 na melding (herinnering ingepland). W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b direct na WP3.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -86,8 +86,8 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 | --- | --- | --- | --- | --- |
 | WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | code-review GO (r3), security GO (r2), test-writer GO (r4) | live 2026-09-28; rooktest Jurgen OK → **afgerond** |
 | WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | live 2026-09-29 (performance GO, security GO, code GO r2, tests groen, M0 identiek); rooktest Jurgen OK → **afgerond** |
-| WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | open |
-| WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | open |
+| WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | M6 live 2026-09-29; code GO, security GO, tests groen; open: rooktest M7, M8 (≈ 2026-10-29) |
+| WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | gebouwd; code GO (r2), security GO (r2), performance GO, tests GO (unit 354, integratie 30, DB, mutatie, E2E 58/58); open: live zetten + meting |
 | WP4 | Tokens, lettertype, shell, navigatie, states, sheets, snapshot | ACCEPTANCE_CRITERIA (WP4) | CP1 | open |
 | WP5 | Vandaag, afvinken (kernflow), taakdetail | ACCEPTANCE_CRITERIA (WP5) | CP2 → CP3 | open |
 | WP6 | Taak maken/wijzigen, reeksen, Taken | ACCEPTANCE_CRITERIA (WP6) | CP3-aanvulling | open |
@@ -118,6 +118,9 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - (geen)
 
 ## Uitgestelde punten (LAAG/POLISH)
+- WP3, code-herreview N2: race tussen "reeks wijzigen" en de planningsstap van de tick kan enkele uitvoeringen volgens de oude regel laten staan (venster van honderden ms). `generated_until` wordt niet meer teruggezet; het restrisico is bewust geaccepteerd (LAAG). Eventueel in WP6 bij het herwerken van reeksen.
+- WP3, code-herreview N6: `households` wordt in de tick twee keer gelezen; `sendDueMessages` (~140 regels) opsplitsen in een pure berekening + versturen. In WP9 (opruimen).
+- WP3, code-herreview N7: integratietests en E2E niet tegelijk op dezelfde lokale stack draaien (de tick ruimt lege testhuishoudens op).
 - WP1, code-review N3: wie offline uitlogt, wist de lokale gegevens terwijl het uitloggen zelf pas lukt met verbinding. Het ontwerp (UX §4.15, statustabel) wil dat uitloggen ook offline werkt, dus niet blokkeren. Mogelijke verbetering later: de schrijfblokkade opheffen als de navigatie niet doorgaat.
 - WP1, code-review N6: archiveren van de boodschappenlijst kan bij gelijktijdigheid half lukken. Dit wordt in WP2a vervangen door de RPC `archive_shopping_list`.
 - WP1, code-review 16: losse subquery in de push-policies, functioneel correct.
@@ -133,7 +136,7 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 - WP1, security N3: TD §4.1 noemt WP8 voor de script-CSP met nonce; D-018 en TD §15 zeggen WP9. WP9 geldt, niet verder uitstellen.
 
 ## Technische schuld
-- WP1: nonce-CSP voor scripts (WP9); guards op `current_user` i.p.v. GUC (WP9); push-endpoint-allowlist (WP3); `userId`-sleutel in de IDB-cache (WP4); link Account verwijderen op /geen-toegang (WP7); `updateTaskAction` splitsen (WP6).
+- WP1: nonce-CSP voor scripts (WP9); guards op `current_user` i.p.v. GUC (WP9); push-endpoint-allowlist (WP3, gebouwd: D-041/D-042/D-044); `userId`-sleutel in de IDB-cache (WP4); link Account verwijderen op /geen-toegang (WP7); `updateTaskAction` splitsen (WP6).
 - WP7: `grant execute on function public.delete_my_account() to authenticated` toevoegen samen met "Account verwijderen" (revoke in `…_200`, D-037).
 - WP2b: `…_210` staat sinds M6 in `supabase/migrations/`; de bijbehorende tests worden bijgewerkt (test-writer, WP2b).
 - Bestaande documentatie: `docs/ARCHITECTUUR.md` (van vóór dit systeem) wijkt op vier punten af van de code (INVENTARIS §7).

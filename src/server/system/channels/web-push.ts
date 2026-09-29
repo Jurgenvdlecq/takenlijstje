@@ -5,6 +5,7 @@ import { publicEnv } from "@/lib/env";
 import { serverEnv } from "@/lib/server-env";
 import type { DbClient } from "@/lib/supabase/server";
 import { isAllowedPushEndpoint } from "@/lib/push-endpoints";
+import { check } from "@/server/errors";
 import type { NotificationChannel, NotificationMessage, Recipient } from "@/server/notifications/types";
 import type { PushSubscriptionRow as PushSubscriptionTableRow } from "@/types/database";
 
@@ -110,8 +111,9 @@ export class WebPushChannel implements NotificationChannel {
     const userIds = [...new Set(recipients.map((r) => r.userId).filter((id): id is string => !!id))];
     if (!userIds.length) return;
 
-    const { data: subscriptions } = await this.db.from("push_subscriptions").select("*").in("user_id", userIds);
-    if (!subscriptions?.length) return;
+    // check(): een mislukte query komt in de catch van notify en wordt gelogd (code-herreview WP3, N3)
+    const subscriptions = check(await this.db.from("push_subscriptions").select("*").in("user_id", userIds));
+    if (!subscriptions.length) return;
 
     await runLimited(subscriptions as PushSubscriptionRow[], PUSH_CONCURRENCY, async (sub) => {
       await sendPush(this.db, sub, message);

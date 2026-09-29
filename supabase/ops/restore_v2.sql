@@ -108,7 +108,7 @@ update public.task_recurrences r
 set points = b.points,
     assignment_strategy = b.assignment_strategy::public.assignment_strategy,
     fixed_member_id = pg_temp.lid(b.fixed_member_id),
-    rotation_member_ids = array(select x from unnest(b.rotation_member_ids) x where pg_temp.lid(x) is not null)
+    rotation_member_ids = array(select u.x from unnest(b.rotation_member_ids) with ordinality as u(x, n) where pg_temp.lid(u.x) is not null order by u.n)
 from __BACKUP__.task_recurrences b
 where b.id = r.id;
 

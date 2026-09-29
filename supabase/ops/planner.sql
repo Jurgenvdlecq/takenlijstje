@@ -29,19 +29,25 @@ select cron.schedule(
   'takenlijstje-tick',
   '*/15 * * * *',
   $$
-  select net.http_post(
-    url := u.decrypted_secret,
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'takenlijstje_cron_secret'),
-      'Content-Type', 'application/json'
-    ),
-    body := '{}'::jsonb,
-    -- De pg_net-standaard (enkele seconden) is te kort voor de tick (§10)
-    timeout_milliseconds := 55000
-  )
-  from vault.decrypted_secrets u
-  -- Alleen via https: het geheim gaat nooit onversleuteld over de lijn (security-review WP3, punt 3)
-  where u.name = 'takenlijstje_tick_url' and u.decrypted_secret like 'https://%';
+  do $tick$
+  declare
+    v_url text := (select decrypted_secret from vault.decrypted_secrets where name = 'takenlijstje_tick_url');
+    v_secret text := (select decrypted_secret from vault.decrypted_secrets where name = 'takenlijstje_cron_secret');
+  begin
+    -- Alleen via https en nooit zonder geheim: anders een zichtbare fout in
+    -- cron.job_run_details in plaats van een stille no-op (security-review WP3 3; code-herreview N4)
+    if v_url is null or v_url not like 'https://%' or coalesce(length(v_secret), 0) < 32 then
+      raise exception 'takenlijstje-tick: tick-URL (https) of geheim (>= 32 tekens) ontbreekt in Vault';
+    end if;
+    perform net.http_post(
+      url := v_url,
+      headers := jsonb_build_object('Authorization', 'Bearer ' || v_secret, 'Content-Type', 'application/json'),
+      body := '{}'::jsonb,
+      -- De pg_net-standaard (enkele seconden) is te kort voor de tick (§10)
+      timeout_milliseconds := 55000
+    );
+  end
+  $tick$;
   $$
 );
 
