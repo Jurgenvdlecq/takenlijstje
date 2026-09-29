@@ -54,8 +54,10 @@ insert into public.push_subscriptions (user_id, endpoint, p256dh, auth) values
   (:'u_push', 'https://updates.push.services.mozilla.com/wpush/v2/gAAAA', 'p', 'a'),
   (:'u_push', 'https://web.push.apple.com/QGx1c3Q', 'p', 'a'),
   (:'u_push', 'https://wns2-db5p.notify.windows.com/w/?token=abc', 'p', 'a'),
-  (:'u_push', 'https://fcm.googleapis.com:443/fcm/send/poort', 'p', 'a');
-select pg_temp.assert((select count(*) = 5 from public.push_subscriptions where user_id = :'u_push'),
+  (:'u_push', 'https://fcm.googleapis.com:443/fcm/send/poort', 'p', 'a'),
+  -- alle toegestane padtekens (D-044): de klasse is niet te smal
+  (:'u_push', 'https://fcm.googleapis.com/fcm/send/aZ09-._~!#$%&()*+,/:=?@[]^_|', 'p', 'a');
+select pg_temp.assert((select count(*) = 6 from public.push_subscriptions where user_id = :'u_push'),
   'SR-WP3-1: abonnementen bij de vier pushdiensten worden opgeslagen');
 
 -- Geweigerd: als gebruiker (REST) én als systeem
@@ -78,7 +80,21 @@ insert into geweigerd values
   ('https://fcm.googleapis.com@evil.com/x'),
   ('https://fcm.googleapis.com:8443/x'),
   ('https://fcm.googleapis.com'),
-  ('https://fcm.googleapis.com/' || repeat('a', 1000));
+  ('https://fcm.googleapis.com/' || repeat('a', 1000)),
+  -- D-044: het PAD alleen zichtbare ASCII zonder " ' ; < > \ ` { }
+  ('https://fcm.googleapis.com/a`b'),
+  ('https://fcm.googleapis.com/a''b'),
+  ('https://fcm.googleapis.com/a"b'),
+  (E'https://fcm.googleapis.com/a\\b'),
+  ('https://fcm.googleapis.com/a<b'),
+  ('https://fcm.googleapis.com/a>b'),
+  ('https://fcm.googleapis.com/a;b'),
+  ('https://fcm.googleapis.com/a{b}'),
+  ('https://fcm.googleapis.com/a' || chr(160) || 'b'),
+  ('https://fcm.googleapis.com/a' || chr(65279) || 'b'),
+  ('https://fcm.googleapis.com/a' || chr(1) || 'b'),
+  ('https://fcm.googleapis.com/a b'),
+  ('https://fcm.googleapis.com/caf' || chr(233));
 grant select on geweigerd to authenticated;
 
 select pg_temp.expect_sqlstate(
@@ -97,8 +113,8 @@ from geweigerd;
 select pg_temp.expect_sqlstate(
   format($q$update public.push_subscriptions set endpoint = 'https://evil.com;.fcm.googleapis.com/x' where user_id = %L$q$, :'u_push'),
   '23514', 'SR-WP3-1: endpoint omzetten naar een verkeerde host');
-select pg_temp.assert((select count(*) = 5 from public.push_subscriptions where user_id = :'u_push'),
-  'SR-WP3-1: na de weigeringen staan er nog precies de 5 toegestane abonnementen');
+select pg_temp.assert((select count(*) = 6 from public.push_subscriptions where user_id = :'u_push'),
+  'SR-WP3-1: na de weigeringen staan er nog precies de 6 toegestane abonnementen');
 
 \o
 select 'WP3-herstel: push-endpoint-CHECK (…_310) geslaagd' as resultaat;

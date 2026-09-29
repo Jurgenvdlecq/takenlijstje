@@ -40,6 +40,19 @@ const GEWEIGERD: [string, string][] = [
   ["spatie", "https://evil.com .fcm.googleapis.com/x"],
   ["zonder pad", "https://fcm.googleapis.com"],
   ["te lang", `https://fcm.googleapis.com/${"a".repeat(1000)}`],
+  // D-044: het pad alleen zichtbare ASCII zonder " ' ; < > \ ` { }
+  ["backtick in het pad", "https://fcm.googleapis.com/a`b"],
+  ["enkel aanhalingsteken in het pad", "https://fcm.googleapis.com/a'b"],
+  ["dubbel aanhalingsteken in het pad", 'https://fcm.googleapis.com/a"b'],
+  ["backslash in het pad", "https://fcm.googleapis.com/a\\b"],
+  ["< in het pad", "https://fcm.googleapis.com/a<b"],
+  ["> in het pad", "https://fcm.googleapis.com/a>b"],
+  ["puntkomma in het pad", "https://fcm.googleapis.com/a;b"],
+  ["NBSP in het pad", "https://fcm.googleapis.com/a b"],
+  ["BOM (U+FEFF) in het pad", "https://fcm.googleapis.com/a﻿b"],
+  ["stuurteken chr(1) in het pad", "https://fcm.googleapis.com/a\u0001b"],
+  ["spatie in het pad", "https://fcm.googleapis.com/a b"],
+  ["é in het pad", "https://fcm.googleapis.com/café"],
   ["IP-adres", "https://127.0.0.1/x"],
   ["localhost", "https://localhost/x"],
   ["geen URL", "fcm.googleapis.com/fcm/send/abc"],
@@ -54,6 +67,26 @@ describe("isAllowedPushEndpoint", () => {
 
   it.each(GEWEIGERD)("weigert %s", (_naam, endpoint) => {
     expect(isAllowedPushEndpoint(endpoint)).toBe(false);
+  });
+
+  it("alle toegestane padtekens (D-044) worden geaccepteerd: de klasse is niet te smal", () => {
+    expect(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/aZ09-._~!#$%&()*+,/:=?@[]^_|")).toBe(true);
+  });
+
+  it("1001 tekens wordt geweigerd op de lengte, ook als het patroon wel past; 1000 mag", () => {
+    const basis = "https://fcm.googleapis.com/";
+    const te_lang = basis + "a".repeat(1001 - basis.length);
+    expect(te_lang).toHaveLength(1001);
+    expect(PUSH_ENDPOINT_PATTERN.test(te_lang)).toBe(true);
+    expect(isAllowedPushEndpoint(te_lang)).toBe(false);
+    expect(isAllowedPushEndpoint(basis + "a".repeat(1000 - basis.length))).toBe(true);
+  });
+
+  it("127.0.0.1.fcm.googleapis.com is bewust toegestaan (subdomein van de pushdienst) en beide parsers zien dezelfde host", () => {
+    const e = "https://127.0.0.1.fcm.googleapis.com/x";
+    expect(isAllowedPushEndpoint(e)).toBe(true);
+    expect(parse(e).hostname).toBe("127.0.0.1.fcm.googleapis.com");
+    expect(new URL(e).hostname).toBe("127.0.0.1.fcm.googleapis.com");
   });
 });
 

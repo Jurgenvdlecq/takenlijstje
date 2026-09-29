@@ -247,7 +247,11 @@ where c.author_name is null;"""),
   # ---- WP3-herstel (…_310; security-review WP3 punt 1 en 2) ----
   'push_check_weg': (K, "alter table public.push_subscriptions\n  add constraint push_subscriptions_endpoint_allowlist check (", "alter table public.push_subscriptions\n  add constraint push_subscriptions_endpoint_allowlist check (true or "),
   'push_check_host_ruim': (K, r"    and endpoint ~ '^https://([a-z0-9-]+\.)*", r"    and endpoint ~ '^https://([^/]+\.)*"),
-  'push_check_elke_poort': (K, r"notify\.windows\.com)(:443)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );", r"notify\.windows\.com)(:[0-9]+)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );"),
+  'push_check_elke_poort': (K, r"notify\.windows\.com)(:443)?/[!#-&(-:=?-\[\]-_a-z|~]*$'" + "\n  );", r"notify\.windows\.com)(:[0-9]+)?/[!#-&(-:=?-\[\]-_a-z|~]*$'" + "\n  );"),
+  # D-044: padklasse terug naar "alles behalve witruimte" (en varianten) moet gevangen worden
+  'push_pad_alles_behalve_witruimte': (K, r"(:443)?/[!#-&(-:=?-\[\]-_a-z|~]*$'" + "\n  );", r"(:443)?/[^[:space:]]*$'" + "\n  );"),
+  'push_pad_oude_klasse': (K, r"(:443)?/[!#-&(-:=?-\[\]-_a-z|~]*$'" + "\n  );", r"(:443)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );"),
+  'push_pad_met_backtick': (K, r"(:443)?/[!#-&(-:=?-\[\]-_a-z|~]*$'" + "\n  );", r"(:443)?/[!#-&(-:=?-\[\]-z|~]*$'" + "\n  );"),
   'push_check_zonder_lengte': (K, "    char_length(endpoint) <= 1000\n    and endpoint ~", "    true\n    and endpoint ~"),
   'notificatie_taak_index_weg': (P, "create index if not exists notifications_task_idx on public.notifications (task_id) where task_id is not null;\n", ""),
   'tick_index_weg': (P, """create index if not exists tasks_open_sched_idx
