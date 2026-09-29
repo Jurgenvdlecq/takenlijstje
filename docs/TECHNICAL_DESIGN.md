@@ -1686,7 +1686,7 @@ Daarnaast:
   - (c) de functie verwijderen en bij gewone terugkerende taken blijven.
 - **Ontstaat een blokkade pas later** (met een bewaard adres), dan geldt de gewone storingsroute: H1 na 48 uur en M-03 (§18.8.5).
 
-**CP-W03, de enige lijst** (oude UI; 390×844 licht; de met ◐ gemarkeerde ook donker via `--donker`; lokale stack met stub; `docs/screenshots/wp3b/`; bestandsnaam `cpw03-<nr>-<naam>`):
+**CP-W03, de enige lijst** (oude UI; 390×844 licht; de met ◐ gemarkeerde ook donker via `--donker`; lokale stack met stub; `docs/screenshots/wp3b/`; bestandsnaam `cpw03-<nr>-<korte-naam>`):
 
 *Instellingen, beheerder*
 1. Laden (skelet)
