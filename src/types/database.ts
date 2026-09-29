@@ -283,6 +283,8 @@ export type Database = {
       unarchive_shopping_list: { Args: { p_archived_list_id: string }; Returns: ShoppingListRow };
       delete_household: { Args: { p_confirm_name: string }; Returns: boolean };
       delete_my_account: { Args: Record<string, never>; Returns: boolean };
+      /** Alleen service_role (WP3, BR-45); tellingen per tabel */
+      run_purge: { Args: Record<string, never>; Returns: Record<string, number> };
     };
     Enums: {
       member_role: MemberRole;

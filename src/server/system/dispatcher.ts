@@ -69,25 +69,22 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
         recipients.map((r) => toRow(householdId, r.memberId, message)),
         { onConflict: "member_id,dedupe_key", ignoreDuplicates: true },
       )
-      .select("member_id");
+      .select("id, member_id");
 
-    // Alleen pushen naar wie de melding echt nieuw kreeg (dedupe)
-    const fresh = new Set((inserted ?? []).map((n) => n.member_id));
-    const toDeliver = recipients.filter((r) => fresh.has(r.memberId) || !message.dedupeKey);
+    // Alleen pushen naar wie de melding echt nieuw kreeg (dedupe). Een melding
+    // zonder dedupe-sleutel botst nooit en komt dus altijd terug.
+    const fresh = new Map((inserted ?? []).map((n) => [n.member_id, n.id] as const));
+    const toDeliver = recipients.filter((r) => fresh.has(r.memberId));
 
     for (const channel of channelsFor(db)) {
       const targets = toDeliver.filter((r) => channel.isEnabledFor(r));
       if (targets.length) await channel.deliver(targets, message);
     }
 
-    if (toDeliver.length) {
-      await db
-        .from("notifications")
-        .update({ pushed_at: new Date().toISOString() })
-        .eq("household_id", householdId)
-        .in("member_id", toDeliver.map((r) => r.memberId))
-        .is("pushed_at", null)
-        .eq("title", message.title);
+    // pushed_at op id, zodat oudere meldingen met dezelfde titel niet geraakt worden (§11.3)
+    const ids = toDeliver.map((r) => fresh.get(r.memberId)!);
+    if (ids.length) {
+      await db.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", ids);
     }
   } catch (error) {
     // Een mislukte melding mag de eigenlijke actie nooit laten falen
@@ -95,7 +92,7 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
   }
 }
 
-function toRow(householdId: string, memberId: string, message: NotificationMessage) {
+export function toRow(householdId: string, memberId: string, message: NotificationMessage) {
   return {
     household_id: householdId,
     member_id: memberId,
