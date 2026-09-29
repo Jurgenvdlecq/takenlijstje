@@ -1038,7 +1038,7 @@ Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel),
 ---
 
 ### Vragen voor Jurgen (beleid, kosten, verplichtingen)
-- **V-58 (nummer is een voorstel), adrescode bewaren.** Dit is plan-critic moet 6. Voorgestelde vraag: "Mag de app naast postcode en huisnummer ook het adresnummer van de gemeente bewaren? Dat is een openbare code van jullie adres, die nodig is om de kalender op te halen. Alleen beheerders zien hem, en hij verdwijnt als je de afvalkalender uitzet."
+- **V-58, adrescode bewaren — beantwoord (2026-09-29): "Ja dat mag"; verwerkt, de markeringen zijn vervangen. Hieronder de oorspronkelijke vraag, als geschiedenis.** Dit is plan-critic moet 6. Voorgestelde vraag: "Mag de app naast postcode en huisnummer ook het adresnummer van de gemeente bewaren? Dat is een openbare code van jullie adres, die nodig is om de kalender op te halen. Alleen beheerders zien hem, en hij verdwijnt als je de afvalkalender uitzet."
   - **Ja:** het ontwerp blijft zoals het is.
   - **Nee:** het bijwerken zoekt elke keer eerst het adres opnieuw op (één extra verzoek, twee keer per dag). "Adres weg" wordt dan ook herkend als dat opzoeken niets meer vindt. Verder verandert er niets.
   - **Voorstel:** ja.
@@ -1053,7 +1053,7 @@ Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel),
 - De regelvolgorde bij het instellen begint nu met `hasNoUpcoming`. Die geeft dezelfde uitkomsten als r5/r6, maar is makkelijker te lezen en te toetsen.
 
 ### Status
-**KLAAR VOOR PLANREVIEW** (W-03 ronde 4), op voorwaarde dat Jurgen V-58 beantwoordt (verplicht vóór JA). U0.1 wordt bij voorkeur meegevraagd.
+**KLAAR VOOR PLANREVIEW** (W-03 ronde 4). Aanvulling hoofdsessie: V-58 is beantwoord (ja) en verwerkt; plan-critic ronde 5 gaf JA. U0.1 blijft een controle vóór de livegang.
 
 Punten voor de hoofdsessie:
 - **V-nummers:** V-58 en V-59 zijn voorstellen; zo nodig hernummeren.
@@ -1085,5 +1085,5 @@ Relevante bestanden:
 | 6 | moet 4 | U3 zonder laden, laden mislukt, "Toch nog doen", Verlopen op D+1, H2 → H1 | U3 punten 1, 2, 26, 34, 38 (41 punten in totaal) |
 | 7 | hoofdsessie (DS §7.13.4) | bewaarde datums bij H2 alleen impliciet | expliciet in §18.6, §18.8.4, §18.11, §18.15 (205) en U3 punt 21 |
 | 8 | moet 6 | adrescode als "komt in het totaalvoorstel" | `[OPEN: V-58]` met het gevolg van "nee" (§18.3.1) |
-| 9 | plan-critic r4 bev. 1, aanb. 3, 4 | taken tijdens een storing impliciet; "1 dag te laat" op D+1; versiegeschiedenis in §18 | alleen insert na een mislukte ophaling (§18.8.4/§18.8.6/§18.10/§18.15/§18.18); "9 uur te laat" wo 09:00; §18.17 weg, §18.18 → §18.17 |
+| 9 | plan-critic r4 bev. 1, aanb. 3, 4 | taken tijdens een storing impliciet; "1 dag te laat" op D+1; versiegeschiedenis in §18 | alleen insert na een mislukte ophaling (§18.8.4/§18.8.6/§18.10/§18.15/§18.17); "9 uur te laat" wo 09:00; §18.17 weg, §18.18 → §18.17 |
 - /home/user/takenlijstje/docs/TECHNICAL_DESIGN.md

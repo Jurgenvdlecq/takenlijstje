@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP3 (live zetten); WP2b wacht op rooktest M7; parallel: ontwerp W-03 afvalkalender
-Volgende stap: W-03 — samengevoegde invoegteksten per document (plan-critic r3), vraag aan Jurgen over het bewaren van de adrescode (BAG-id) en controle U0.1 (22:00/07:45 op denhaag.nl), dan plan-critic r4 → totaalvoorstel → `/design-go`; bouwen als WP3b. Open controles vóór livegang WP3b: U0.1 (Jurgen), U5 (bereikbaarheid vanaf Vercel). WP3: meting AC-063/AC-064 (herinnering 11:40 UTC). WP2b: M8 ≈ 2026-10-29.
+Volgende stap: W-03 — plan-critic ronde 5: DESIGN FREEZE MOGELIJK: JA. Totaalvoorstel aan Jurgen gestuurd; wachten op `/design-go`. Daarna de vier samengevoegde teksten (`docs/wijzigingen/W-03/samengevoegd/`) in de bevroren documenten zetten en WP3b bouwen. Open controles vóór livegang WP3b: U0.1 (Jurgen), U5 (bereikbaarheid vanaf Vercel). WP3: meting AC-063/AC-064 (herinnering 11:40 UTC). WP2b: M8 ≈ 2026-10-29.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
