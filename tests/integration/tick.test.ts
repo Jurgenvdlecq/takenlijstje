@@ -9,7 +9,8 @@
  *   in de testdatabase en doet daar dan precies wat de echte planner nu ook zou
  *   doen (geen verschoven planning voor de E2E-gegevens).
  * - web-push is gemockt: er gaat niets naar een echte pushdienst. Het gedrag per
- *   abonnement volgt uit het endpoint (…/ok, …/weg-410, …/weg-404, …/fout-500).
+ *   abonnement volgt uit het endpoint (…/ok, …/weg-410, …/weg-404, …/fout-500);
+ *   de endpoints liggen op fcm.googleapis.com, zodat de allowlist ze doorlaat.
  * - Asserties alleen op de eigen huishoudens en eigen endpoints.
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,7 +68,7 @@ vi.mock("@/server/system/admin-client", async () => {
 import { notify } from "@/server/system/dispatcher";
 import { runTick, type TickReport } from "@/server/system/tick";
 import { klokVan, maakGezin, meldingenVan, minuten, must, ruimOp, takenVan, testDb, vandaag, TZ } from "./support/fixtures";
-import { addDays, zonedInstant } from "@/domain/dates";
+import { addDays, zonedDate, zonedInstant } from "@/domain/dates";
 
 const NOW = new Date();
 const TODAY = vandaag(NOW);
@@ -78,7 +79,8 @@ function sendsTo(endpoint: string) {
 }
 
 async function abonneer(userId: string, soort: string) {
-  const endpoint = `https://push.example.test/${RUN}/${soort}/${userId}`;
+  // Een toegestane pushdienst (src/lib/push-endpoints.ts); de mock stuurt niets echt
+  const endpoint = `https://fcm.googleapis.com/fcm/send/${RUN}/${soort}/${userId}`;
   must(
     await testDb().from("push_subscriptions").insert({ user_id: userId, endpoint, p256dh: "p256dh-test", auth: "auth-test" }).select("id").single(),
     "abonnement",
@@ -469,5 +471,103 @@ describe("AC-064: herinnering voor een taak van morgen vroeg", () => {
 
     const meldingen = await meldingenVan(gezin.householdId);
     expect(meldingen.map((m) => `${m.type}: ${m.title}`)).toEqual(["reminder: Herinnering: Morgen vroeg vuilnis"]);
+  });
+});
+
+// =============================================================================
+// Herstelronde WP3 — code-review punten 8, 10, 13 en de push-allowlist
+// =============================================================================
+describe("Herinnering tot 7 dagen vooraf (code-review WP3, punt 13)", () => {
+  it("een taak over 5 dagen met een herinnering 5 dagen vooraf geeft nu een melding", async () => {
+    const gezin = await maakGezin("Vooruit", [{ naam: "Jurgen", rol: "admin", prefs: stil }]);
+    const deadline = new Date(NOW.getTime() + 5 * 86_400_000);
+    await losseTaak(gezin.householdId, "Vooruit belasting", {
+      scheduled_date: zonedDate(deadline, TZ),
+      due_at: deadline.toISOString(),
+      reminder_minutes_before: [5 * 24 * 60 + 5], // herinneringsmoment = nu − 5 min
+    });
+
+    await runTick(NOW);
+
+    expect((await meldingenVan(gezin.householdId)).map((m) => `${m.type}: ${m.title}`)).toEqual(["reminder: Herinnering: Vooruit belasting"]);
+  });
+});
+
+describe("Pushbudget per abonnement (code-review WP3, punt 8)", () => {
+  it("na het budget geen volgend toestel meer; de melding telt dan niet als afgehandeld (pushed_at leeg)", async () => {
+    const gezin = await maakGezin("BudgetToestel", [{ naam: "Jurgen", rol: "admin", prefs: pushAan }]);
+    const { userId } = gezin.leden.Jurgen;
+    const toestellen = [await abonneer(userId, "ok-a"), await abonneer(userId, "ok-b"), await abonneer(userId, "ok-c")];
+    await losseTaak(gezin.householdId, "BudgetToestel ramen", { due_at: minuten(NOW, 180), reminder_minutes_before: [200] });
+    let extra = 0;
+    const echt = Date.now.bind(Date);
+    vi.spyOn(Date, "now").mockImplementation(() => echt() + extra);
+    push.onSend = (e) => {
+      if (toestellen.includes(e)) extra += 46_000; // het eerste toestel "duurt" 46 s
+    };
+
+    await runTick(NOW);
+
+    expect(toestellen.map(sendsTo).reduce((a, b) => a + b, 0)).toBe(1);
+    const meldingen = await meldingenVan(gezin.householdId);
+    expect(meldingen).toHaveLength(1); // de melding staat in de app
+    expect(meldingen[0].pushed_at).toBeNull(); // niet alle toestellen gehad
+  });
+});
+
+describe("Push-allowlist in de tick", () => {
+  it("een abonnement bij een onbekende host wordt niet aangeschreven en verwijderd; een toegestaan wel", async () => {
+    const gezin = await maakGezin("Allowlist", [{ naam: "Jurgen", rol: "admin", prefs: pushAan }]);
+    const { userId } = gezin.leden.Jurgen;
+    const ok = await abonneer(userId, "ok");
+    const kwaad = `https://fcm.googleapis.com.evil.example/${RUN}/${userId}`;
+    must(await testDb().from("push_subscriptions").insert({ user_id: userId, endpoint: kwaad, p256dh: "p", auth: "a" }).select("id"), "kwaad abonnement");
+    await losseTaak(gezin.householdId, "Allowlist ramen", { due_at: minuten(NOW, 180), reminder_minutes_before: [200] });
+
+    await runTick(NOW);
+
+    expect(sendsTo(kwaad)).toBe(0);
+    expect(sendsTo(ok)).toBe(1);
+    expect(await abonnementen(userId)).toEqual([ok]);
+  });
+});
+
+describe("dispatcher: een mislukte stap wordt gelogd en laat de actie niet falen (code-review WP3, punt 10)", () => {
+  function vangFouten() {
+    const regels: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      regels.push(args.map(String).join(" "));
+    });
+    return regels;
+  }
+
+  it("mislukte upsert van de melding: notify gooit niet, log bevat alleen soort en code", async () => {
+    const gezin = await maakGezin("NotifyFout", [{ naam: "Jurgen", rol: "admin", prefs: { ...pushAan, notify_task_completed: true } }]);
+    const ok = await abonneer(gezin.leden.Jurgen.userId, "ok");
+    faults.tables.add("notifications");
+    const log = vangFouten();
+
+    await expect(
+      notify({ householdId: gezin.householdId, message: { type: "task_completed", title: "Geheime titel is gedaan", dedupeKey: `done:fout:${RUN}` } }),
+    ).resolves.toBeUndefined();
+
+    expect(log).toEqual(["[notify] task_completed mislukt: XX001"]);
+    expect(sendsTo(ok)).toBe(0);
+    faults.tables.clear();
+    expect(await meldingenVan(gezin.householdId)).toEqual([]);
+  });
+
+  it("mislukte ledenquery: ook gelogd met de code, geen melding en geen push", async () => {
+    const gezin = await maakGezin("NotifyLeden", [{ naam: "Jurgen", rol: "admin", prefs: { ...pushAan, notify_task_completed: true } }]);
+    const ok = await abonneer(gezin.leden.Jurgen.userId, "ok");
+    faults.tables.add("household_members");
+    const log = vangFouten();
+
+    await notify({ householdId: gezin.householdId, message: { type: "task_completed", title: "Afwas is gedaan", dedupeKey: `done:leden:${RUN}` } });
+
+    expect(log).toEqual(["[notify] task_completed mislukt: XX001"]);
+    expect(sendsTo(ok)).toBe(0);
+    faults.tables.clear();
+    expect(await meldingenVan(gezin.householdId)).toEqual([]);
   });
 });

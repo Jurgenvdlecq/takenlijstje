@@ -312,3 +312,83 @@ describe("BR-11/BR-16: een taak die tussen lezen en bijwerken wordt afgevinkt, b
     expect(taak.status).toBe("done");
   });
 });
+
+// =============================================================================
+// Herstelronde WP3 — code-review punten 5 en 7
+// =============================================================================
+describe("planAllSeries: één kapotte reeks houdt de rest niet tegen (code-review WP3, punt 7)", () => {
+  it("een reeks met een onbruikbare regel wordt overgeslagen; de andere reeksen worden gepland; de log noemt alleen een telling", async () => {
+    const gezin = await maakGezin("Kapot", [{ naam: "Jurgen", rol: "admin" }]);
+    // weekly zonder weekdays: planSeries loopt vast (rule.weekdays is undefined)
+    const kapot = await reeks(gezin.householdId, "Kapot geheime reeks", { rule: { freq: "weekly", interval: 1 } });
+    const goed = await reeks(gezin.householdId, "Kapot goede reeks", { rule: { freq: "daily", interval: 1 } });
+    const regels: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      regels.push(args.map(String).join(" "));
+    });
+
+    await planAllSeries(db(), NOW);
+    vi.restoreAllMocks();
+
+    const taken = await takenVan(gezin.householdId);
+    expect(datumsVan(taken, goed.id)).toHaveLength(15);
+    expect(datumsVan(taken, kapot.id)).toEqual([]);
+    expect(regels.some((r) => /\d+ reeks\(en\) overgeslagen/.test(r))).toBe(true);
+    expect(regels.join("\n")).not.toContain("Kapot geheime reeks");
+    // De kapotte reeks houdt zijn horizon (geen generated_until)
+    expect(must(await testDb().from("task_recurrences").select("generated_until").eq("id", kapot.id).single(), "reeks").generated_until).toBeNull();
+  });
+});
+
+describe("planAllSeries: generated_until niet overschrijven als hij intussen veranderde (code-review WP3, punt 5)", () => {
+  it("een reekswijziging tussen lezen en bijwerken blijft staan", async () => {
+    const gezin = await maakGezin("Horizon", [{ naam: "Jurgen", rol: "admin" }]);
+    const dagelijks = await reeks(gezin.householdId, "Horizon dagelijks", { rule: { freq: "daily", interval: 1 } });
+    const intussen = addDays(TODAY, 2);
+    let gewijzigd = false;
+    const wijzig = async () => {
+      if (gewijzigd) return;
+      gewijzigd = true;
+      must(await testDb().from("task_recurrences").update({ generated_until: intussen }).eq("id", dagelijks.id).select("id"), "reeks wijzigen");
+    };
+    type Keten = Record<string | symbol, unknown> & PromiseLike<unknown>;
+    const metWijziging = (keten: Keten): Keten =>
+      new Proxy(keten, {
+        get(k, p, r) {
+          if (p === "then") return (ok: (v: unknown) => unknown, nok: (e: unknown) => unknown) => wijzig().then(() => k.then(ok, nok));
+          const v = Reflect.get(k, p, r);
+          return typeof v === "function" ? (...a: unknown[]) => metWijziging((v as (...x: unknown[]) => Keten).apply(k, a)) : v;
+        },
+      });
+    const echt = db();
+    const racend = new Proxy(echt, {
+      get(target, prop, receiver) {
+        if (prop !== "from") return Reflect.get(target, prop, receiver);
+        return (table: string) => {
+          const builder = target.from(table as never);
+          if (table !== "task_recurrences") return builder;
+          return new Proxy(builder, {
+            get(b, p, r) {
+              if (p !== "update") return Reflect.get(b, p, r);
+              return (...args: unknown[]) => metWijziging((b.update as unknown as (...a: unknown[]) => Keten)(...args));
+            },
+          });
+        };
+      },
+    }) as DbClient;
+
+    await planAllSeries(racend, NOW);
+
+    expect(gewijzigd).toBe(true);
+    const rij = must(await testDb().from("task_recurrences").select("generated_until").eq("id", dagelijks.id).single(), "reeks");
+    expect(rij.generated_until).toBe(intussen);
+  });
+
+  it("zonder gelijktijdige wijziging wordt generated_until wel bijgewerkt", async () => {
+    const gezin = await maakGezin("HorizonNormaal", [{ naam: "Jurgen", rol: "admin" }]);
+    const dagelijks = await reeks(gezin.householdId, "HorizonNormaal dagelijks", { rule: { freq: "daily", interval: 1 }, generated_until: addDays(TODAY, 3) });
+    await planAllSeries(db(), NOW);
+    const rij = must(await testDb().from("task_recurrences").select("generated_until").eq("id", dagelijks.id).single(), "reeks");
+    expect(rij.generated_until).toBe(addDays(TODAY, 14));
+  });
+});
