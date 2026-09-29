@@ -104,3 +104,47 @@ KLAAR VOOR VISUEEL ONTWERP (tekstwijzigingen). Er zijn geen open vragen.
 Relevante bestanden:
 - /home/user/takenlijstje/docs/wijzigingen/W-03/solution-architect-r5.md
 - /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r3.md
+
+
+---
+
+## Controle D1–D4 (solution-architect-r4.md, regels 1161–1165) op product-designer-r3/r4
+
+Ik heb niets in bestanden geschreven. Van de vier punten was alleen D2 nog niet verwerkt.
+
+**D1: storing zonder foutcode geeft H1 en M-03**
+Al verwerkt in r3, op drie plekken:
+- §13.8.2, rij H1: "`UNREACHABLE`, `FORMAT` of **geen foutcode** (achtergrondtaak lag stil)" → T-75/T-76;
+- §13.10, M-03: "storing, oorzaak `UNREACHABLE`/`FORMAT`, of **geen foutcode** (de achtergrondtaak lag stil)";
+- §13.7.5: "**geen foutcode** … geeft H1 met M-03".
+
+Er hoeft niets te veranderen.
+
+**D2: §13.13.3 wordt alleen een verwijzing**
+Nog niet verwerkt: r3 noemde §13.13.3 zelf "de enige lijst". De kop en de hele inhoud van §13.13.3 (inclusief mijn r4-regel "Meldingen onderin: T-90, T-90b, …") worden vervangen door:
+
+> ### 13.13.3 Checkpoint CP-W03: rook-screenshots WP3b
+> De lijst met rook-screenshots voor WP3b staat in TD §18.16 U3 (CP-W03). Dat is de enige lijst.
+
+Mijn r4-wijziging aan §13.13.3 vervalt daarmee.
+
+Opmerking voor de architect:
+- Neem in TD §18.16 U3, bij de meldingen onderin, **T-90b** op ("Afvalkalender staat aan · taken verschijnen 14 dagen vooraf", zonder Bekijken; na aanzetten met een eerstvolgende ophaaldag verder dan 14 dagen weg). Doe hetzelfde in TD r4 regel 1018 ("meldingen onderin: T-90 (met Bekijken), T-91, …").
+- Neem in U3 ook F2 op met een adres waarvan de eerstvolgende dag over 3 weken ligt. Dat moet C geven, geen F2. Na aanzetten volgt T-90b.
+- Verder in §13 verwijst alleen §13.17 naar de lijst ("AC-217 (oude UI, CP-W03-lijst §13.13.3)"). Die zin wordt: "AC-217 (oude UI, CP-W03-lijst TD §18.16 U3)".
+
+**D3: balk blijft staan tot herstel, ook als de oorzaak verandert**
+Al verwerkt in r3, §13.7.5, bullet "Een storing blijft een storing tot het echt weer lukt". Daar staat al dat de balk en "Niet bijgewerkt" blijven staan tot het bijwerken weer gelukt is. Verandert de oorzaak, dan verandert alleen de tekst in de balk (H2 wordt H1), zonder tweede melding. §13.8.2 zegt hetzelfde: "De balk blijft staan tot het bijwerken weer gelukt is. Alleen de variant (H1/H2/H3) volgt de laatste oorzaak."
+
+Er hoeft niets te veranderen. Wil de hoofdsessie de letterlijke zin toch bij "Weer gelukt" hebben, dan kan dat zonder bezwaar. Inhoudelijk voegt hij niets toe.
+
+**D4: T-52 met de ophaalmomenten 06:00 en 17:00**
+Al verwerkt in r3. T-52 luidt: "Taken staan 14 dagen vooraf klaar. De app kijkt twee keer per dag, 's ochtends en aan het eind van de middag, of de gemeente iets veranderd heeft." Dat past bij 06:00 en 17:00 zonder exacte tijden te noemen. Er hoeft niets te veranderen.
+
+### Vragen voor Jurgen
+Geen.
+
+Relevante bestanden:
+- /home/user/takenlijstje/docs/wijzigingen/W-03/solution-architect-r4.md
+- /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r3.md
+- /home/user/takenlijstje/docs/wijzigingen/W-03/product-designer-r4.md
