@@ -72,6 +72,7 @@ Volgende stap: WP3b gebouwd (migraties _320/_330, domein, server, tickstap, acti
 ## Open vragen
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
+- V-59 (W-03, security-review WP3b punt 1, GEMIDDELD, 2026-09-29, gesteld): mag er een grens komen op het opzoeken van een adres bij de gemeente (hooguit 20 keer per uur per huishouden; daarboven de bestaande tekst T-63 "nu niet bereikbaar")? Reden: wie zelf een account aanmaakt kan de app anders als doorgeefluik naar de gemeentesite gebruiken, met kans dat de gemeente de app blokkeert. Alternatieven: bewust accepteren (open registratie wordt niet aangeboden), of de open registratie sluiten. Voorstel: grens invoeren.
 - U0.1 (W-03, controle vóór livegang WP3b, bij Jurgen): staat op denhaag.nl › Afval › Huisvuil aanbieden voor minicontainers "vanaf 22.00 uur" en "uiterlijk 7.45 uur"?
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
