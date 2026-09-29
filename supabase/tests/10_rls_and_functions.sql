@@ -144,10 +144,12 @@ select (public.complete_task(:'task1', '22222222-2222-2222-2222-222222222222')).
 select pg_temp.assert(:'c1' = :'c1_again', 'zelfde mutatie → zelfde registratie');
 select pg_temp.assert(:'c1' = :'c1_other', 'al voltooide taak wordt niet dubbel geregistreerd');
 select pg_temp.assert((select count(*) = 1 from public.task_completions where task_id = :'task1'), 'precies één registratie');
-select pg_temp.assert((select was_late and minutes_late >= 119 and member_id is null and points = 0
+-- WP2b: member_id, points en completed_by_member_id bestaan niet meer; dat ze
+-- weg zijn, toetst 40_wp2b.sql (privacy-invariant, TD §3.1)
+select pg_temp.assert((select was_late and minutes_late >= 119
                               and note = 'Nieuwe rol wc-papier nodig' and duration_minutes = 15
-                       from public.task_completions where id = :'c1'), 'te laat, zonder persoon en zonder punten (AC-034)');
-select pg_temp.assert((select status = 'done' and completed_by_member_id is null from public.tasks where id = :'task1'), 'taak staat op done, zonder afvinker');
+                       from public.task_completions where id = :'c1'), 'te laat, met notitie en duur (AC-034)');
+select pg_temp.assert((select status = 'done' and completed_at is not null from public.tasks where id = :'task1'), 'taak staat op done');
 
 -- Direct schrijven in historie mag niet
 select pg_temp.expect_error(format(
