@@ -20,7 +20,7 @@ create extension if not exists pg_net with schema extensions;
 
 -- pg_net geeft bij installatie EXECUTE op net.http_* aan anon/authenticated
 -- (event trigger van Supabase). Niemand anders dan de planner hoeft dit (D-042).
-revoke execute on all functions in schema net from anon, authenticated;
+revoke execute on all functions in schema net from public, anon, authenticated;
 
 -- Idempotent: een bestaande taak met dezelfde naam wordt vervangen
 select cron.unschedule(jobid) from cron.job where jobname = 'takenlijstje-tick';

@@ -17,7 +17,9 @@ const ALLOWED_HOST_SUFFIXES = [
 
 const escaped = ALLOWED_HOST_SUFFIXES.map((s) => s.replace(/\./g, "\\.")).join("|");
 /** Gelijk aan de CHECK op push_subscriptions.endpoint (…_310) */
-export const PUSH_ENDPOINT_PATTERN = new RegExp(`^https://([a-z0-9-]+\\.)*(${escaped})(:443)?/[^\\s;{}\`'"\\\\<>]*$`);
+/** Pad: alleen zichtbare ASCII, zonder " ' ; < > \\ ` { } (security-herreview WP3, punt A) */
+const PATH_CHARS = "[!#-&(-:=?-\\[\\]-_a-z|~]";
+export const PUSH_ENDPOINT_PATTERN = new RegExp(`^https://([a-z0-9-]+\\.)*(${escaped})(:443)?/${PATH_CHARS}*$`);
 
 export function isAllowedPushEndpoint(endpoint: string): boolean {
   if (typeof endpoint !== "string" || endpoint.length > 1000 || !PUSH_ENDPOINT_PATTERN.test(endpoint)) return false;
