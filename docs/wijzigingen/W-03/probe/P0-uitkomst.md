@@ -20,3 +20,13 @@ Toestemming Jurgen: "Ja, probeer maar". Uitgevoerd met `net.http_get` vanuit het
 4. **Het testadres heeft geen rest- en PMD-dagen** (vermoedelijk ondergrondse containers). Voor rest/PMD-dagen zijn er dus geen echte voorbeelddata; de parser is voor alle soorten gelijk, de fixtures voor rest/PMD worden synthetisch (zelfde vorm).
 5. **Regel 22:00 / 07:45:** alleen uit zoekresultaten; www.denhaag.nl weigert servers. Bevestigen vraagt een blik van Jurgen op de pagina (of de netwerk-allowlist van de ontwikkelomgeving). Tot die tijd blijft de tekst zoals Jurgen besloot (21:00-herinnering met "mag vanaf 22:00 buiten, uiterlijk 07:45").
 6. **Veel data in `afvalstromen`** (~20 KB per aanroep door HTML en base64-iconen): bij het parsen alleen `id`, `title`, `menu_title`, `icon`, `ophaaldatum` gebruiken; niets anders bewaren.
+
+## U0.2 — aanvullende probe (2026-09-29, zelfde toestemming en werkwijze; rijen 14–16 daarna verwijderd)
+
+| Verzoek | Resultaat |
+| --- | --- |
+| `GET /rest/adressen/0518200000000000/afvalstromen` (onbekende adrescode) | 200, **`{}`** (een leeg object, geen lijst en geen 404) → de parser moet `{}` als "adres niet gevonden" behandelen (`ADDRESS_GONE`), niet als FORMAT-fout |
+| `GET /rest/adressen/0518200000000000/kalender/2026` | 200, `[]` |
+| `GET /rest/adressen/<testadres>/kalender/2025` | 200, 15 datums (papier en kerstbomen) → vorige jaren blijven opvraagbaar |
+
+Rechten vóór = na (plan-critic aanbeveling 12): de probe draaide alleen `net.http_get` en `select`/`delete` op `net._http_response`; geen schema-, rechten- of app-gegevenswijziging.
