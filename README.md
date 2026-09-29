@@ -124,7 +124,7 @@ Zie [`.env.example`](.env.example).
 2. Zet in de app onder **Instellingen → Meldingen** "Pushmeldingen op dit apparaat" aan.
    - Op de **iPhone** moet je de app eerst via Delen → **Zet op beginscherm** installeren (iOS 16.4 of nieuwer).
 3. Herinneringen, deadline-waarschuwingen en het dag- en avondoverzicht worden verstuurd door `/api/cron/tick`. Roep die endpoint iedere 15 minuten aan met de header `Authorization: Bearer $CRON_SECRET`. Dat kan op drie manieren:
-   - **Supabase:** zet de extensies `pg_cron` en `pg_net` aan en voer [`supabase/cron/schedule-tick.sql`](supabase/cron/schedule-tick.sql) uit (vul URL en geheim in);
+   - **Supabase:** voer [`supabase/ops/planner.sql`](supabase/ops/planner.sql) uit (zet pg_cron en pg_net aan en plant de tick elke 15 minuten); de tick-URL en het geheim staan alleen in Supabase Vault;
    - of **Vercel Cron** (let op: het gratis plan draait maar één keer per dag);
    - of een externe dienst zoals cron-job.org.
 
