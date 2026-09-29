@@ -85,6 +85,11 @@ export async function runTick(now = new Date()): Promise<TickReport> {
   });
   await step("opruimen", async () => {
     report.purged = check(await db.rpc("run_purge")) as Record<string, number>;
+    // Opvallend maken wat de bouwer met Jurgen moet oplossen (security-review WP3, punt 7)
+    const { households_without_members: gone = 0, households_without_admin: orphaned = 0 } = report.purged ?? {};
+    if (gone || orphaned) {
+      console.warn(`[tick] let op: huishoudens zonder leden opgeruimd=${gone}, zonder actieve beheerder=${orphaned}`);
+    }
   });
 
   console.info(

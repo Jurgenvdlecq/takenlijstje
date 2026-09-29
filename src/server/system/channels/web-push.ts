@@ -54,7 +54,7 @@ export async function sendPush(db: DbClient, sub: PushSubscriptionRow, message: 
     // Binnen de try: een ongeldige VAPID-sleutel mag de tick niet laten vallen (code-review WP3, punt 9)
     if (!configure()) return false;
     await webpush.sendNotification(
-      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+      { endpoint: new URL(sub.endpoint).href, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       pushPayload(message),
       {
         TTL: PUSH_TTL_SECONDS,

@@ -1,14 +1,18 @@
 import "server-only";
 
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { serverEnv } from "@/lib/server-env";
 
-/** Controleert de header "Authorization: Bearer $CRON_SECRET" in constante tijd. */
+const digest = (value: string) => createHash("sha256").update(value).digest();
+
+/**
+ * Controleert de header "Authorization: Bearer $CRON_SECRET" in constante tijd.
+ * Beide kanten worden eerst gehasht, zodat ook de lengte van het geheim niet
+ * uit de responstijd valt af te leiden (security-review WP3, punt 4).
+ */
 export function hasCronSecret(request: Request): boolean {
   const secret = serverEnv.cronSecret;
   if (!secret) return false;
   const header = request.headers.get("authorization") ?? "";
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const given = Buffer.from(header);
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return timingSafeEqual(digest(header), digest(`Bearer ${secret}`));
 }

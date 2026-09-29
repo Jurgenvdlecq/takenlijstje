@@ -14,8 +14,13 @@
 -- de tick met 401 en haalt de volgende run in (§12.2).
 -- =============================================================================
 
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
+-- Schema's zoals Supabase adviseert (niet in public; security-review WP3, punt 6)
+create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
+
+-- pg_net geeft bij installatie EXECUTE op net.http_* aan anon/authenticated
+-- (event trigger van Supabase). Niemand anders dan de planner hoeft dit (D-042).
+revoke execute on all functions in schema net from anon, authenticated;
 
 -- Idempotent: een bestaande taak met dezelfde naam wordt vervangen
 select cron.unschedule(jobid) from cron.job where jobname = 'takenlijstje-tick';
@@ -25,7 +30,7 @@ select cron.schedule(
   '*/15 * * * *',
   $$
   select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'takenlijstje_tick_url'),
+    url := u.decrypted_secret,
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'takenlijstje_cron_secret'),
       'Content-Type', 'application/json'
@@ -33,7 +38,10 @@ select cron.schedule(
     body := '{}'::jsonb,
     -- De pg_net-standaard (enkele seconden) is te kort voor de tick (§10)
     timeout_milliseconds := 55000
-  );
+  )
+  from vault.decrypted_secrets u
+  -- Alleen via https: het geheim gaat nooit onversleuteld over de lijn (security-review WP3, punt 3)
+  where u.name = 'takenlijstje_tick_url' and u.decrypted_secret like 'https://%';
   $$
 );
 
