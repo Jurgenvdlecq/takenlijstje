@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Instellingen › Afvalkalender — leeg met formulier (A)</title>
+<link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="w03.css"></head>
+<body>
+<div class="phone" data-tab="">
+<div class="scroll">
+  <header class="subhead">
+    <a class="back" href="#"><i data-ic="chevl"></i>Instellingen</a>
+    <h1 class="t-title">Afvalkalender</h1>
+    <div class="sub"><b>Uit</b></div>
+  </header>
+
+  <main>
+    <p class="para" style="margin-top:14px">De app leest de huisvuilkalender van Den Haag en zet de taken zelf klaar: de avond ervoor <b>buitenzetten</b> (herinnering om 21:00), op de ophaaldag <b>binnenzetten</b>. Voor restafval, papier en PMD.</p>
+
+    <form class="addr-grid" onsubmit="return false">
+      <div>
+        <label class="field-l" for="pc">Postcode</label>
+        <div class="input err"><span class="val num">2517 A</span></div>
+        <div class="help err"><i data-ic="alert" class="sm"></i>Vul een postcode in zoals 2517 AB</div>
+      </div>
+      <div>
+        <label class="field-l" for="hn">Huisnummer</label>
+        <div class="input"><span class="val num">12</span></div>
+      </div>
+      <div class="suffix">
+        <label class="field-l" for="tv">Toevoeging (optioneel)</label>
+        <div class="input"><span class="ph">A of 2</span></div>
+      </div>
+    </form>
+
+    <div style="margin-top:24px">
+      <button class="btn pri" style="width:100%">Adres zoeken</button>
+      <p class="help" style="margin-top:10px">Alleen postcode en huisnummer gaan naar de gemeente. Alleen beheerders zien het adres.</p>
+    </div>
+  </main>
+</div>
+</div>
+<script src="shell.js"></script>
+</body></html>

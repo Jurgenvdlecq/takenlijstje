@@ -1,0 +1,44 @@
+/* W-03 afvalkalender — aanvulling op ds.css. Alleen bestaande tokens; geen nieuwe kleuren.
+   Tijdelijk referentiemateriaal, geen productiecode. */
+
+/* Subpagina-kop (DS §7.6): terug-tekstknop + titel 22 px */
+.back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-left: -8px; padding: 0 8px 0 0; color: var(--accent); font-size: 17px; font-weight: 500; text-decoration: none; }
+.subhead { padding: 0 var(--gutter); }
+.subhead .t-title { margin-top: 2px; }
+.subhead .sub { margin-top: 4px; font-size: 15px; line-height: 20px; color: var(--text-2); }
+.subhead .sub b { color: var(--text); font-weight: 600; }
+
+/* Kenmerk Afvalkalender in de meta van een rij: zelfde vorm als ↻ + ritme */
+.row .m .waste { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Infolijst op een pagina (zelfde als in sheets) */
+.ilist.page { margin-top: 8px; }
+.irow .v.num { font-variant-numeric: tabular-nums; }
+.irow .v .muted { color: var(--text-3); }
+.irow.addr { align-items: center; padding: 2px 0; }
+.irow.addr .v { display: flex; align-items: center; gap: 4px; }
+.irow.addr .v .btn.text { margin-right: -8px; font-size: 15px; line-height: 20px; text-decoration: none; }
+
+.lead { margin: 14px 0 0; font-size: 17px; line-height: 24px; font-weight: 600; }
+.para { margin: 16px 0 0; font-size: 15px; line-height: 20px; color: var(--text-2); }
+.para b { color: var(--text); font-weight: 600; }
+.h-sec { margin: 26px 0 0; }
+
+/* Waarschuwingsbalk (toestand H) en bronfout (F): sunken, circle-alert, geen rood */
+.notice { display: grid; grid-template-columns: 16px 1fr; column-gap: 10px; margin-top: 16px; padding: 12px 14px 4px 12px; border-radius: var(--r-lg); background: var(--sunken); }
+.notice > svg { margin-top: 2px; color: var(--text-2); }
+.notice .nt { font-size: 15px; line-height: 20px; font-weight: 600; color: var(--text); }
+.notice .nb { margin-top: 2px; font-size: 14px; line-height: 18px; color: var(--text-2); }
+.notice .btn.text { justify-self: start; margin-left: -8px; }
+
+/* Tipkaart (DS §7.5): sunken, radius 16, met ✕ */
+.tip { position: relative; margin-top: 26px; padding: 12px 44px 12px 14px; border-radius: var(--r-lg); background: var(--sunken); font-size: 14px; line-height: 18px; color: var(--text-2); }
+.tip .x { position: absolute; top: 0; right: 0; width: 44px; height: 44px; display: grid; place-items: center; color: var(--text-3); }
+
+/* Danger-quiet (DS §7.1) */
+.btn.dq { background: var(--sunken); color: var(--overdue); }
+
+/* Adresformulier: postcode en huisnummer 60/40 */
+.addr-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 16px 12px; margin-top: 22px; }
+.addr-grid .suffix { grid-column: 1; }
+.input .val { letter-spacing: .02em; }
