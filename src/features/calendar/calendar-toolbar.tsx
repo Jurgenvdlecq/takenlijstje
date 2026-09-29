@@ -34,18 +34,18 @@ export function CalendarToolbar({
   showingToday: boolean;
 }) {
   return (
-    <div className="mb-4 grid gap-4">
-      <div className="flex items-center gap-2">
+    <div className="mb-4 grid min-w-0 gap-4">
+      <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-bold tracking-tight" aria-live="polite">
             {title}
           </h1>
           {subtitle && <p className="mt-0.5 truncate text-sm text-muted-foreground">{subtitle}</p>}
         </div>
-        <Button variant="outline" size="sm" onClick={onToday} disabled={showingToday}>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={onToday} disabled={showingToday}>
           Vandaag
         </Button>
-        <div className="flex">
+        <div className="flex shrink-0">
           <Button variant="ghost" size="icon" onClick={onPrev} aria-label={`Vorige ${PERIOD_NAME[mode]}`}>
             <ChevronLeft className="size-5" />
           </Button>

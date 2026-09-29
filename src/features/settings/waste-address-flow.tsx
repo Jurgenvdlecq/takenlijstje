@@ -51,19 +51,30 @@ export function AddressFlow({
 
   function tidyPostcode() {
     const compact = values.postcode.toUpperCase().replace(/\s/g, "");
-    if (POSTCODE_RE.test(compact)) setValues((v) => ({ ...v, postcode: formatPostcode(compact) }));
-    else if (values.postcode.trim()) setErrors((e) => ({ ...e, postcode: WASTE_TEXT.postcodeError }));
+    if (POSTCODE_RE.test(compact)) {
+      setValues((v) => ({ ...v, postcode: formatPostcode(compact) }));
+      setErrors((e) => ({ ...e, postcode: undefined }));
+    } else if (values.postcode.trim()) {
+      setErrors((e) => ({ ...e, postcode: WASTE_TEXT.postcodeError }));
+    }
   }
 
+  /**
+   * "12a", "12 a" en "12-2" worden bij het verlaten nummer + toevoeging (AC-187).
+   * Het hele cijferblok is het nummer: "87" blijft 87 (E2E WP3b, bug 1). Dezelfde
+   * regel als normalizeWasteAddress in het domein.
+   */
   function tidyHouseNumber() {
-    const match = /^\s*(\d{1,5})\s*[-\s]?\s*([A-Za-z0-9]+)\s*$/.exec(values.houseNumber);
-    if (match && !values.suffix.trim()) {
-      setValues((v) => ({ ...v, houseNumber: match[1], suffix: match[2].toUpperCase() }));
+    const raw = values.houseNumber;
+    const match = /^\s*(\d+)\s*(?:[-\s]\s*(\d+)|([A-Za-z][A-Za-z0-9]*))\s*$/.exec(raw);
+    const rest = match ? (match[2] ?? match[3] ?? "") : "";
+    if (match && rest && !values.suffix.trim()) {
+      setValues((v) => ({ ...v, houseNumber: match[1], suffix: rest.toUpperCase() }));
     }
-    const number = /^\s*(\d{1,5})/.exec(values.houseNumber);
-    if (values.houseNumber.trim() && (!number || Number(number[1]) < 1)) {
-      setErrors((e) => ({ ...e, houseNumber: WASTE_TEXT.houseNumberError }));
-    }
+    const number = /^\s*(\d+)\s*(?:[-\s]|[A-Za-z]|$)/.exec(raw);
+    const valid = number && Number(number[1]) >= 1 && Number(number[1]) <= 99_999;
+    if (raw.trim() && !valid) setErrors((e) => ({ ...e, houseNumber: WASTE_TEXT.houseNumberError }));
+    else if (valid) setErrors((e) => ({ ...e, houseNumber: undefined }));
   }
 
   function validate(): FormValues | null {

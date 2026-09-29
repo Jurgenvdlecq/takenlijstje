@@ -318,8 +318,16 @@ async function handleRpc(req, url, body) {
       [fn],
     );
     if (!meta.length) throw httpError(404, "PGRST202", `Functie ${fn} niet gevonden`);
+    // json/jsonb-parameters als JSON-tekst doorgeven: node-postgres zou een JS-array
+    // anders als Postgres-arrayliteral ({...}) sturen, wat voor jsonb 22P02/22023 geeft.
+    const { rows: params } = await client.query(
+      `select unnest(p.proargnames) as name, unnest(p.proargtypes::regtype[])::text as type
+         from (select * from pg_proc where proname = $1 and pronamespace = 'public'::regnamespace limit 1) p`,
+      [fn],
+    );
+    const jsonParams = new Set(params.filter((p) => p.type === "json" || p.type === "jsonb").map((p) => p.name));
     const names = Object.keys(args);
-    const values = names.map((n) => args[n]);
+    const values = names.map((n) => (jsonParams.has(n) && args[n] !== null && typeof args[n] === "object" ? JSON.stringify(args[n]) : args[n]));
     const argSql = names.map((n, i) => `${ident(n)} => $${i + 1}`).join(", ");
     const { proretset, typtype } = meta[0];
     let sql;

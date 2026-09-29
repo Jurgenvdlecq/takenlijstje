@@ -186,7 +186,13 @@ function TaskDetail({ task }: { task: TaskRow }) {
                 </DropdownMenuItem>
               )}
               {open && (
-                <DropdownMenuItem onSelect={() => void actions.skip(task.id, task.waste_direction)}>
+                <DropdownMenuItem
+                  onSelect={async () => {
+                    // Sluiten zoals bij afvinken: anders ligt de melding met "Ongedaan maken" onder de sheet (E2E WP3b)
+                    const ok = await actions.skip(task.id, task.waste_direction);
+                    if (ok) closeTask();
+                  }}
+                >
                   <SkipForward /> Deze keer overslaan
                 </DropdownMenuItem>
               )}
