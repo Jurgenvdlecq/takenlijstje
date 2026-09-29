@@ -61,6 +61,8 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 ## Open vragen
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
+- V-48…V-54 (W-03, product-analyst ronde 1, `docs/wijzigingen/W-03/product-analyst-r1.md`): V-48 binnenzetten vanaf hoe laat + herinnering (voorstel 12:00, herinnering 18:00) · V-49 gemeente: buiten pas vanaf 22:00, uiterlijk 07:45 — herinnering 21:00 houden? · V-50 wie krijgt afvalherinneringen en storingsmelding · V-51 meerdere bakken op één dag: één taak of per bak · V-52 hoe ver vooruit (voorstel 14 dagen) · V-53 wie ziet/stelt het adres in (voorstel alleen beheerders) · V-54 afvaltaken hernoemen/verplaatsen/verwijderen (voorstel nee). Nog niet aan Jurgen gesteld: eerst bundelen met de vragen van de architect.
+
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
 
