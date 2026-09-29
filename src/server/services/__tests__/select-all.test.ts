@@ -6,7 +6,29 @@ import { describe, expect, it, vi } from "vitest";
  */
 vi.mock("server-only", () => ({}));
 
-import { selectAll } from "../scheduling";
+import { chunks, selectAll } from "../scheduling";
+
+describe("chunks (D-043: id-lijsten in blokken van 200)", () => {
+  it("450 id's → 200, 200, 50, in volgorde en zonder verlies", () => {
+    const ids = Array.from({ length: 450 }, (_, i) => `id-${i}`);
+    const blokken = chunks(ids);
+    expect(blokken.map((b) => b.length)).toEqual([200, 200, 50]);
+    expect(blokken.flat()).toEqual(ids);
+  });
+
+  it("precies 200 → één blok; 201 → twee", () => {
+    expect(chunks(Array(200).fill(0)).map((b) => b.length)).toEqual([200]);
+    expect(chunks(Array(201).fill(0)).map((b) => b.length)).toEqual([200, 1]);
+  });
+
+  it("leeg → geen blokken (dus geen verzoek)", () => {
+    expect(chunks([])).toEqual([]);
+  });
+
+  it("eigen blokgrootte", () => {
+    expect(chunks([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
+  });
+});
 
 /** Nep-bron met `total` rijen die per aanroep het gevraagde bereik (inclusief) teruggeeft, zoals .range() */
 function bron(total: number) {

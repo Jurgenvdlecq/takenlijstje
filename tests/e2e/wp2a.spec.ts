@@ -256,9 +256,12 @@ test.describe("AC-073: 'taak gedaan'", () => {
       expect((await (await postOutbox(ellenPage.request, entry)).json()).ok).toBe(true);
       expect((await (await postOutbox(ellenPage.request, entry)).json()).ok).toBe(true);
 
-      // Ellen ziet de melding ook zelf in de app
-      await ellenPage.goto("/meldingen");
-      await expect(ellenPage.getByText(`${taakEllen.title} is gedaan`).first()).toBeVisible();
+      // Ellen ziet de melding ook zelf in de app. De melding komt sinds D-043 ná het
+      // antwoord (after()), en lokaal is er geen Realtime: herladen tot hij er is.
+      await expect(async () => {
+        await ellenPage.goto("/meldingen");
+        await expect(ellenPage.getByText(`${taakEllen.title} is gedaan`).first()).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 15_000 });
     } finally {
       await ellenPage.context().close();
     }

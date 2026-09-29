@@ -273,6 +273,10 @@ select pg_temp.assert((select count(*) = 1 from pg_indexes
                          and indexdef ilike '%deleted_at IS NULL%'
                          and indexdef ilike '%todo%' and indexdef ilike '%in_progress%'),
   'TD §11.3: tasks_open_sched_idx bestaat op scheduled_date, alleen open en niet verwijderde taken');
+select pg_temp.assert((select count(*) = 1 from pg_indexes
+                       where schemaname = 'public' and tablename = 'notifications' and indexname = 'notifications_task_idx'
+                         and indexdef ilike '%(task_id)%'),
+  'D-043: notifications_task_idx op task_id (FK "set null" bij hard verwijderen van taken)');
 
 -- =============================================================================
 -- Huishoudens zonder leden en zonder actieve beheerder (security-review WP2b, punt 2)

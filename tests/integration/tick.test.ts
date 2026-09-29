@@ -573,3 +573,68 @@ describe("dispatcher: een mislukte stap wordt gelogd en laat de actie niet falen
     expect(await meldingenVan(gezin.householdId)).toEqual([]);
   });
 });
+
+// =============================================================================
+// D-043 (performance-review WP3): pushed_at in blokken; begrensde time-out per push
+// =============================================================================
+describe("Tick met meer dan 200 nieuwe meldingen (D-043, chunks)", () => {
+  it("205 meldingen: alle 205 gepusht en allemaal pushed_at gezet", async () => {
+    const gezin = await maakGezin("VeelPush", [{ naam: "Jurgen", rol: "admin", prefs: pushAan }]);
+    const endpoint = await abonneer(gezin.leden.Jurgen.userId, "ok");
+    must(
+      await testDb()
+        .from("tasks")
+        .insert(
+          Array.from({ length: 205 }, (_, i) => ({
+            household_id: gezin.householdId, title: `VeelPush ${i}`, scheduled_date: TODAY,
+            due_at: minuten(NOW, 180), reminder_minutes_before: [200],
+          })),
+        )
+        .select("id"),
+      "taken",
+    );
+
+    await runTick(NOW);
+
+    const meldingen = await meldingenVan(gezin.householdId);
+    expect(meldingen).toHaveLength(205);
+    expect(sendsTo(endpoint)).toBe(205);
+    expect(meldingen.filter((m) => m.pushed_at === null)).toEqual([]);
+  });
+});
+
+describe("Push-time-out binnen het budget (D-043)", () => {
+  it("normaal 10 s; vlak voor het einde van het budget hooguit budget + 5 s − nu", async () => {
+    const gezin = await maakGezin("TimeOut", [{ naam: "Jurgen", rol: "admin", prefs: pushAan }]);
+    const { userId } = gezin.leden.Jurgen;
+    const eerste = await abonneer(userId, "ok-1");
+    const tweede = await abonneer(userId, "ok-2");
+    await losseTaak(gezin.householdId, "TimeOut ramen", { due_at: minuten(NOW, 180), reminder_minutes_before: [200] });
+    // Nep-klok: de eerste aanroep van Date.now() in runTick is het startmoment van het budget
+    let extra = 0;
+    let start: number | null = null;
+    const echt = Date.now.bind(Date);
+    vi.spyOn(Date, "now").mockImplementation(() => {
+      const t = echt() + extra;
+      start ??= t;
+      return t;
+    });
+    let eersteGestuurd = false;
+    push.onSend = (e) => {
+      // Na het eerste toestel staat de klok op start + 43 s: het tweede start 2 s vóór het einde van het budget
+      if (!eersteGestuurd && (e === eerste || e === tweede)) {
+        eersteGestuurd = true;
+        extra += start! + 43_000 - (echt() + extra);
+      }
+    };
+
+    await runTick(NOW);
+
+    const mijn = push.sends.filter((s) => s.endpoint === eerste || s.endpoint === tweede);
+    expect(mijn).toHaveLength(2);
+    expect(mijn[0].options.timeout).toBe(10_000);
+    // 45 s + 5 s − 43 s = 7 s (op een paar ms echte verwerkingstijd na)
+    expect(mijn[1].options.timeout as number).toBeLessThanOrEqual(7_000);
+    expect(mijn[1].options.timeout as number).toBeGreaterThan(6_500);
+  });
+});

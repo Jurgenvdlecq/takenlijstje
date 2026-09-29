@@ -392,3 +392,57 @@ describe("planAllSeries: generated_until niet overschrijven als hij intussen ver
     expect(rij.generated_until).toBe(addDays(TODAY, 14));
   });
 });
+
+// =============================================================================
+// D-043 (performance-review WP3): updates in blokken van 200 id's
+// =============================================================================
+describe("Meer dan 200 reeksen en taken in één tick (D-043, chunks)", () => {
+  it("210 reeksen: generated_until van alle 210 bijgewerkt; 210 verlopen uitvoeringen allemaal overgeslagen", async () => {
+    const gezin = await maakGezin("Veel", [{ naam: "Jurgen", rol: "admin" }]);
+    const aantal = 210;
+    const reeksen = must(
+      await testDb()
+        .from("task_recurrences")
+        .insert(
+          Array.from({ length: aantal }, (_, i) => ({
+            household_id: gezin.householdId,
+            title: `Veel reeks ${i}`,
+            rule: { freq: "weekly", interval: 1, weekdays: [isoWeekday(TODAY)] },
+            starts_on: addDays(TODAY, -30),
+          })),
+        )
+        .select("id"),
+      "reeksen",
+    );
+    const gisteren = addDays(TODAY, -1);
+    must(
+      await testDb()
+        .from("tasks")
+        .insert(
+          reeksen.flatMap((r, i) => [
+            {
+              household_id: gezin.householdId, recurrence_id: r.id, occurrence_date: gisteren, title: `Veel reeks ${i}`,
+              scheduled_date: gisteren, available_from: zonedInstant(gisteren, "00:00", TZ), due_at: zonedInstant(gisteren, "23:59", TZ),
+            },
+            {
+              household_id: gezin.householdId, recurrence_id: r.id, occurrence_date: TODAY, title: `Veel reeks ${i}`,
+              scheduled_date: TODAY, available_from: zonedInstant(TODAY, "00:00", TZ), due_at: zonedInstant(TODAY, "23:59", TZ),
+            },
+          ]),
+        )
+        .select("id"),
+      "taken",
+    );
+
+    await planAllSeries(db(), NOW);
+    await skipAllSuperseded(db(), NOW);
+
+    const horizons = must(await testDb().from("task_recurrences").select("generated_until").eq("household_id", gezin.householdId), "reeksen");
+    expect(horizons).toHaveLength(aantal);
+    expect(horizons.every((r) => r.generated_until === addDays(TODAY, 14))).toBe(true);
+    const taken = await takenVan(gezin.householdId);
+    expect(taken.filter((t) => t.occurrence_date === gisteren && t.status === "skipped")).toHaveLength(aantal);
+    expect(taken.filter((t) => t.occurrence_date === TODAY && t.status === "todo")).toHaveLength(aantal);
+    expect(taken.filter((t) => t.occurrence_date === addDays(TODAY, 14))).toHaveLength(aantal);
+  });
+});

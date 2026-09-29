@@ -249,6 +249,7 @@ where c.author_name is null;"""),
   'push_check_host_ruim': (K, r"    and endpoint ~ '^https://([a-z0-9-]+\.)*", r"    and endpoint ~ '^https://([^/]+\.)*"),
   'push_check_elke_poort': (K, r"notify\.windows\.com)(:443)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );", r"notify\.windows\.com)(:[0-9]+)?/[^[:space:];{}`''" + '"' + r"\\<>]*$'" + "\n  );"),
   'push_check_zonder_lengte': (K, "    char_length(endpoint) <= 1000\n    and endpoint ~", "    true\n    and endpoint ~"),
+  'notificatie_taak_index_weg': (P, "create index if not exists notifications_task_idx on public.notifications (task_id) where task_id is not null;\n", ""),
   'tick_index_weg': (P, """create index if not exists tasks_open_sched_idx
   on public.tasks (scheduled_date)
   where status in ('todo', 'in_progress') and deleted_at is null;

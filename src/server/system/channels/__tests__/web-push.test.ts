@@ -66,6 +66,13 @@ describe("sendPush", () => {
     expect(acties).toEqual([{ actie: "update", id: "sub-1", waarden: { last_used_at: expect.any(String) } }]);
   });
 
+  it("gebruikt de meegegeven (begrensde) time-out van de tick (D-043)", async () => {
+    webpush.sendNotification.mockResolvedValue({ statusCode: 201 });
+    const { db } = nepDb();
+    await sendPush(db, sub, message, 3_000);
+    expect(webpush.sendNotification.mock.calls[0][2]).toMatchObject({ timeout: 3_000 });
+  });
+
   it.each([404, 410])("verwijdert het abonnement bij %i (AC-075)", async (statusCode) => {
     webpush.sendNotification.mockRejectedValue(Object.assign(new Error("weg"), { statusCode }));
     const { db, acties } = nepDb();

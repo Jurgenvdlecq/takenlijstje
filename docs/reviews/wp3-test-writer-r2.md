@@ -1,0 +1,43 @@
+## Tests: WP3-herstel + WP2b-security (inclusief de security-herstelronde 7e3e347 en de performance-herstelronde 8084215 / D-043)
+Framework: vitest 5 (unit en integratie tegen de lokale stack), SQL/psql (DB-suite) | Suite gedraaid: unit **327 geslaagd / 0 gefaald** · integratie **30 geslaagd / 0 gefaald** · DB-suite groen (10…60, gelijktijdigheid en upgrade) · mutatiecontrole **97/97 gevangen** · tsc groen · eslint 0 fouten (5 bestaande waarschuwingen buiten de testcode) · testdata opgeruimd (0 INT-huishoudens over) | E2E: n.v.t. (die draait de hoofdsessie); wel één E2E-stap aangepast, zie hieronder
+
+### Dekking van de gevraagde punten en de criteria
+| Punt / criterium | Test | Status |
+| --- | --- | --- |
+| Code-review punt 1 (racetest) | `tests/integration/scheduling.test.ts`: "skipAllSuperseded zet een net afgevinkte taak niet op 'overgeslagen'" | geslaagd (faalde vóór de fix) |
+| (a) AC-077 bijgewerkt: sleutelset, huishouden zonder leden | `supabase/tests/50_retentie.sql`: 7 sleutels, alle waarden getallen; idempotent behalve `households_without_admin`; huishouden zonder leden weg met taak en lijst (cascade); huishouden met leden maar zonder beheerder blijft en telt +1; een uitgezette beheerder telt niet als actieve beheerder | geslaagd |
+| (b) undo-race (_220) | `supabase/tests/gelijktijdig.sh` scenario 5: sessie 1 vergrendelt de taak en verwijdert hem zacht; sessie 2 roept undo aan → "Taak niet gevonden", taak blijft verwijderd en gedaan, historie blijft 1 | geslaagd |
+| (c) account verdwijnt buiten de app om | 50_retentie.sql: `delete from auth.users` van de enige actieve beheerder → lid weg via cascade, ander lid blijft, huishouden blijft, `created_by` en de maker van de taak worden leeg, purge telt +1. `delete from public.users` van het enige lid → purge ruimt het huishouden op (`households_without_members` = 2, samen met het al lege huishouden) | geslaagd |
+| (d) witte lijst personen | 50_retentie.sql: alle FK's naar household_members, public.users en auth.users (zonder `household_id`) plus verdachte kolomnamen tegen de verwachte lijst. De vlag en de bewust bewaarde kolommen staan er met reden bij: `household_invitations.email`, `users.email`, `task_comments.author_name`, `push_subscriptions.user_agent` | geslaagd |
+| (e) aanroepbare functies | 50_retentie.sql: voor anon is in public alleen `get_invitation(text)` aanroepbaar; voor authenticated precies de 14 bekende RPC's (witte lijst); `run_purge` niet voor authenticated | geslaagd |
+| (f) + security (1)/(2): push-allowlist | `src/lib/__tests__/push-endpoints.test.ts`: 5 toegestaan, 28 geweigerd, waaronder `evil.com;.fcm…`, `169.254.169.254;.fcm…`, `localhost;.push.apple.com`, `{`, backtick, `'`, `"`, backslash, http, poort, userinfo en hoofdletters. Eigenschapstest over 5000 deterministische kandidaten: voor elk toegestaan endpoint geven `url.parse` en `new URL` dezelfde host, en die host is een pushdienst. Validatie weigert dezelfde lijst. `web-push.test.ts`: 13 niet-toegestane endpoints worden niet aangeschreven en het abonnement wordt verwijderd; web-push krijgt `new URL(e).href`; een ongeldige VAPID-sleutel gooit niet en logt geen sleutel | geslaagd |
+| Security (3): CHECK in _310 | nieuw `supabase/tests/60_push_endpoint.sql`: de vier diensten (en `:443`) slagen als gebruiker via RLS; 18 verkeerde endpoints → 23514, zowel als gebruiker als als systeem; ook een update naar een verkeerde host → 23514 | geslaagd |
+| (g) + security (4): route | `route.test.ts`: 500 bij `failed` (body alleen tellingen), 401 bij leeg CRON_SECRET met "Bearer ", bij de juiste lengte met verkeerde inhoud, bij een voorvoegsel of een aanvulling op het geheim, en bij "bearer" in kleine letters. De tsc-fout op regel 72 is opgelost (mock getypeerd als `TickReport`) | geslaagd |
+| (h) planAllSeries | scheduling.test.ts: een kapotte reeks (weekly zonder weekdays) wordt overgeslagen, de goede reeks wel gepland, de log bevat alleen een telling zonder titel; `generated_until` blijft staan als hij tussen lezen en bijwerken veranderde; zonder zo'n wijziging wordt hij wel bijgewerkt | geslaagd |
+| (i) tick | `tick.test.ts`: taak over 5 dagen met herinnering 5 dagen vooraf → melding (leesvenster 7 dagen); het budget geldt per toestel (na het budget geen volgend toestel en `pushed_at` blijft leeg); allowlist in de tick: een verkeerd endpoint komt niet in de database (23514), een toegestaan wordt wel aangeschreven | geslaagd |
+| (j) dispatcher | tick.test.ts: een mislukte upsert of ledenquery → `notify` gooit niet, de log is precies `[notify] task_completed mislukt: XX001`, er komt geen melding en geen push | geslaagd |
+| D-043 chunks en time-out | `select-all.test.ts`: `chunks` met 450/200/201/leeg. scheduling.test.ts: 210 reeksen → alle `generated_until` bijgewerkt en alle 210 verlopen uitvoeringen overgeslagen. tick.test.ts: 205 meldingen → 205 pushes en allemaal `pushed_at` gezet; time-out 10 s, en vlak voor het einde van het budget 7 s (budget + 5 s − nu, met een nep-klok). `web-push.test.ts`: de 4e parameter wordt doorgegeven. 50_retentie.sql: `notifications_task_idx` bestaat | geslaagd |
+| AC-063 / AC-064 (live) | — | LIVE (hoofdsessie) |
+| (k) restore_v2 met een na M6 verwijderd account | — | GEEN TEST (optioneel, niet gedaan) |
+
+### Toegevoegd of gewijzigd
+- `supabase/tests/50_retentie.sql`: punten (a), (c), (d) en (e) en de index uit D-043. | Faalt zonder fix: ja, gecontroleerd met de mutaties `purge_laat_lege_huishoudens_staan`, `purge_wist_ook_huishoudens_zonder_beheerder`, `purge_telt_uitgezette_beheerder`, `created_by_zonder_set_null`, `nieuwe_persoonkolom`, `nieuwe_persoon_fk`, `anon_extra_functie`, `authenticated_extra_functie` en `notificatie_taak_index_weg`: alle gevangen.
+- `supabase/tests/60_push_endpoint.sql` (nieuw). | Ja, gecontroleerd met `push_check_weg`, `push_check_host_ruim`, `push_check_elke_poort` en `push_check_zonder_lengte`: alle gevangen.
+- `supabase/tests/gelijktijdig.sh` scenario 5. | Ja, gecontroleerd: `undo_zonder_hercontrole` wordt gevangen door de race ("verwacht 'Taak niet gevonden'").
+- `supabase/tests/mutatie.sh`: 14 nieuwe mutaties. `undo_zonder_lidcheck` en `undo_niet_vervangen` gelden nu ook voor `_220`; zonder dat zouden ze stil zinloos worden. Totaal 97/97.
+- `supabase/tests/20_rechten_br.sql`: alleen testdata. De endpoints `https://push.example/…` zijn nu `https://fcm.googleapis.com/fcm/send/…`, omdat de nieuwe CHECK ze anders weigerde. De asserties zijn ongewijzigd; zonder deze aanpassing zou `expect_error` bij "abonnement op naam van een ander" stil op de CHECK in plaats van op RLS slagen.
+- `src/lib/__tests__/push-endpoints.test.ts` (nieuw). | Ja, gecontroleerd tegen de implementatie van vóór 7e3e347: 12 tests falen daar, waaronder de eigenschapstest, die zelf een parserverschil vindt.
+- `src/server/system/channels/__tests__/web-push.test.ts`, `src/app/api/cron/tick/__tests__/route.test.ts`, `src/server/services/__tests__/select-all.test.ts`: aangevuld zoals in de tabel. | De route- en chunk-unittests zijn niet apart met een mutant gecontroleerd; de chunks zijn wel via de integratie gecontroleerd.
+- `tests/integration/tick.test.ts` en `scheduling.test.ts`: aangevuld. Endpoints nu op `fcm.googleapis.com`. | Ja, gecontroleerd met tijdelijke mutanten (inmiddels verwijderd, config teruggezet). Gevangen: leesvenster 1 dag, budget alleen per melding, altijd afgehandeld, geen try/catch per reeks, `generated_until` onvoorwaardelijk bijwerken, alleen het eerste blok verwerken (scheduling en tick), een vaste time-out, en de dispatcher van vóór het herstel (zonder `check()`).
+- `tests/e2e/wp2a.spec.ts` (AC-073): de stap "Ellen ziet de melding ook zelf in de app" herlaadt nu `/meldingen` via `toPass` (15 s), omdat de melding sinds D-043 via `after()` ná het antwoord komt en Realtime lokaal ontbreekt. De DB-controles in AC-073 en AC-024 (`wp1-rechten.spec.ts`) pollden al. Niet gedraaid, want de E2E draait bij de hoofdsessie.
+
+### Bevindingen tijdens het testen
+- [LAAG, verwachting in de test] De header `Bearer <geheim> ` met een spatie erachter geeft 200. Dat is geen fout: Fetch/`Headers` snijdt spaties aan het begin en eind weg. Ik heb die case uit de routetest gehaald.
+- Verder geen nieuwe bevindingen in de productiecode. Code-reviewpunt 1 is hersteld en de racetest slaagt nu.
+
+### Nodig van de bouwer
+- Het script `test:int` in `package.json` (je zei dat je dat zelf doet).
+- De E2E-run om de aangepaste stap in AC-073 te bevestigen.
+
+### Conclusie
+GO. Alle gevraagde punten (a) t/m (j), de security-punten (1) t/m (4) en D-043 hebben tests die slagen (unit 327/327, integratie 30/30, DB groen, mutaties 97/97, tsc en lint groen). Alleen AC-063/AC-064 live, de E2E-run en het optionele punt (k) staan nog open.
