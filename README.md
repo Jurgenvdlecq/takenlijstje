@@ -85,7 +85,7 @@ cp .env.example .env.local   # en vul de waarden in (zie hieronder)
 ```
 
 ### 3. Database inrichten
-- **Supabase online:** installeer de CLI, voer `supabase link --project-ref <jouw-ref>` uit en daarna `supabase db push`.
+- **Supabase online:** migraties gaan alleen via de Supabase-koppeling (`apply_migration`), niet via `supabase db push`: de versienummers op live wijken af van de bestandsnamen (docs/DECISIONS.md, D-040).
   - Of plak de bestanden uit `supabase/migrations/` op volgorde in de SQL editor.
 - **Supabase lokaal:** voer `supabase db reset` uit. Dit draait alle migraties.
 

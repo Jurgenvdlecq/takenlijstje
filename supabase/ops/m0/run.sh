@@ -25,7 +25,9 @@ echo "→ schema tot en met WP1 (…_110) toegepast"
 echo "→ live-achtige testgegevens geladen"
 for f in supabase/migrations/*.sql; do
   [[ "$(basename "$f")" > "20260928000110_zzz" ]] || continue
-  [[ "$(basename "$f")" == *_scope_contract.sql ]] && continue
+  # Alleen tot vóór het contract: M0 beproeft het draaiboek van WP2b, latere
+  # migraties (WP3 en verder) horen niet in deze proef
+  [[ "$(basename "$f")" < "20260928000210" ]] || continue
   "${T[@]}" -f "$f"
 done
 echo "→ expand (…_200) toegepast op de bestaande gegevens"
