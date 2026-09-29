@@ -272,8 +272,23 @@ describe("BR-11/BR-16: een taak die tussen lezen en bijwerken wordt afgevinkt, b
     await planAllSeries(db(), NOW);
 
     // Iemand vinkt de taak af precies nadat de tick de open taken heeft gelezen
-    const echt = db();
+    // (vlak vóór de update-query wordt uitgevoerd, hoe die keten er ook uitziet)
     let afgevinkt = false;
+    const vinkAf = async () => {
+      if (afgevinkt) return;
+      afgevinkt = true;
+      must(await testDb().from("tasks").update({ status: "done", completed_at: NOW.toISOString() }).eq("id", oud.id).select("id"), "afvinken");
+    };
+    type Keten = Record<string | symbol, unknown> & PromiseLike<unknown>;
+    const metAfvinken = (keten: Keten): Keten =>
+      new Proxy(keten, {
+        get(k, p, r) {
+          if (p === "then") return (ok: (v: unknown) => unknown, nok: (e: unknown) => unknown) => vinkAf().then(() => k.then(ok, nok));
+          const v = Reflect.get(k, p, r);
+          return typeof v === "function" ? (...a: unknown[]) => metAfvinken((v as (...x: unknown[]) => Keten).apply(k, a)) : v;
+        },
+      });
+    const echt = db();
     const racend = new Proxy(echt, {
       get(target, prop, receiver) {
         if (prop !== "from") return Reflect.get(target, prop, receiver);
@@ -283,26 +298,7 @@ describe("BR-11/BR-16: een taak die tussen lezen en bijwerken wordt afgevinkt, b
           return new Proxy(builder, {
             get(b, p, r) {
               if (p !== "update") return Reflect.get(b, p, r);
-              return (...args: unknown[]) => {
-                const update = (b.update as (...a: unknown[]) => { in: (c: string, ids: string[]) => PromiseLike<unknown> })(...args);
-                return new Proxy(update, {
-                  get(u, q, s) {
-                    if (q !== "in") return Reflect.get(u, q, s);
-                    return (col: string, ids: string[]) => ({
-                      then: async (ok: (v: unknown) => unknown, nok: (e: unknown) => unknown) => {
-                        if (!afgevinkt) {
-                          afgevinkt = true;
-                          must(
-                            await testDb().from("tasks").update({ status: "done", completed_at: NOW.toISOString() }).eq("id", oud.id).select("id"),
-                            "afvinken",
-                          );
-                        }
-                        return u.in(col, ids).then(ok, nok);
-                      },
-                    });
-                  },
-                });
-              };
+              return (...args: unknown[]) => metAfvinken((b.update as unknown as (...a: unknown[]) => Keten)(...args));
             },
           });
         };

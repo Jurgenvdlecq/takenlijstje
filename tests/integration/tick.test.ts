@@ -67,7 +67,7 @@ vi.mock("@/server/system/admin-client", async () => {
 import { notify } from "@/server/system/dispatcher";
 import { runTick, type TickReport } from "@/server/system/tick";
 import { klokVan, maakGezin, meldingenVan, minuten, must, ruimOp, takenVan, testDb, vandaag, TZ } from "./support/fixtures";
-import { zonedInstant } from "@/domain/dates";
+import { addDays, zonedInstant } from "@/domain/dates";
 
 const NOW = new Date();
 const TODAY = vandaag(NOW);
@@ -450,5 +450,24 @@ describe("AC-076: een fout in één stap blokkeert de andere niet", () => {
     await runTick(NOW);
     expect(sendsTo(endpoint)).toBe(1);
     expect(await meldingenVan(gezin.householdId)).toHaveLength(3);
+  });
+});
+
+// =============================================================================
+// AC-064 (Int) — herinnering voor een taak van morgen vroeg komt bij de eerste tick na T
+// =============================================================================
+describe("AC-064: herinnering voor een taak van morgen vroeg", () => {
+  it("de tick leest ook taken van morgen: bij een tick kort na T staat de melding er", async () => {
+    const gezin = await maakGezin("Morgen", [{ naam: "Jurgen", rol: "admin", prefs: stil }]);
+    const morgen = addDays(TODAY, 1);
+    const anker = new Date(zonedInstant(morgen, "00:30", TZ));
+    // Herinnering zo gekozen dat T = now − 5 min (de tick valt binnen T + 15)
+    const voor = Math.round((anker.getTime() - NOW.getTime()) / 60_000) + 5;
+    await losseTaak(gezin.householdId, "Morgen vroeg vuilnis", { scheduled_date: morgen, scheduled_time: "00:30", reminder_minutes_before: [voor] });
+
+    await runTick(NOW);
+
+    const meldingen = await meldingenVan(gezin.householdId);
+    expect(meldingen.map((m) => `${m.type}: ${m.title}`)).toEqual(["reminder: Herinnering: Morgen vroeg vuilnis"]);
   });
 });
