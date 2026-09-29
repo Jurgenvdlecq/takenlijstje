@@ -32,7 +32,8 @@ let overrideWarned = false;
 export function sourceBaseUrl(): string {
   const override = process.env.WASTE_SOURCE_BASE_URL;
   if (!override) return WASTE_SOURCE_BASE_URL;
-  if (LOOPBACK_OVERRIDE.test(override)) return override;
+  // Nooit in productie, ook niet per ongeluk meegekopieerd (security-review WP3b, punt 3)
+  if (LOOPBACK_OVERRIDE.test(override) && process.env.VERCEL_ENV !== "production") return override;
   if (!overrideWarned) {
     console.warn("[waste] override genegeerd");
     overrideWarned = true;

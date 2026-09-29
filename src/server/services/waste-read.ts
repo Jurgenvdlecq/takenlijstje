@@ -63,12 +63,15 @@ export async function getWasteSettings(ctx: HouseholdContext, now = new Date()):
   const next = { rest: null, papier: null, pmd: null } as Record<WasteStream, string | null>;
   for (const s of WASTE_STREAMS) next[s] = pickups[s].find((d) => d >= today) ?? null;
 
-  const { count } = await supabase
+  // Een mislukte telling geeft een fout (T-68), nooit een onjuiste uitzettekst (code-review WP3b, punt 5)
+  const counted = await supabase
     .from("tasks")
     .select("id", { count: "exact", head: true })
     .eq("household_id", household.id)
     .not("waste_direction", "is", null)
     .in("status", ["todo", "in_progress"]);
+  if (counted.error) throw counted.error;
+  const count = counted.count ?? 0;
 
   return {
     role: "admin",
@@ -92,6 +95,6 @@ export async function getWasteSettings(ctx: HouseholdContext, now = new Date()):
       tz,
     ),
     next,
-    openTasks: count ?? 0,
+    openTasks: count,
   };
 }

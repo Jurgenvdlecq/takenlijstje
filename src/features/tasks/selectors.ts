@@ -71,7 +71,8 @@ export function dashboardData(snapshot: Snapshot, now: Date): DashboardData {
   ];
 
   const openWithDeadline = views
-    .filter((t) => isOpen(t) && t.due_at && t.display !== "overdue")
+    // Afvaltaken hebben geen "deadline nadert" (V-50, UX §13.4)
+    .filter((t) => isOpen(t) && t.due_at && t.display !== "overdue" && !t.waste_direction)
     .sort((a, b) => (a.due_at! < b.due_at! ? -1 : 1));
 
   return {

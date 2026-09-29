@@ -46,7 +46,13 @@ export type WasteConfirmResult =
 
 function parseAddress(raw: unknown) {
   const input = addressInput.safeParse(raw);
-  if (!input.success) throw new UserError(WASTE_TEXT.houseNumberError, "VALIDATION");
+  if (!input.success) {
+    const field = input.error.issues[0]?.path[0];
+    throw new UserError(
+      field === "postcode" ? WASTE_TEXT.postcodeError : field === "suffix" ? WASTE_TEXT.suffixError : WASTE_TEXT.houseNumberError,
+      "VALIDATION",
+    );
+  }
   const normalized = normalizeWasteAddress(input.data);
   if (!normalized.ok) {
     const e = normalized.errors;
@@ -102,7 +108,7 @@ export async function confirmWasteAddressAction(raw: WasteAddressInput): Promise
 
     if (same) {
       // (c) Zelfde adres: stand bijwerken, zonder claim (nooit T-79, AC-222)
-      const counts = await applyConfirmedSameAddress(ctx.household.id, current.version, result.pickups, now);
+      const counts = await applyConfirmedSameAddress(ctx.household.id, ctx.member.id, current.version, result.pickups, now);
       if (counts.stale) throw new UserError(WASTE_TEXT.saveFailed, "UNKNOWN");
       return { kind: "saved", mode: "unchanged", inserted: counts.inserted, removed: counts.removed };
     }
@@ -132,7 +138,7 @@ export async function retryWasteSyncAction(): Promise<ActionResult<WasteRetryRes
     const ctx = await requireAdmin();
     const now = new Date();
     if (!(await claimForRetry(ctx.household.id, now))) return { kind: "too_soon" as const };
-    const synced = await syncHousehold(ctx.household.id, now, { signal: AbortSignal.timeout(WASTE_FETCH_BUDGET_MS) });
+    const synced = await syncHousehold(ctx.household.id, ctx.member.id, now, { signal: AbortSignal.timeout(WASTE_FETCH_BUDGET_MS) });
     if (!synced) throw new UserError(WASTE_TEXT.saveFailed, "UNKNOWN");
     return { kind: "done" as const, health: synced.health, lastSuccessAt: synced.health.lastSuccessAt, attemptedAt: synced.attemptedAt };
   });

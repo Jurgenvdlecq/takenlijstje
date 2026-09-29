@@ -5,7 +5,7 @@ import "server-only";
  * De uitkomsten zijn `kind`-waarden, geen fouten (§18.6).
  */
 import { parts, zonedDate, type ISODate } from "@/domain/dates";
-import { formatWasteAddress, matchCandidate, type WasteAddress } from "@/domain/waste/address";
+import { formatWasteAddress, isStorableSuffix, matchCandidate, type WasteAddress } from "@/domain/waste/address";
 import { wasteAddressDisplay } from "@/domain/waste/messages";
 import { hasNoUpcoming } from "@/domain/waste/plan";
 import { WASTE_STREAMS, type WastePickups, type WasteStream } from "@/domain/waste/streams";
@@ -61,6 +61,9 @@ export async function lookupWasteCalendar(
     };
   }
   const candidate = match.candidate;
+  // Een toevoeging die niet te bewaren is, gaat nooit naar de database: dan zou
+  // een checkfout het adres in een platformlog zetten (security-review WP3b, punt 4)
+  if (!isStorableSuffix(candidate.letter)) return { kind: "not_found" };
 
   // 2. B + C(J) (+ C(J+1) als het nodig is; nooit C(J−1))
   const fetched = await fetchPickups(candidate.bagId, today, deps);

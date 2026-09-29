@@ -16,7 +16,7 @@ import type { DbClient } from "@/lib/supabase/server";
 import { fetchPickups } from "@/server/waste/schema";
 import type { SourceDeps } from "@/server/waste/source";
 import type { TaskRow, WasteCalendarRow, WasteErrorCode } from "@/types/database";
-import { check } from "../../errors";
+import { check, UserError } from "../../errors";
 import { chunks, HOUSEHOLD_TIMEZONE } from "../../services/scheduling";
 import { createAdminClient } from "../admin-client";
 import { notify } from "../dispatcher";
@@ -213,9 +213,16 @@ export function calendarHealth(cal: WasteCalendarRow, now: Date): WasteHealth {
   );
 }
 
-/** Storingsmelding aan alle actieve beheerders; één per storing via de dedupe-sleutel (§18.9.3) */
-async function alertFailure(db: DbClient, cal: WasteCalendarRow, health: WasteHealth, now: Date): Promise<void> {
-  await markWasteAlarm(db, cal.household_id, cal.last_success_at, now);
+/**
+ * Storingsmelding aan alle actieve beheerders, één keer per storing (§18.9.3).
+ * Alleen als de storing nog niet was vastgesteld: eerst de melding (dedupe
+ * maakt herhalen veilig), dan `alarm_since`. Zo kost een lopende storing geen
+ * queries per tick (code-review WP3b, punt 6). Geeft terug of er gemeld is.
+ */
+async function alertIfNewFailure(db: DbClient, cal: WasteCalendarRow, now: Date): Promise<boolean> {
+  if (cal.alarm_since !== null) return false;
+  const health = calendarHealth(cal, now);
+  if (health.state !== "failed") return false;
   const text = wasteFailureMessage(health.variant ?? wasteFailureVariant(cal.last_error_code), cal.last_success_at, HOUSEHOLD_TIMEZONE);
   await notify({
     householdId: cal.household_id,
@@ -227,6 +234,25 @@ async function alertFailure(db: DbClient, cal: WasteCalendarRow, health: WasteHe
       dedupeKey: `waste-failed:${cal.last_success_at}`,
     },
   });
+  await markWasteAlarm(db, cal.household_id, cal.last_success_at, now);
+  return true;
+}
+
+/**
+ * Hercontrole vlak vóór een schrijfactie met de service role: nog steeds een
+ * actieve beheerder van dit huishouden? (security-review WP3b, punt 5)
+ */
+async function assertStillAdmin(db: DbClient, householdId: string, memberId: string): Promise<void> {
+  const rows = check(
+    await db
+      .from("household_members")
+      .select("id")
+      .eq("id", memberId)
+      .eq("household_id", householdId)
+      .eq("role", "admin")
+      .eq("is_active", true),
+  );
+  if (!rows.length) throw new UserError("Alleen een beheerder kan dit doen.", "FORBIDDEN");
 }
 
 /**
@@ -235,6 +261,7 @@ async function alertFailure(db: DbClient, cal: WasteCalendarRow, health: WasteHe
  */
 export async function syncHousehold(
   householdId: string,
+  memberId: string,
   now: Date,
   deps: SourceDeps = {},
 ): Promise<{ health: WasteHealth; attemptedAt: string } | null> {
@@ -242,12 +269,13 @@ export async function syncHousehold(
   const cal = await readCalendar(db, householdId);
   if (!cal) return null;
   const { outcome } = await fetchOutcome(cal.bag_id, now, deps);
+  await assertStillAdmin(db, householdId, memberId);
   const today = zonedDate(now, HOUSEHOLD_TIMEZONE);
   await applyWasteSync(db, cal, outcome, await loadWasteTasks(db, householdId, today), now);
   const after = (await readCalendar(db, householdId)) ?? cal;
-  const health = calendarHealth(after, now);
-  if (health.state === "failed") await markWasteAlarm(db, householdId, after.last_success_at, now);
-  return { health, attemptedAt: now.toISOString() };
+  // Storing vastgesteld door "Opnieuw proberen": ook dan één melding (§18.6)
+  await alertIfNewFailure(db, after, now);
+  return { health: calendarHealth(after, now), attemptedAt: now.toISOString() };
 }
 
 /** Claim voor "Opnieuw proberen"; geen rij = `too_soon` (zonder verzoek naar buiten) */
@@ -261,11 +289,13 @@ export async function claimForRetry(householdId: string, now: Date): Promise<boo
 /** Zelfde adres opnieuw bevestigd (§18.6 (c)): de net opgehaalde datums, zonder claim */
 export async function applyConfirmedSameAddress(
   householdId: string,
+  memberId: string,
   version: number,
   pickups: WastePickups,
   now: Date,
 ): Promise<SyncCounts> {
   const db = createAdminClient();
+  await assertStillAdmin(db, householdId, memberId);
   const cal = await readCalendar(db, householdId);
   if (!cal) return { ...NO_CHANGES, stale: true };
   const today = zonedDate(now, HOUSEHOLD_TIMEZONE);
@@ -297,7 +327,10 @@ export async function runWasteStep(
   const report: WasteStepReport = {
     calendars: 0, fetched: 0, fetchFailed: 0, inserted: 0, moved: 0, renamed: 0, removed: 0, expired: 0, alerted: 0,
   };
-  const calendars = check(await db.from("waste_calendars").select("*")) as WasteCalendarRow[];
+  // Wie het langst niet aan de beurt was, eerst (security-review WP3b, punt 2)
+  const calendars = check(
+    await db.from("waste_calendars").select("*").order("last_attempt_at", { ascending: true, nullsFirst: true }),
+  ) as WasteCalendarRow[];
   report.calendars = calendars.length;
   if (!calendars.length) return report;
 
@@ -319,63 +352,69 @@ export async function runWasteStep(
   }
 
   for (const cal of calendars) {
-    const tasks = allTasks.filter((t) => t.household_id === cal.household_id);
-
-    // Ophalen: twee vaste momenten, na een mislukking elk uur, binnen het tickbudget
-    let outcome: SyncOutcome = null;
-    if (
-      dueForFetch(cal, now, tz) &&
-      Date.now() - tickStarted < TICK_FETCH_CUTOFF_MS &&
-      (await claimWasteFetch(db, cal.household_id, cal.version, now))
-    ) {
-      const fetched = await fetchOutcome(cal.bag_id, now, deps);
-      outcome = fetched.outcome;
-      report.fetched++;
-      if (outcome.result === "failure") {
-        report.fetchFailed++;
-        console.warn(`[waste] ophalen mislukt code=${outcome.code} fetchMs=${fetched.fetchMs}`);
-      } else {
-        console.info(`[waste] opgehaald fetchMs=${fetched.fetchMs}`);
-      }
-    }
-
-    // Plannen en de uitkomst vastleggen
+    // Eén huishouden mag de stap voor de andere niet stoppen (code-review WP3b, punt 7)
     try {
-      const counts = await applyWasteSync(db, cal, outcome, tasks, now);
-      if (counts.stale) continue;
-      report.inserted += counts.inserted;
-      report.moved += counts.moved;
-      report.renamed += counts.renamed;
-      report.removed += counts.removed;
+      await processCalendar(db, cal, allTasks.filter((t) => t.household_id === cal.household_id), now, today, tickStarted, deps, report);
     } catch (error) {
       const e = error as { code?: string };
-      console.error(`[waste] sync mislukt code=${e?.code === "23505" ? "CONFLICT" : (e?.code ?? "fout")}`);
-      continue;
-    }
-
-    // Vanzelf vervallen (BR-54); alleen open taken, het systeem (geen doorwerking)
-    const expired = findExpiredWasteTasks(toExisting(tasks), today);
-    if (expired.length) {
-      const rows = check(
-        await db
-          .from("tasks")
-          .update({ status: "skipped" })
-          .in("id", expired)
-          .eq("household_id", cal.household_id)
-          .in("status", ["todo", "in_progress"])
-          .select("id"),
-      );
-      report.expired += rows.length;
-    }
-
-    // Storing: op de stand ná waste_sync
-    const after = outcome ? await readCalendar(db, cal.household_id) : cal;
-    if (!after) continue;
-    const health = calendarHealth(after, now);
-    if (health.state === "failed") {
-      await alertFailure(db, after, health, now);
-      report.alerted++;
+      console.error(`[waste] huishouden overgeslagen code=${e?.code === "23505" ? "CONFLICT" : (e?.code ?? "fout")}`);
     }
   }
   return report;
+}
+
+async function processCalendar(
+  db: DbClient,
+  cal: WasteCalendarRow,
+  tasks: WasteTaskRow[],
+  now: Date,
+  today: ISODate,
+  tickStarted: number,
+  deps: SourceDeps,
+  report: WasteStepReport,
+): Promise<void> {
+  // Ophalen: twee vaste momenten, na een mislukking elk uur, binnen het tickbudget
+  let outcome: SyncOutcome = null;
+  if (
+    dueForFetch(cal, now, HOUSEHOLD_TIMEZONE) &&
+    Date.now() - tickStarted < TICK_FETCH_CUTOFF_MS &&
+    (await claimWasteFetch(db, cal.household_id, cal.version, now))
+  ) {
+    const fetched = await fetchOutcome(cal.bag_id, now, deps);
+    outcome = fetched.outcome;
+    report.fetched++;
+    if (outcome.result === "failure") {
+      report.fetchFailed++;
+      console.warn(`[waste] ophalen mislukt code=${outcome.code} fetchMs=${fetched.fetchMs}`);
+    } else {
+      console.info(`[waste] opgehaald fetchMs=${fetched.fetchMs}`);
+    }
+  }
+
+  // Plannen en de uitkomst vastleggen; een ander adres intussen → niets doen
+  const counts = await applyWasteSync(db, cal, outcome, tasks, now);
+  if (counts.stale) return;
+  report.inserted += counts.inserted;
+  report.moved += counts.moved;
+  report.renamed += counts.renamed;
+  report.removed += counts.removed;
+
+  // Vanzelf vervallen (BR-54); alleen open taken, het systeem (geen doorwerking)
+  const expired = findExpiredWasteTasks(toExisting(tasks), today);
+  if (expired.length) {
+    const rows = check(
+      await db
+        .from("tasks")
+        .update({ status: "skipped" })
+        .in("id", expired)
+        .eq("household_id", cal.household_id)
+        .in("status", ["todo", "in_progress"])
+        .select("id"),
+    );
+    report.expired += rows.length;
+  }
+
+  // Storing: op de stand ná waste_sync; alleen bij de eerste vaststelling een melding
+  const after = outcome ? await readCalendar(db, cal.household_id) : cal;
+  if (after && (await alertIfNewFailure(db, after, now))) report.alerted++;
 }

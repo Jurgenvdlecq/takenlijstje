@@ -170,3 +170,24 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - **UI-helpers:** de oude UI heeft geen `canEditTask`/`canMoveTask`/`canDeleteTask`. Knoppen worden verborgen met `isWasteTask` (`src/domain/waste/display.ts`); de server (`assertNotWasteTask`) en de database blijven de grens.
   - **Meldings-URL:** `appUrl.wasteSettings()` staat in `src/lib/app-url.ts`.
   - **Kalender:** de lijstweergave van de kalender toont bij afvaltaken het geplande moment ("vanaf 22:00" / "vanaf 12:00"), los van nu (`TaskCard planning`).
+- **D-048: herstel na code- en security-review WP3b.**
+  - **Versie van het adres uit een sequence** (`waste_calendar_version_seq`), niet "begint op 1".
+    - Het probleem: na uitzetten en direct weer aanzetten kreeg de nieuwe rij weer versie 1. Een tick die de oude stand had gelezen, kwam dan door de versiecontrole van `waste_sync`, met taken van twee adressen tot gevolg.
+    - Nu is de versie altijd nieuw. Dit valt binnen het ontwerpprincipe §18.10 ("Tick plant terwijl het adres wijzigt → stale").
+  - **Storingsmelding** alleen bij de eerste vaststelling, dus als `alarm_since` nog leeg is. Eerst gaat de melding (dedupe maakt herhalen veilig), dan wordt `alarm_since` gezet. Dat geldt zowel in de tick als bij "Opnieuw proberen".
+    - Een lopende storing kost zo geen queries per tick.
+    - Restrisico: `notify` vangt zijn eigen fouten af en logt ze. Mislukt het versturen onopgemerkt, dan komt er voor die storing geen tweede poging. De balk in de app blijft wel staan.
+  - **Tickstap:** elk huishouden heeft een eigen try/catch. Wie het langst niet geprobeerd is, gaat eerst.
+  - **Security-hardening:**
+    - de testoverride van de bronhost werkt niet als `VERCEL_ENV=production`;
+    - een letter of toevoeging uit de bron die niet te bewaren is, geeft `not_found` en gaat nooit naar de database;
+    - "Opnieuw proberen" en "zelfde adres bevestigen" controleren vlak vóór `waste_sync` opnieuw of de gebruiker nog actieve beheerder is (via de service role);
+    - `waste_calendars` krijgt expliciete grants.
+  - **UI:**
+    - afvaltaken tellen niet mee in "Eerstvolgende deadline";
+    - "Uiterlijk" in het detail staat bij Verlopen in `overdue`, met "… te laat";
+    - bij FORBIDDEN verschijnt T-66, daarna herlaadt de sectie en toont ze J;
+    - de dagweergave van de kalender toont het geplande moment;
+    - T-44 verschijnt al bij het verlaten van het veld;
+    - de sectie is opgesplitst in vier bestanden.
+  - **`maxDuration = 30`** op `/instellingen`: opzoeken en bevestigen (tot 12 s bij de gemeente) worden niet afgebroken, ook niet als Fluid compute uit staat.

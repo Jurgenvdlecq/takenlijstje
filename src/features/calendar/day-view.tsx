@@ -61,7 +61,7 @@ export function DayList({
         {title ?? "Planning"}
       </SectionTitle>
       <div className="grid gap-2">
-        {tasks.map((task) => (draggable ? <DraggableTaskCard key={task.id} task={task} /> : <TaskCard key={task.id} task={task} />))}
+        {tasks.map((task) => (draggable ? <DraggableTaskCard key={task.id} task={task} /> : <TaskCard key={task.id} task={task} planning />))}
         {projections.map((p) => (
           <ProjectionRow key={p.key} projection={p} />
         ))}

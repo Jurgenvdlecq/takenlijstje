@@ -80,7 +80,12 @@ export type MatchResult<C extends AddressCandidate> =
   | { kind: "not_found" };
 
 export function candidateLetter(huisletter: string | null | undefined, toevoeging: string | null | undefined): string {
-  return `${huisletter ?? ""}${toevoeging ?? ""}`.toUpperCase();
+  return cleanSuffix(`${huisletter ?? ""}${toevoeging ?? ""}`);
+}
+
+/** Past de letter + toevoeging van de bron in wat de app bewaart (hooguit 4 letters of cijfers)? */
+export function isStorableSuffix(letter: string): boolean {
+  return SUFFIX_RE.test(letter);
 }
 
 export function matchCandidate<C extends AddressCandidate>(candidates: C[], suffix: string | null): MatchResult<C> {

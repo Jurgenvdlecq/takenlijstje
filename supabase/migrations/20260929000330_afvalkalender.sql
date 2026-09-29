@@ -11,6 +11,12 @@ begin;
 -- -----------------------------------------------------------------------------
 -- 1. waste_calendars: hooguit één adres per huishouden (§18.3.1)
 -- -----------------------------------------------------------------------------
+-- Versie van het adres, nooit hergebruikt: ook na uitzetten en weer aanzetten
+-- herkent waste_sync een verouderde stand (code-review WP3b, punt 4; D-048)
+create sequence public.waste_calendar_version_seq;
+revoke all on sequence public.waste_calendar_version_seq from public, anon, authenticated;
+grant usage, select on sequence public.waste_calendar_version_seq to service_role;
+
 create table public.waste_calendars (
   household_id uuid primary key references public.households (id) on delete cascade,
   postcode text not null check (postcode ~ '^[1-9][0-9]{3}[A-Z]{2}$'),
@@ -20,7 +26,7 @@ create table public.waste_calendars (
   bag_id text not null check (bag_id ~ '^[0-9]{16}$'),
   -- Alleen gewijzigd door een geslaagde bijwerking of waste_save
   pickups jsonb not null check (jsonb_typeof(pickups) = 'object'),
-  version bigint not null default 1,
+  version bigint not null default nextval('public.waste_calendar_version_seq'),
   -- Alleen claim en rate limit (§18.8.3); telt niet mee in de gezondheid
   last_attempt_at timestamptz,
   last_success_at timestamptz not null,
@@ -49,6 +55,9 @@ create policy "waste_calendars: beheerders lezen" on public.waste_calendars
 
 revoke all on public.waste_calendars from anon;
 revoke insert, update, delete, truncate, references, trigger on public.waste_calendars from authenticated;
+-- Expliciet, niet leunend op de standaardrechten (security-review WP3b, punt 6)
+grant select on public.waste_calendars to authenticated;
+grant select, insert, update, delete on public.waste_calendars to service_role;
 
 -- -----------------------------------------------------------------------------
 -- 2. tasks: drie kolommen voor afvaltaken (§18.3.2)
@@ -360,7 +369,8 @@ begin
     household_id, postcode, house_number, house_suffix, bag_id, pickups, version,
     last_attempt_at, last_success_at, last_error_code, error_since, last_failure_at, alarm_since
   ) values (
-    p_household_id, p_postcode, p_house_number, coalesce(p_house_suffix, ''), p_bag_id, p_pickups, 1,
+    p_household_id, p_postcode, p_house_number, coalesce(p_house_suffix, ''), p_bag_id, p_pickups,
+    nextval('public.waste_calendar_version_seq'),
     p_now, p_now, null, null, null, null
   )
   on conflict (household_id) do update set
@@ -369,7 +379,7 @@ begin
     house_suffix = excluded.house_suffix,
     bag_id = excluded.bag_id,
     pickups = excluded.pickups,
-    version = w.version + 1,
+    version = nextval('public.waste_calendar_version_seq'),
     last_attempt_at = excluded.last_attempt_at,
     last_success_at = excluded.last_success_at,
     last_error_code = null,
