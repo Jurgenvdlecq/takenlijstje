@@ -68,18 +68,8 @@ Volgende stap: W-03 — samengevoegde invoegteksten per document (plan-critic r3
 ## Open vragen
 - V-40 (WP1-livegang): Supabase adviseert "bescherming tegen gelekte wachtwoorden" (controle tegen HaveIBeenPwned) aan te zetten. Die functie zit bij Supabase alleen in het betaalde abonnement. Voorstel: laten zoals het is (gezinsapp, 2–4 gebruikers); wachtwoordregels liggen al bij Supabase Auth (TD §4.1).
 
-- V-48…V-57 (W-03; bronnen: `docs/wijzigingen/W-03/product-analyst-r1.md` en `solution-architect-r1.md`; gebundeld aan Jurgen gesteld op 2026-09-29):
-  - V-48 binnenzetten: vanaf 12:00 op de ophaaldag, uiterlijk einde van de dag, herinnering 18:00?
-  - V-49 gemeenteregel (via zoekresultaten, nog te bevestigen op de pagina): buiten pas vanaf 22:00 de avond ervoor, uiterlijk 07:45. Herinnering 21:00 houden met de tekst "mag vanaf 22:00 buiten"?
-  - V-50 afvalherinnering volgt de gewone instelling "Herinneringen", geen "deadline nadert/verlopen" voor afvaltaken; bij een storing > 48 uur één melding aan de beheerders?
-  - V-51 meerdere bakken op één dag: één gecombineerde taak?
-  - V-52 14 dagen vooruit?
-  - V-53 adres alleen zichtbaar en instelbaar voor beheerders? (analist: alleen beheerders zien het; architect: iedereen mag het zien — keuze voor Jurgen)
-  - V-54 afvaltaken niet hernoemen/verplaatsen/verwijderen; wel afvinken, bezig, notitie, overslaan; vergeten buitenzetten vervalt na de ophaaldag vanzelf?
-  - V-55 welke van rest, papier en PMD zijn bij jullie een container (binnenzetten) en welke een zak?
-  - V-56 op live bestaat een handmatige reeks "Afvalcontainer buiten zetten" (actief). Stoppen zodra de afvalkalender werkt?
-  - V-57 (technisch, voor Jurgen alleen ter info/keuze) de gemeentesite is vanuit de ontwikkelomgeving geblokkeerd; toestaan in de omgevingsinstellingen (huisvuilkalender.denhaag.nl) maakt testen met echte antwoorden mogelijk. Anders test de bouwer na WP3 via de database met een openbaar testadres.
-- Bron W-03 (architect): de huisvuilkalender draait op het platform van Opzet; er is een interne, niet-gedocumenteerde JSON-API (adres → BAG-id → afvalsoorten + jaarkalender), geen sleutel nodig, al jaren gebruikt door open-source integraties. Risico: kan zonder aankondiging veranderen; opvang via BR-52.
+- V-58 (W-03, 2026-09-29, gesteld): mag de app naast postcode en huisnummer ook de adrescode van de gemeente (BAG-id; openbaar nummer van het adres, nodig om de kalender op te halen; alleen beheerders zien het; weg bij uitzetten) bewaren? Voorstel: ja.
+- U0.1 (W-03, controle vóór livegang WP3b, bij Jurgen): staat op denhaag.nl › Afval › Huisvuil aanbieden voor minicontainers "vanaf 22.00 uur" en "uiterlijk 7.45 uur"?
 
 ## Aannames (expliciet, zonder invloed op rechten/gegevens/scope)
 - De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (product-analyst, 2026-09-28).
@@ -117,7 +107,7 @@ Uitrol (V-36): WP1–WP3 gaan direct live; WP4–WP8 gaan samen live na WP9.
 ## Wijzigingsverzoeken (op bevroren documenten)
 - W-01 (2026-09-28): AC-014 noemt `occurrence_date` onveranderlijk; TD §5.2 ("Reekskoppeling") staat het toe voor beheerder/maker van de reeks (nodig voor "deze en volgende"). Voorstel: AC-014 formeel gelijktrekken met TD §5.2 (gebouwd volgens TD, D-013). Gevolg: geen functionele wijziging. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); doorgevoerd in ACCEPTANCE_CRITERIA AC-014 na `/design-go intrekken` (2026-09-28); Design Freeze opnieuw gegeven door Jurgen (2026-09-28)
 - W-02 (2026-09-28): TD §4.1 zegt dat `@supabase/ssr` Secure zelf zet; dat klopt niet. De app zet het nu zelf (D-019). Voorstel: tekst in TD corrigeren. Gevolg: geen. — status: akkoord Jurgen 2026-09-28 ("Akkoord W-01 en w-02"); doorgevoerd in TECHNICAL_DESIGN §4.1 na `/design-go intrekken` (2026-09-28); Design Freeze opnieuw gegeven door Jurgen (2026-09-28)
-- W-03 — stand 2026-09-29: probe P0 + U0.2 afgerond (bron bevestigd, fixtures in `docs/wijzigingen/W-03/probe/`); concepten in `docs/wijzigingen/W-03/`; plan-critic ronde 3: NEE met 6 kleine moet-punten.
+- W-03 — stand 2026-09-29: probe P0 + U0.2 afgerond (bron bevestigd, fixtures in `docs/wijzigingen/W-03/probe/`); concepten in `docs/wijzigingen/W-03/`; plan-critic ronde 4: NEE — open: doorplannen tijdens storing (tekstcorrectie BR-52/AC-204/AC-205) en V-58 (adrescode). V-48…V-57 beantwoord (zie Antwoorden van Jurgen).
 - W-03 (2026-09-28): nieuwe wens van Jurgen: "Onze bakken verschillen wanneer deze buitengezet en opgehaald moeten worden. Deze staan in onze agenda via zo'n gemeente agenda. Hoe krijgen we dit goed in de tool ?" Valt buiten het bevroren ontwerp (nieuwe functie: externe kalender inlezen). Gevonden: in de Google-agenda van jxvdlecq@gmail.com staat geen afvalkalender (niet in de agendalijst, zoeken op afval/container/bak leverde niets op). Voorstel: (A) nu meteen met gewone terugkerende taken per bak, zonder bouwwerk; (B) als nieuwe functie de agenda-link (iCal) van de gemeente of Mijn Afvalwijzer inlezen en automatisch taken "… buitenzetten" (avond ervoor) maken; niet via Google-agenda (vraagt extra inlogkoppeling). Discovery-vragen uitgezet bij Jurgen (V-41…V-44). — status: Jurgen koos B (zie Antwoorden). Uitwerking als nieuw werkpakket via de ontwerpstappen (product, UX, techniek, plan-critic) en daarna een nieuwe `/design-go` voor deze wijziging. Open: V-45…V-47. Technisch nog uit te zoeken: de site is vanuit de ontwikkelomgeving niet bereikbaar (netwerkbeleid); of er een agenda-link (iCal) of een openbare gegevensbron achter zit, zoekt de architect uit. WP2a gaat door.
 
 ## Bewust geaccepteerde open punten (alleen met besluit van Jurgen)
