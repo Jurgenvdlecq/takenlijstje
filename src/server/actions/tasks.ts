@@ -28,7 +28,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { requireMember } from "../context";
 import { check, expectRows, runAction, UserError, type ActionResult } from "../errors";
-import { loadOwnSeries, loadOwnTask } from "../guards";
+import { assertNotWasteTask, loadOwnSeries, loadOwnTask } from "../guards";
 import { parse } from "../parse";
 import { createTask as createTaskService } from "../services/tasks";
 import { notify } from "../system/dispatcher";
@@ -108,6 +108,7 @@ export async function moveTaskAction(taskId: string, newDate: string): Promise<A
     const id = parse(uuid, taskId);
     const date = parse(isoDate, newDate);
     const task = await loadOwnTask(ctx, id);
+    assertNotWasteTask(task);
     const shift = diffDays(task.scheduled_date, date);
     if (shift === 0) return task;
     const tz = ctx.household.timezone;
@@ -133,6 +134,8 @@ export async function updateTaskAction(raw: TaskUpdateInput): Promise<ActionResu
     const { supabase, household, member } = ctx;
     const { taskId, scope, changes } = parse(taskUpdateInput, raw);
     const task = await loadOwnTask(ctx, taskId);
+    // Vóór het maken van een reeks: geen weesreeks bij een afvaltaak (AC-208)
+    assertNotWasteTask(task);
     // "Deze en toekomstige": eerst de rechten op de reeks, zodat een weigering niets verandert (B-01)
     const series = task.recurrence_id && scope === "future" ? await loadOwnSeries(ctx, task.recurrence_id) : null;
     const tz = household.timezone;
@@ -275,6 +278,7 @@ export async function deleteTaskAction(taskId: string, scope: "this" | "future" 
     const id = parse(uuid, taskId);
     const s = parse(updateScope, scope);
     const task = await loadOwnTask(ctx, id);
+    assertNotWasteTask(task);
     // De RPC controleert de rechten (beheerder of maker; voor "future" ook de
     // reeks) en verandert niets bij een weigering (B-01)
     check(await ctx.supabase.rpc("delete_task", { p_task_id: id, p_scope: s }));
