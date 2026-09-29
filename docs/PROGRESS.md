@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP3b afvalkalender (W-03); Design Freeze opnieuw geregistreerd door Jurgen (2026-09-29), nu mét de W-03-teksten
-Volgende stap: WP3b bouwen volgens TECHNICAL_DESIGN §18 en §15 (fixtures uit `docs/wijzigingen/W-03/probe/`, migraties _320/_330, domein `src/domain/waste/*`, server `src/server/waste/*`, sync + tickstap, actions, oude UI, tests §18.15) → tests, reviews (code, security, performance) → CP-W03 (U3) met visual-qa + ux-reviewer → U0.1 (Jurgen) en U5 → livegang U4–U8 → rooktest Jurgen (AC-217). WP3: AC-064 live waarnemen (vervolgcontrole 2026-09-30). WP2b: M8 ≈ 2026-10-29.
+Volgende stap: WP3b gebouwd (migraties _320/_330, domein, server, tickstap, actions, oude UI; D-047). Nu: tests (twee test-writers: DB/unit/integratie en E2E met stub), code-review en security-review lopen → herstellen → performance-review → CP-W03 (U3) met visual-qa + ux-reviewer → U0.1 (Jurgen) → livegang U4 → rooktest U5. WP3: AC-064 live waarnemen (vervolgcontrole 2026-09-30). WP2b: M8 ≈ 2026-10-29.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
