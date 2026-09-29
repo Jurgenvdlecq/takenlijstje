@@ -47,6 +47,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 | V-54 | Afvaltaken zijn niet te hernoemen, te verplaatsen of te verwijderen. Afvinken, "bezig", een notitie en "deze keer overslaan" mogen wel. Een vergeten buitenzet-taak vervalt na de ophaaldag vanzelf |
 | V-55 | Rest, papier en PMD zijn alle drie containers, dus er is altijd een binnenzet-taak |
 | V-56 | De bestaande handmatige reeks "Afvalcontainer buiten zetten" stopt Jurgen zelf zodra de afvalkalender werkt |
+| V-58 | De adrescode van de gemeente mag naast postcode en huisnummer worden bewaard (alleen beheerders zien hem; weg bij uitzetten) |
 
 **Teksten.** Alle teksten die de gebruiker ziet (taaknamen, tijden, foutteksten, meldingen, storingsbalken) staan in UX_SPEC §13.16. Dat is de enige bron. Deze sectie legt de regels vast en noemt teksten alleen met hun ID uit UX §13.16.
 
@@ -464,7 +465,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 >    - elke storing (BR-52) was voor de beheerders zichtbaar.
 > 4. **Ervaren:** Jurgen geeft aan dat er in die drie maanden geen bak is blijven staan doordat iemand hem vergat. Dat is een gesprek, geen meting.
 
-**P18. §12: vervang de kop "## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27)" door "## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27, V-41 t/m V-57)", en zet deze rijen onderaan de tabel:**
+**P18. §12: vervang de kop "## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27)" door "## 12. Verwerkte antwoorden (V-04, V-05 t/m V-27, V-41 t/m V-58)", en zet deze rijen onderaan de tabel:**
 
 | Vraag | Antwoord (zie `docs/PROGRESS.md`) | Verwerkt in |
 | --- | --- | --- |
@@ -482,6 +483,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 | V-55 | Alle drie containers | BR-47, BR-49 |
 | V-56 | Jurgen stopt de handmatige reeks zelf | BR-57 |
 | V-57 | Uitleg over de netwerkinstelling (technisch) | §9 |
+| V-58 | De adrescode van de gemeente mag naast postcode en huisnummer worden bewaard | BR-58, §8 |
 
 **P19. §13 Aannames en open vragen: geen wijziging.** Er komt geen W-03-aanname bij.
 
@@ -491,7 +493,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 
 | Document | Wat eruit komt |
 | --- | --- |
-| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-39, en V-41 t/m V-57 (W-03) |
+| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-39, en V-41 t/m V-58 (W-03) |
 | `docs/UX_SPEC.md` §13.16 | Enige bron voor de letterlijke teksten van W-03 (T-xx, M-xx) |
 | `docs/wijzigingen/W-03/probe/` | Echte antwoorden van de gemeentebron (P0 en U0.2), basis voor de nagebootste bron |
 
@@ -499,7 +501,7 @@ Niemand hoeft afvaltaken nog met de hand bij te houden.
 > - **W-03 — afvalkalender.**
 >   - De criteria voor WP3b zijn AC-183 t/m AC-223, AC-236 en AC-237. Ze staan in de sectie WP3b, direct na WP3. AC-236 en AC-237 zijn later toegevoegd en staan ná AC-223, zodat de bestaande nummers kloppen.
 >   - De W-03-criteria voor de nieuwe schermen zijn AC-224 t/m AC-235. Ze staan aan het eind van de secties WP4 t/m WP9.
->   - Ze volgen PRODUCT_SPEC §14 (BR-47 t/m BR-59), UX_SPEC §13 en de antwoorden V-41 t/m V-57.
+>   - Ze volgen PRODUCT_SPEC §14 (BR-47 t/m BR-59), UX_SPEC §13 en de antwoorden V-41 t/m V-58.
 >   - "D" is de ophaaldag. Alle tijden zijn Europe/Amsterdam.
 >   - **Teksten:** noemt een criterium een tekst-ID (T-xx of M-xx), dan toetst de test letterlijk de tekst uit UX §13.16. De tekst tussen aanhalingstekens is daar een kopie van. Bij een verschil geldt UX §13.16.
 >   - **"Leeg" en "komende ophaaldag"** gaan altijd alleen over rest, papier en PMD. Datums van GFT en kerstbomen tellen nergens mee.
@@ -1286,6 +1288,7 @@ CP4 bevat de afvaltoestanden.
 > | V-54 | AC-208, AC-209, AC-210 |
 > | V-55 | AC-193 |
 > | V-56 | AC-215 |
+> | V-58 | AC-190, AC-212, AC-213, AC-216, AC-218 |
 >
 > **Aanvullingen na de plan-critic W-03, ronde 3:**
 >
@@ -1298,7 +1301,7 @@ CP4 bevat de afvaltoestanden.
 > | Aanbeveling 9 (onbekende adrescode) | AC-204 (c), AC-205 |
 
 **A14. "Dekking" › "Open bij Jurgen": onder "V-39: AC-182." erbij:**
-> - V-41 t/m V-57 (W-03): zie "Verwerkte besluiten van Jurgen (W-03)".
+> - V-41 t/m V-58 (W-03): zie "Verwerkte besluiten van Jurgen (W-03)".
 
 === Interpretaties voor het totaalvoorstel (niet invoegen; voor de hoofdsessie, in gewone taal) ===
 1. **Overslaan werkt door.** Kies je bij buitenzetten "deze keer overslaan", dan wordt binnenzetten van die dag ook overgeslagen. Ongedaan maken zet beide terug. "Toch nog doen" kan alleen tot het einde van de ophaaldag.
@@ -1343,13 +1346,7 @@ CP4 bevat de afvaltoestanden.
   - T-90 en T-90b staan in UC-13, BR-48, AC-183 en AC-230;
   - T-64, T-77/a/b en M-04 worden alleen met hun ID genoemd, omdat UX r4 ze heeft gewijzigd;
   - alle andere letterlijke citaten heb ik vergeleken met UX r3 §13.16, en ze kloppen.
-- **Adrescode (vraag loopt):**
-  - Zegt Jurgen **ja**: zet in §14 onder "Besluiten van Jurgen" en in §12 een rij "V-58 (of het nummer van de hoofdsessie) | De adrescode van de gemeente mag naast postcode en huisnummer worden bewaard | BR-58, §8", en in de AC-Dekking "V-58 | AC-190, AC-212, AC-213, AC-216, AC-218".
-  - Zegt Jurgen **nee**, dan moeten dit meer dan kleine wijzigingen worden:
-    - BR-56 en BR-58, de §8-rij "Adrescode" en §8 "Externe partijen";
-    - AC-190, AC-212, AC-213, AC-216 en AC-218;
-    - BR-52/AC-204 (c): dan eerst het adres opnieuw opzoeken.
-    Dan volgt een nieuwe korte ronde.
+- **Adrescode (V-58):** Jurgen zei ja (2026-09-29). Verwerkt in §14 "Besluiten van Jurgen", §12 en de AC-Dekking (AC-190, AC-212, AC-213, AC-216, AC-218).
 - **Bewust weggelaten uit de invoegtekst:** statussen, vragen, wijzigingslijsten, de UX-teksttabel uit r3, "Aansluiting op TD" (`isWindowEmpty`/`hasNoUpcoming` hoort in TD) en de interpretaties (die staan apart hierboven).
 - **Niet mijn deel, wel nog open voor de freeze:** UX D+2 → D+7 (designer), de U3-lijst (architect, punt 4), PROGRESS (punt 5), het antwoord over de adrescode (punt 6), en het U5-gedrag van de live functie (aanbeveling 10, architect).
 

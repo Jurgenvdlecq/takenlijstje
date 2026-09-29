@@ -41,7 +41,7 @@ Doelplek: nieuwe sectie `## 18. Afvalkalender (W-03)`, direct na §17 (einde doc
 - PRODUCT_SPEC §14 (BR-47…BR-59, UC-13…UC-15);
 - UX_SPEC §13, met de tekstentabel §13.16 als **enige bron** voor zichtbare teksten;
 - ACCEPTANCE_CRITERIA WP3b (**AC-183…AC-223, AC-236, AC-237**) en de W-03-aanvullingen in WP4–WP9 (AC-224…AC-235);
-- de besluiten V-41…V-57, en V-58 (bewaren van de adrescode) [OPEN: V-58];
+- de besluiten V-41…V-58 (V-58: de adrescode mag worden bewaard);
 - D-046 (rechten van pg_net op live);
 - de uitkomst van P0 en U0.2 (`docs/wijzigingen/W-03/probe/P0-uitkomst.md`, 2026-09-29).
 
@@ -265,7 +265,7 @@ supabase/ops/waste_rollback.sql   terugrolstap (§18.16)
 | `postcode` | `text not null check (postcode ~ '^[1-9][0-9]{3}[A-Z]{2}$')` |
 | `house_number` | `integer not null check (house_number between 1 and 99999)` |
 | `house_suffix` | `text not null default '' check (house_suffix ~ '^[A-Z0-9]{0,4}$')` |
-| `bag_id` | `text not null check (bag_id ~ '^[0-9]{16}$')` [OPEN: V-58] |
+| `bag_id` | `text not null check (bag_id ~ '^[0-9]{16}$')` (V-58) |
 | `pickups` | `jsonb not null check (jsonb_typeof(pickups) = 'object')`: `{"rest":[…],"papier":[…],"pmd":[…]}`. Alleen gewijzigd door een **geslaagde** bijwerking of `waste_save`; een mislukte poging (ook `SUSPECT_EMPTY`) laat hem ongemoeid |
 | `version` | `bigint not null default 1`: +1 bij elk nieuw adres |
 | `last_attempt_at` | `timestamptz`: **alleen** claim en rate limit (§18.8.3). Telt niet mee in de gezondheid |
@@ -283,13 +283,7 @@ supabase/ops/waste_rollback.sql   terugrolstap (§18.16)
 - `alarm_since is null or alarm_since >= last_success_at`.
 
 **Overig:**
-- **[OPEN: V-58] Adrescode.** Jurgen besloot "adres mag opgeslagen worden" (V-45: postcode + huisnummer). Of ook `bag_id` bewaard mag worden, is nog niet bevestigd.
-  - **Bij "ja":** zoals hierboven.
-  - **Bij "nee":**
-    - de kolom `bag_id` vervalt;
-    - `syncHousehold` doet bij elke ophaling eerst A (één extra GET) en kiest de kandidaat met `matchCandidate` op de bewaarde toevoeging;
-    - "adres weg" ontstaat dan ook als A geen passende kandidaat meer geeft;
-    - de rest van het ontwerp blijft gelijk.
+- **Adrescode (V-58).** Jurgen besloot dat naast postcode en huisnummer (V-45) ook `bag_id` bewaard mag worden. Een ophaling gebruikt daarom direct B met de bewaarde adrescode, zonder eerst A.
 - **Niet bewaard:** straat, plaats, coördinaten, ids uit A, ruwe antwoorden en wie het adres invoerde.
 - **"Storingsmelding verstuurd"** is afgeleid uit de dedupe-sleutel (§18.9.3). `alarm_since` zegt alleen dat de storing is vastgesteld, niet of de melding al verstuurd is.
 - **Versimpeltoets:** één `jsonb`-kolom in plaats van een cachetabel, want het gaat om ≤ ~150 datums per jaar die altijd in hun geheel worden gelezen. De keuze voor `last_failure_at` en `alarm_since` staat in §18.17.
@@ -688,7 +682,7 @@ Alle teksten komen uit UX §13.16. "Melding onderin" = toast; "regel" = tekst in
 | storing | M-03 / M-04 / M-05 (variant), label T-39c |
 
 ### 18.12 Privacy en logging (BR-58, AC-212, AC-218)
-- **Bewaard:** postcode, huisnummer, toevoeging en `bag_id` (de adrescode van de gemeente) [OPEN: V-58], alleen in `waste_calendars`, alleen leesbaar voor beheerders. Bij "nee" op V-58 vervalt `bag_id` (§18.3.1).
+- **Bewaard:** postcode, huisnummer, toevoeging en `bag_id` (de adrescode van de gemeente; V-58), alleen in `waste_calendars`, alleen leesbaar voor beheerders.
 - **Nooit bewaard of doorgegeven:** de coördinaten (`latitude`/`longitude`), `woonplaatsId` en `gemeenteId` uit A, en `content`/`icon_data` uit B. zod stript ze vóór elk ander gebruik.
 - **Weg:** bij uitzetten, bij het verwijderen van het huishouden (cascade), en bij terugrollen alleen de open taken (§18.16).
 - **Nooit in eigen logs:** postcode, nummer, `bag_id`, straat, bron-URL's, `error.message` van een fetch en het huishoud-id. Logregels bevatten alleen tellingen, codes en `fetchMs`. `next.config` zet geen `logging.fetches.fullUrl`.
@@ -944,7 +938,7 @@ Daarnaast:
 
 **(1) Nieuwe rij in de tabel van §15, direct na de rij WP3:**
 
-| **WP3b — Afvalkalender (W-03), live op `main` in de oude UI** | **P0 en U0.2 uitgevoerd op 2026-09-29** (§18.1.6; `docs/wijzigingen/W-03/probe/`: contract A/B/C bevestigd; onbekend adres A `[]`, onbekende adrescode B `{}`, ongepubliceerd jaar C `[]`; geen datacenterblokkade). **Vóór U4: U0.1** (gemeenteregel 22:00/07:45 door Jurgen). **Bij U5:** bereikbaarheid vanaf Vercel `fra1` (bij een blokkade §18.16 U5). **Bouwen:** fixtures uit `probe/` plus synthetische in dezelfde vorm; migraties `…_320` en `…_330` (§18.3–18.7, inclusief `last_failure_at` en `alarm_since`); `src/domain/waste/*` (move; `hasNoUpcoming` en `classifyEmpty` met de jaareinde-uitzondering in november/december en notice T-73; gezondheid met `last_failure_at`/`alarm_since`; `wasteFailureVariant` inclusief `null` → H1; twee ophaalmomenten; J+1 in december of als C(J) geen komende datum meer heeft; geen C(J−1); bovengrens binnenzetten D+7); `src/server/waste/*` (parser met strippen en herkenning van B `{}`); `system/waste/sync.ts` (+ `markWasteAlarm`); `actions/waste.ts` (`saved.mode`, `inserted` → T-90/T-90b, `too_soon` zonder verzoek); tickstap; `wasteReminder`; `recipientsFor`; route `instellingen/afvalkalender` (redirect); `supabase/ops/waste_rollback.sql`; oude UI volgens §18.14 en de tekst-ID's uit §18.11; tests §18.15 met stub-scenario's. **Checkpoint CP-W03 (U3) vóór de livegang.** Uitrol U4–U8 | **WP3 live** (pg_net via `planner.sql`, tick elke 15 min); P0 en U0.2 afgerond (2026-09-29). Niet WP4+ | BR-47…BR-59, UC-13…UC-15, **AC-183…AC-223, AC-236, AC-237**, V-41…V-57, V-58 [OPEN: V-58], D-046 | **CP-W03**: de 41 punten uit §18.16 U3 (de enige lijst), 390×844, ◐ ook donker, in `docs/screenshots/wp3b/`; checkpoint in PROGRESS | code, test-writer, **security** (bron, SSRF/allowlist, adres = persoonsgegeven, strippen van coördinaten en ids uit A, RLS/guard/RPC's, `last_failure_at`/`alarm_since` alleen via de service role, platformlogs §18.12, L4 volgens D-046), **performance** (tickduur met en zonder ophalen), **visual-qa + ux-reviewer (licht) op CP-W03 vóór U4**; rooktest Jurgen (AC-217) |
+| **WP3b — Afvalkalender (W-03), live op `main` in de oude UI** | **P0 en U0.2 uitgevoerd op 2026-09-29** (§18.1.6; `docs/wijzigingen/W-03/probe/`: contract A/B/C bevestigd; onbekend adres A `[]`, onbekende adrescode B `{}`, ongepubliceerd jaar C `[]`; geen datacenterblokkade). **Vóór U4: U0.1** (gemeenteregel 22:00/07:45 door Jurgen). **Bij U5:** bereikbaarheid vanaf Vercel `fra1` (bij een blokkade §18.16 U5). **Bouwen:** fixtures uit `probe/` plus synthetische in dezelfde vorm; migraties `…_320` en `…_330` (§18.3–18.7, inclusief `last_failure_at` en `alarm_since`); `src/domain/waste/*` (move; `hasNoUpcoming` en `classifyEmpty` met de jaareinde-uitzondering in november/december en notice T-73; gezondheid met `last_failure_at`/`alarm_since`; `wasteFailureVariant` inclusief `null` → H1; twee ophaalmomenten; J+1 in december of als C(J) geen komende datum meer heeft; geen C(J−1); bovengrens binnenzetten D+7); `src/server/waste/*` (parser met strippen en herkenning van B `{}`); `system/waste/sync.ts` (+ `markWasteAlarm`); `actions/waste.ts` (`saved.mode`, `inserted` → T-90/T-90b, `too_soon` zonder verzoek); tickstap; `wasteReminder`; `recipientsFor`; route `instellingen/afvalkalender` (redirect); `supabase/ops/waste_rollback.sql`; oude UI volgens §18.14 en de tekst-ID's uit §18.11; tests §18.15 met stub-scenario's. **Checkpoint CP-W03 (U3) vóór de livegang.** Uitrol U4–U8 | **WP3 live** (pg_net via `planner.sql`, tick elke 15 min); P0 en U0.2 afgerond (2026-09-29). Niet WP4+ | BR-47…BR-59, UC-13…UC-15, **AC-183…AC-223, AC-236, AC-237**, V-41…V-58, D-046 | **CP-W03**: de 41 punten uit §18.16 U3 (de enige lijst), 390×844, ◐ ook donker, in `docs/screenshots/wp3b/`; checkpoint in PROGRESS | code, test-writer, **security** (bron, SSRF/allowlist, adres = persoonsgegeven, strippen van coördinaten en ids uit A, RLS/guard/RPC's, `last_failure_at`/`alarm_since` alleen via de service role, platformlogs §18.12, L4 volgens D-046), **performance** (tickduur met en zonder ophalen), **visual-qa + ux-reviewer (licht) op CP-W03 vóór U4**; rooktest Jurgen (AC-217) |
 
 **(2) W-03-regels voor de bestaande rijen.** Toevoegen aan het eind van de kolom "Doel en inhoud"; de criteria gaan aan het eind van de kolom "BR / UC / bevindingen":
 
@@ -981,7 +975,7 @@ Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel),
   - kolom "Verwijdergedrag", aan het eind: `vervallen open afvaltaken: hard delete door het systeem (§18.3.2)`.
 - Rij `notifications` ✱, kolom "Kolommen": `ongewijzigd, behalve ✱ type (enum zonder task_assigned, swap_request, swap_accepted; ✚ waste_sync_failed, W-03) en ✱ url check`.
 - Nieuwe rij, direct na `shopping_items`:
-  `| waste_calendars ✚ (W-03) | household_id (PK), postcode, house_number, house_suffix, bag_id [OPEN: V-58], pickups (jsonb), version, last_attempt_at, last_success_at, last_error_code, error_since, last_failure_at (alleen waste_sync), alarm_since; error_since, last_failure_at en alarm_since in plaats van failure_count | checks op vorm en storingskolommen; RLS alleen select voor beheerders; zie §18.3.1 | cascade met het huishouden; weg bij uitzetten |`
+  `| waste_calendars ✚ (W-03) | household_id (PK), postcode, house_number, house_suffix, bag_id (V-58), pickups (jsonb), version, last_attempt_at, last_success_at, last_error_code, error_since, last_failure_at (alleen waste_sync), alarm_since; error_since, last_failure_at en alarm_since in plaats van failure_count | checks op vorm en storingskolommen; RLS alleen select voor beheerders; zie §18.3.1 | cascade met het huishouden; weg bij uitzetten |`
 
 **§3.2 Migraties, tabel.** Nieuwe rijen, direct na `…_300_retentie.sql`:
 - `| …_320_afval_meldingstype.sql | WP3b | niet-destructief | alleen alter type … add value if not exists 'waste_sync_failed'; apart bestand, omdat de waarde pas na de commit bruikbaar is. Zie §18.3.4 |`
@@ -1039,7 +1033,7 @@ Extern: Web Push-diensten van Apple/Google (versleutelde payload met taaktitel),
 > `| Afvalkalender (W-03) | zie §18.17 | — |`
 
 **§17 Besluiten van Jurgen en open punten.** Onder "**Open punten:**", na de bestaande bullet *(nieuw)*:
-> - **W-03 afvalkalender (§18):** besluiten V-41…V-57, letterlijk in `docs/PROGRESS.md`. Open vóór `/design-go`: **V-58**, het bewaren van de adrescode (§18.3.1, §18.12) [OPEN: V-58]. Open controles vóór de livegang van WP3b: **U0.1** (gemeenteregel 22:00/07:45, Jurgen) en **U5** (bereikbaarheid vanaf Vercel, §18.16).
+> - **W-03 afvalkalender (§18):** besluiten V-41…V-58, letterlijk in `docs/PROGRESS.md` (V-58: de adrescode mag worden bewaard; §18.3.1, §18.12). Open controles vóór de livegang van WP3b: **U0.1** (gemeenteregel 22:00/07:45, Jurgen) en **U5** (bereikbaarheid vanaf Vercel, §18.16).
 
 ---
 
