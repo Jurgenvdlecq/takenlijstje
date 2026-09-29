@@ -208,8 +208,8 @@ select id as jurgen from public.household_members where household_id = :'fam' an
 -- =============================================================================
 select pg_temp.assert((select timezone = 'Europe/Amsterdam' from public.households where id = :'fam'),
   'V-39: create_household negeert p_timezone');
--- De check op de tabel (households_timezone_amsterdam) staat sinds D-037 in …_210
--- (compatibel terugrollen); die wordt in WP2b getoetst.
+-- De check op de tabel (households_timezone_amsterdam) staat sinds D-037 in …_210;
+-- die toetst 40_wp2b.sql.
 
 -- Leden via uitnodiging: Ellen en Tim beheerder; Lynn, Kai, Noor en Mila gezinslid
 insert into public.household_invitations (household_id, email, role, invited_by_member_id) values
@@ -288,13 +288,12 @@ select pg_temp.assert((select title = 'Vaatwasser uitruimen' and category = 'cle
                               and due_at is not null and not was_late and minutes_late = 0 and duration_minutes = 10
                               and note = 'Tabletten zijn op' and completed_at is not null
                        from pg_temp.afvinking(:'c_vaat')), 'AC-034: historie-rij bevat wat, wanneer, deadline, duur en notitie');
-select pg_temp.assert((pg_temp.afvinking(:'c_vaat')).member_id is null, 'AC-034: geen member_id in de historie');
-select pg_temp.assert((pg_temp.afvinking(:'c_vaat')).points = 0, 'AC-034: geen punten in de historie');
+-- WP2b: de kolommen member_id en points bestaan niet meer (40_wp2b.sql toetst dat);
+-- de inhoudscontrole hieronder blijft: geen enkel veld verwijst naar Ellen
 select pg_temp.assert(row(pg_temp.afvinking(:'c_vaat'))::text not like '%' || :'ellen' || '%'
                       and row(pg_temp.afvinking(:'c_vaat'))::text not like '%' || :'u_ellen' || '%',
   'AC-034: geen enkel veld van de historie verwijst naar Ellen');
-select pg_temp.assert((pg_temp.taak(:'t_vaat')).status = 'done' and (pg_temp.taak(:'t_vaat')).completed_by_member_id is null,
-  'AC-034: taakrij is gedaan zonder afvinker');
+select pg_temp.assert((pg_temp.taak(:'t_vaat')).status = 'done', 'AC-034: taakrij is gedaan');
 select pg_temp.assert(row(pg_temp.taak(:'t_vaat'))::text not like '%' || :'ellen' || '%',
   'AC-034: geen enkel veld van de taakrij verwijst naar Ellen');
 
@@ -309,28 +308,23 @@ select pg_temp.assert(:'c_vaat_3' = :'c_vaat', 'AC-036/§7: tweede afvinker (and
 select pg_temp.assert(pg_temp.afvinkingen(:'t_vaat') = 1, 'AC-036: precies één historie-rij');
 
 -- =============================================================================
--- Oude signatuur met p_completed_by (tijdelijk, tot …_210) schrijft geen persoon
+-- Oude signatuur met p_completed_by: sinds …_210 verdwenen (AC-045, WP2b)
+-- In WP2a toetste dit blok dat de oude signatuur geen persoon meer schreef; die
+-- functie bestaat niet meer. Nu: elke aanroep met p_completed_by faalt en
+-- verandert niets (uitgebreider in 40_wp2b.sql).
 -- =============================================================================
 insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
 values (:'fam', 'Kattenbak', current_date, :'jurgen') returning id as t_kat \gset
-insert into public.tasks (household_id, title, scheduled_date, created_by_member_id)
-values (:'fam', 'Kattenvoer', current_date, :'jurgen') returning id as t_kat2 \gset
 select pg_temp.als(:'u_lynn');
 -- Zoals de vorige app-versie het via PostgREST deed (namen), "namens" Kai
-select (public.complete_task(p_task_id => :'t_kat', p_mutation_id => '30000000-1111-0000-0000-000000000003',
-                             p_completed_by => :'kai', p_note => 'Namens Kai')).id as c_kat \gset
-select pg_temp.assert((pg_temp.afvinking(:'c_kat')).member_id is null, 'AC-045: oude signatuur schrijft geen persoon in de historie');
-select pg_temp.assert((pg_temp.taak(:'t_kat')).completed_by_member_id is null and (pg_temp.taak(:'t_kat')).status = 'done',
-  'AC-045: oude signatuur schrijft geen afvinker in de taak');
-select pg_temp.assert((pg_temp.afvinking(:'c_kat')).note = 'Namens Kai', 'oude signatuur: notitie blijft werken');
--- Positioneel met een uuid op de derde plek kiest ook de oude signatuur
-select (public.complete_task(:'t_kat2'::uuid, '30000000-1111-0000-0000-000000000004'::uuid, :'lynn'::uuid)).id as c_kat2 \gset
-select pg_temp.assert((pg_temp.afvinking(:'c_kat2')).member_id is null and (pg_temp.taak(:'t_kat2')).completed_by_member_id is null,
-  'AC-045: oude signatuur positioneel schrijft geen persoon');
--- Een buitenstaander komt ook via de oude signatuur niet verder
-select pg_temp.als(:'u_bas');
-select pg_temp.expect_sqlstate(format($$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L)$$,
-  :'t_kat', :'bas'), 'P0002', 'oude signatuur: taak van ander huishouden');
+select pg_temp.expect_sqlstate(format(
+  $$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L, p_note => 'Namens Kai')$$,
+  :'t_kat', :'kai'), '42883', 'AC-045: oude signatuur met namen bestaat niet meer');
+-- Positioneel met een uuid op de derde plek
+select pg_temp.expect_sqlstate(format($$select public.complete_task(%L::uuid, gen_random_uuid(), %L::uuid)$$, :'t_kat', :'lynn'), '42883',
+  'AC-045: oude signatuur positioneel bestaat niet meer');
+select pg_temp.assert((pg_temp.taak(:'t_kat')).status = 'todo' and pg_temp.afvinkingen(:'t_kat') = 0,
+  'AC-045: mislukte oude aanroepen vinken niets af');
 
 -- =============================================================================
 -- AC-038 — te laat wordt vastgelegd (deadline 12:00 → 12:07 en 11:59)
@@ -400,7 +394,7 @@ select public.complete_task(:'t_ramen', gen_random_uuid(), null, now() - interva
 select pg_temp.als(:'u_lynn');
 select (public.undo_complete_task(:'t_ramen')).status as undo_status \gset
 select pg_temp.assert(:'undo_status' = 'todo', 'AC-041: gezinslid draait een afvinking van gisteren terug');
-select pg_temp.assert((select status = 'todo' and completed_at is null and completed_by_member_id is null from pg_temp.taak(:'t_ramen')),
+select pg_temp.assert((select status = 'todo' and completed_at is null from pg_temp.taak(:'t_ramen')),
   'AC-041: taak staat weer open');
 select pg_temp.assert(pg_temp.afvinkingen(:'t_ramen') = 0, 'AC-041: historie-rij is verwijderd');
 -- Ook de afvinking van een beheerder, door een ander gezinslid
@@ -450,8 +444,10 @@ select pg_temp.assert(:'u_vreemd' = :'u_onbekend', 'N2: undo vreemd = onbekend, 
 select pg_temp.assert(:'u_vreemd_gedaan' = :'u_onbekend', 'N2: undo gedane vreemde taak = onbekend, kreeg: ' || :'u_vreemd_gedaan');
 select pg_temp.fout(format($$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L)$$, :'t_geheim', :'bas')) as f_oud_vreemd \gset
 select pg_temp.fout(format($$select public.complete_task(p_task_id => %L, p_mutation_id => gen_random_uuid(), p_completed_by => %L)$$, gen_random_uuid(), :'bas')) as f_oud_onbekend \gset
-select pg_temp.assert(:'f_oud_vreemd' = :'f_onbekend' and :'f_oud_onbekend' = :'f_onbekend',
-  'N2: oude signatuur vreemd = onbekend = nieuwe signatuur, kreeg: ' || :'f_oud_vreemd' || ' / ' || :'f_oud_onbekend');
+-- WP2b: de oude signatuur bestaat niet meer; vreemd en onbekend geven nog steeds
+-- precies dezelfde fout (42883, geen orakel)
+select pg_temp.assert(:'f_oud_vreemd' like '42883:%' and :'f_oud_vreemd' = :'f_oud_onbekend',
+  'N2: oude signatuur vreemd = onbekend, kreeg: ' || :'f_oud_vreemd' || ' / ' || :'f_oud_onbekend');
 select pg_temp.assert(pg_temp.taak_fp(:'t_geheim') = :'fp_geheim' and pg_temp.taak_fp(:'t_geheim_gedaan') = :'fp_geheim_gedaan',
   'N2: pogingen van een buitenstaander veranderen niets');
 
@@ -639,7 +635,7 @@ select pg_temp.assert((pg_temp.lijst(:'nieuwe_lijst')).archived_at is null, 'AC-
 select pg_temp.assert(pg_temp.items(:'nieuwe_lijst') = 'Melk-,Zeep-', 'AC-050: nieuwe lijst heeft de 2 niet-gekochte, kreeg: ' || pg_temp.items(:'nieuwe_lijst'));
 select pg_temp.assert((pg_temp.lijst(:'fam_lijst')).archived_at is not null, 'AC-050: oude lijst is gearchiveerd');
 select pg_temp.assert(pg_temp.items(:'fam_lijst') = 'Appels+,Brood+,Cola+', 'AC-050: oude lijst houdt de 3 gekochte, kreeg: ' || pg_temp.items(:'fam_lijst'));
--- (De unieke index "één actieve lijst" staat sinds D-037 in …_210; idempotentie hier via de rijlock in de RPC.)
+-- (De unieke index "één actieve lijst" staat sinds D-037 in …_210; die toetst 40_wp2b.sql.)
 -- Buitenstaander en uitgezet lid: niet gevonden, niets veranderd
 select pg_temp.als(:'u_bas');
 select pg_temp.expect_sqlstate(format($$select public.archive_shopping_list(%L)$$, :'nieuwe_lijst'), 'P0002', 'AC-050: buitenstaander archiveert');
@@ -854,6 +850,13 @@ select pg_temp.als(:'u_zonder');
 select pg_temp.expect_sqlstate($$select public.delete_household('Familie WP2a')$$, 'P0002', 'delete_household: zonder huishouden');
 select pg_temp.assert(pg_temp.rijen_van(:'fam') = :'fam_voor', 'delete_household: na de weigeringen is niets van Familie veranderd');
 
+-- Alleen via de RPC (TD §3.1, §4.6): een directe delete door de beheerder raakt niets
+-- (was open bevinding test-writer WP2a; opgelost in …_200, verplaatst uit bevindingen/)
+select pg_temp.als(:'u_jurgen');
+select pg_temp.assert(pg_temp.geweigerd(format($$delete from public.households where id = %L$$, :'fam')),
+  'TD §3.1: beheerder verwijdert huishouden direct, zonder delete_household en zonder naambevestiging');
+select pg_temp.assert(pg_temp.rijen_van(:'fam') = :'fam_voor', 'TD §3.1: na de directe poging is niets van Familie veranderd');
+
 -- Uitgezette beheerder: geen toegang
 select pg_temp.als(:'u_jurgen');
 update public.household_members set is_active = false where id = :'ellen';
@@ -904,7 +907,7 @@ select pg_temp.assert(pg_temp.lidmaatschappen(:'u_bas') = 1, 'na delete_househol
 -- =============================================================================
 reset role;
 select pg_temp.assert((select count(*) = 0 from unnest(array[
-    'public.complete_task(uuid,uuid,text,timestamptz)', 'public.complete_task(uuid,uuid,uuid,text,timestamptz)',
+    'public.complete_task(uuid,uuid,text,timestamptz)',
     'public.archive_shopping_list(uuid)', 'public.unarchive_shopping_list(uuid)',
     'public.delete_household(text)', 'public.delete_my_account()'
   ]::regprocedure[]) f where has_function_privilege('anon', f, 'EXECUTE')), 'WP2a-RPC''s niet aanroepbaar voor anon');

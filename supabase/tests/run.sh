@@ -33,8 +33,8 @@ else
   bash supabase/tests/gelijktijdig.sh "$DB_NAME"
 fi
 
-# Upgrade-test (AC-053, AC-179): oud schema (migraties vóór …_200) + oude
-# gegevens, dan …_200 en verder, dan de controles.
+# Upgrade-test (AC-053, AC-179, AC-059): oud schema (migraties vóór …_200) + oude
+# gegevens, dan …_200 + controles, dan …_210 en verder + controles.
 UPG_NAME="${DB_NAME}_upgrade"
 if [[ -n "${DATABASE_URL:-}" ]]; then
   UPG=("${PSQL[@]}" "${DATABASE_URL%/*}/$UPG_NAME")
@@ -48,10 +48,18 @@ for f in supabase/migrations/*.sql; do
 done
 echo "→ upgrade: oude gegevens"
 "${UPG[@]}" -f supabase/tests/upgrade/voor_200.sql
+# Eerst alleen …_200 (het tussenstadium, zoals live tussen M2 en M6) …
 for f in supabase/migrations/*.sql; do
-  [[ "$(basename "$f")" < "20260928000200" ]] || { echo "→ upgrade: migratie $(basename "$f")"; "${UPG[@]}" -f "$f" 2>/dev/null; }
+  b="$(basename "$f")"
+  [[ "$b" < "20260928000200" || ! "$b" < "20260928000210" ]] || { echo "→ upgrade: migratie $b"; "${UPG[@]}" -f "$f" 2>/dev/null; }
 done
 "${UPG[@]}" -f supabase/tests/upgrade/na_200.sql
+# … dan het contract (…_210) en alles daarna op dezelfde oude gegevens (AC-059)
+for f in supabase/migrations/*.sql; do
+  b="$(basename "$f")"
+  [[ "$b" < "20260928000210" ]] || { echo "→ upgrade: migratie $b"; "${UPG[@]}" -f "$f" 2>/dev/null; }
+done
+"${UPG[@]}" -f supabase/tests/upgrade/na_210.sql
 "${ADMIN[@]}" -c "drop database if exists $UPG_NAME"
 
 echo "✓ Alle databasetests geslaagd"

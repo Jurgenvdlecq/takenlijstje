@@ -3,7 +3,9 @@
 #  1. twee beheerders heffen tegelijk hun lidmaatschap op (delete_my_account)
 #     → er blijft minstens één actieve beheerder over (BR-24);
 #  2. dezelfde gebruiker maakt twee keer tegelijk een huishouden → één lidmaatschap (BR-44);
-#  3. dezelfde gebruiker accepteert tegelijk twee uitnodigingen → één lidmaatschap (BR-44).
+#  3. dezelfde gebruiker accepteert tegelijk twee uitnodigingen → één lidmaatschap (BR-44);
+#  4. (WP2b) twee leden vinken dezelfde taak tegelijk af, elk met een eigen mutationId
+#     → één registratie (BR-11, AC-036/AC-037; unique (task_id) uit …_210 + rijlock).
 # Twee echte sessies: sessie 1 houdt zijn transactie 1,5 s open, sessie 2 start 0,3 s later.
 # Gebruik: bash supabase/tests/gelijktijdig.sh <database of connectiestring>
 set -uo pipefail
@@ -26,6 +28,10 @@ select household_id, 'b.gelijk@example.com', 'admin', id, 'gelijk-tok-b' from pu
 where user_id = '60000000-0000-0000-0000-0000000000a1';
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-0000000000a2"}', false);
 select public.accept_invitation('gelijk-tok-b', 'B');
+-- Een open taak in "Gelijk" (voor 4)
+insert into public.tasks (id, household_id, title, scheduled_date, created_by_member_id)
+select '61000000-0000-0000-0000-000000000001', household_id, 'Tegelijk afvinken', current_date, id
+from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a2';
 -- Twee huishoudens die D uitnodigen
 select set_config('request.jwt.claims', '{"sub":"60000000-0000-0000-0000-0000000000a1"}', false);
 insert into public.household_invitations (household_id, email, invited_by_member_id, token)
@@ -59,6 +65,10 @@ race() {
   true
 }
 
+# 4. twee leden vinken tegelijk dezelfde taak af (vóór 1, want daarna is A of B geen lid meer)
+race 60000000-0000-0000-0000-0000000000a1 60000000-0000-0000-0000-0000000000a2 \
+  "select public.complete_task('61000000-0000-0000-0000-000000000001', gen_random_uuid())" \
+  "select public.complete_task('61000000-0000-0000-0000-000000000001', gen_random_uuid())"
 # 1. delete_my_account is tot WP7 dicht voor authenticated (D-037); de logica als eigenaar met de claim
 race 60000000-0000-0000-0000-0000000000a1 60000000-0000-0000-0000-0000000000a2 \
   "select public.delete_my_account()" "select public.delete_my_account()" eigenaar
@@ -76,7 +86,12 @@ declare
   v_admins integer;
   v_c integer;
   v_d integer;
+  v_t integer;
 begin
+  select count(*) into v_t from public.task_completions where task_id = '61000000-0000-0000-0000-000000000001';
+  if v_t <> 1 or not exists (select 1 from public.tasks where id = '61000000-0000-0000-0000-000000000001' and status = 'done') then
+    raise exception 'ASSERT MISLUKT: BR-11 gelijktijdig: % registraties na twee keer tegelijk afvinken', v_t;
+  end if;
   select count(*) into v_admins from public.household_members m join public.households h on h.id = m.household_id
   where h.name = 'Gelijk' and m.role = 'admin' and m.is_active;
   if v_admins < 1 then

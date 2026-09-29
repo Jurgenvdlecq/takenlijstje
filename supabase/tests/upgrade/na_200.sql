@@ -54,7 +54,16 @@ update public.household_members set display_name = 'Lynn L.' where id = '4200000
 select pg_temp.assert((select author_name = 'Lynn L.' from public.task_comments where id = '44000000-0000-0000-0000-000000000002'),
   'V-34: naamswijziging na de migratie werkt door in een oude notitie');
 
+-- Tussenstadium (alleen …_200, zoals live tussen M2 en M6): de vervallen gegevens
+-- bestaan nog, zodat terugrollen naar de oude code kan (TD §12.4)
+select pg_temp.assert((select count(*) = 1 from public.household_members where user_id is null),
+  'tussenstadium: lid zonder account (Kai) bestaat nog');
+select pg_temp.assert((select count(*) = 2 from public.task_completions where member_id is not null),
+  'tussenstadium: "wie afvinkte" staat nog in de historie');
+select pg_temp.assert(to_regprocedure('public.complete_task(uuid,uuid,uuid,text,timestamptz)') is not null
+                      and to_regprocedure('public.accept_swap_request(uuid)') is not null,
+  'tussenstadium: oude RPC''s bestaan nog voor de vorige app-versie');
 
-drop schema upgrade_test cascade;
+-- upgrade_test blijft staan voor na_210.sql
 \o
 select 'Upgrade-test …_200 geslaagd (AC-053, AC-179)' as resultaat;
