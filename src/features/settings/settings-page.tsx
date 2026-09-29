@@ -10,11 +10,13 @@ import { NotificationsSection } from "./notifications-section";
 import { ProfileSection } from "./profile-section";
 import { RecurrencesSection } from "./recurrences-section";
 import { TemplatesSection } from "./templates-section";
+import { WasteSection } from "./waste-section";
 
 const JUMP_LINKS = [
   { href: "#profiel", label: "Profiel" },
   { href: "#meldingen", label: "Meldingen" },
   { href: "#huishouden", label: "Huishouden" },
+  { href: "#afvalkalender", label: "Afval" },
   { href: "#gezinsleden", label: "Gezinsleden" },
   { href: "#terugkerend", label: "Terugkerend" },
   { href: "#standaardtaken", label: "Standaardtaken" },
@@ -48,6 +50,7 @@ export function SettingsPage() {
           <ProfileSection />
           <NotificationsSection />
           <HouseholdSection />
+          <WasteSection />
           <MembersSection />
           <RecurrencesSection />
           <TemplatesSection />
