@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP3 (live zetten); WP2b wacht op rooktest M7; parallel: ontwerp W-03 afvalkalender
-Volgende stap: WP3 live — migraties _220/_300/_310 via de koppeling, deploy main, geheim in Vault (Jurgen kopieert naar Vercel), supabase/ops/planner.sql, live-controles L1–L9 + advies, na 2 uur AC-063/AC-064 meten. WP2b: M8 (back-up weg) ≈ 2026-10-29 na melding (herinnering ingepland). W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b direct na WP3.
+Volgende stap: WP3 — meting AC-063/AC-064 rond 11:40 UTC, dan afronden. WP2b: M8 (back-up weg) ≈ 2026-10-29 na melding (herinnering ingepland). W-03: plan-critic ronde 2 → totaalvoorstel → `/design-go` van Jurgen; bouwen als WP3b (eerste stap: probe van de bron).
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -12,6 +12,7 @@ Volgende stap: WP3 live — migraties _220/_300/_310 via de koppeling, deploy ma
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-29T09:57 — onderhoud aan het agentensysteem vrijgegeven tot 10:27 UTC
 - 2026-09-29T07:49 — onderhoud aan het agentensysteem vrijgegeven tot 08:19 UTC
 - 2026-09-28T20:33 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-28T20:32 — Jurgen trekt de Design Freeze in
