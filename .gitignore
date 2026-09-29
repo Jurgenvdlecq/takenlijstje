@@ -45,3 +45,13 @@ next-env.d.ts
 # tests
 /test-results
 /playwright-report
+
+# AAE V3 LOCAL START
+/.claude/aae/state/
+/.claude/aae/private/
+/.aae-backups/
+/docs/aae/TASK.json
+/docs/aae/RESULT.json
+/docs/aae/evidence/
+/docs/aae/notes/
+# AAE V3 LOCAL END

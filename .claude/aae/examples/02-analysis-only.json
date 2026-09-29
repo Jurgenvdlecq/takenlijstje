@@ -1,0 +1,52 @@
+{
+  "schema_version": 3,
+  "id": "ANALYSE-001",
+  "title": "Beoordeel de bestaande huishoudflow; bouw nog niets",
+  "goal": "Beoordeel de bestaande huishoudflow; bouw nog niets",
+  "phase": "analysis",
+  "mode": "standard",
+  "risk": "low",
+  "uncertainty": "normal",
+  "risk_flags": [],
+  "scope": {
+    "read": [
+      "src"
+    ],
+    "write": []
+  },
+  "acceptance": [
+    {
+      "id": "AC1",
+      "text": "De hoofdactie is herkenbaar en bestaande taken blijven correct beschikbaar."
+    }
+  ],
+  "test_plan": [
+    {
+      "kind": "analysis",
+      "method": "inspection",
+      "description": "Controleer gericht analysis met een concrete bewijsnotitie; kies command/manual als de vraag echt uitvoering vereist."
+    }
+  ],
+  "agents": [
+    {
+      "name": "aae-product-designer",
+      "question": "Welke beperkte flowwijziging vermindert het meeste denkwerk zonder extra beheer?",
+      "files": [
+        "src",
+        "docs/aae/PROJECT_PROFILE.md"
+      ],
+      "deliverable": "Een onderbouwd voorstel met houden, veranderen en bewust niet bouwen.",
+      "stop_when": "Er ligt een toetsbaar klein voorstel en alleen noodzakelijke open keuzes.",
+      "model": "sonnet",
+      "max_calls": 1
+    }
+  ],
+  "commands": [],
+  "budget": {
+    "agent_calls": 2,
+    "max_parallel": 1,
+    "command_runs": 0
+  },
+  "approval_required": false,
+  "design_freeze": false
+}

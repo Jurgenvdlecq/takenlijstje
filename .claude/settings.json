@@ -8,16 +8,16 @@
     ]
   },
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Monitor|Skill",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/gate/gate.mjs", "pretool"],
-            "timeout": 20,
-            "statusMessage": "Design Freeze-poort controleert"
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
           }
         ]
       }
@@ -28,47 +28,97 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/gate/gate.mjs", "prompt"],
-            "timeout": 20
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
           }
         ]
       }
     ],
-    "UserPromptExpansion": [
+    "PreToolUse": [
       {
-        "matcher": "design-go|niveau|onderhoud-go",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/gate/gate.mjs", "prompt"],
-            "timeout": 20
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
           }
         ]
       }
     ],
-    "SessionStart": [
+    "PostToolUse": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "Agent|Task|SubagentHandback",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/gate/gate.mjs", "session"],
-            "timeout": 20
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
           }
         ]
       }
     ],
-    "ConfigChange": [
+    "PostToolUseFailure": [
       {
-        "matcher": "project_settings|local_settings",
+        "matcher": "Agent|Task|SubagentHandback",
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/gate/gate.mjs", "config"],
-            "timeout": 20
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/aae/runtime/hook.mjs"
+            ],
+            "timeout": 10
           }
         ]
       }
