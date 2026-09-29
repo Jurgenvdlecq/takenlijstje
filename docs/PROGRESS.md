@@ -3,7 +3,7 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP3b afvalkalender (W-03), Design Freeze 2026-09-29T11:42 door Jurgen
-Volgende stap: W-03 — de freeze van 11:42 legde de hoofddocumenten vast zónder de goedgekeurde W-03-teksten. Invoegen kan alleen met een open poort: samengevoegde documenten voorbereiden in de scratchpad → Jurgen `/design-go intrekken` → de vier invoegteksten plaatsen (alleen wat in `docs/wijzigingen/W-03/samenvoegen.md` staat) → Jurgen `/design-go` → WP3b bouwen. Open controles vóór livegang WP3b: U0.1 (Jurgen), U5 (bereikbaarheid vanaf Vercel). WP3: AC-063 live gehaald; AC-064 live waarnemen (vervolgcontrole 2026-09-30). WP2b: M8 ≈ 2026-10-29.
+Volgende stap: W-03 — invoegteksten geplaatst in PRODUCT_SPEC, UX_SPEC, DESIGN_SYSTEM, TECHNICAL_DESIGN en ACCEPTANCE_CRITERIA (volgens `docs/wijzigingen/W-03/samenvoegen.md`; de drie losse §15-zinnen voor WP5/WP7/WP8 in de kolom Checkpoint). Wachten op Jurgens nieuwe `/design-go`, daarna WP3b bouwen. Open controles vóór livegang WP3b: U0.1 (Jurgen), U5 (bereikbaarheid vanaf Vercel). WP3: AC-064 live waarnemen (vervolgcontrole 2026-09-30). WP2b: M8 ≈ 2026-10-29.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -12,6 +12,7 @@ Volgende stap: W-03 — de freeze van 11:42 legde de hoofddocumenten vast zónde
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-29T11:48 — Jurgen trekt de Design Freeze in
 - 2026-09-29T11:42 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-29T09:57 — onderhoud aan het agentensysteem vrijgegeven tot 10:27 UTC
 - 2026-09-29T07:49 — onderhoud aan het agentensysteem vrijgegeven tot 08:19 UTC
