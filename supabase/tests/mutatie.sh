@@ -17,6 +17,7 @@ R = '20260928000110_reeks_rpcs.sql'
 A = '20260928000100_rechten_actief_lid.sql'
 E = '20260928000200_scope_expand.sql'
 C = '20260928000210_scope_contract.sql'
+P = '20260929000300_retentie.sql'
 # WP2b: …_210 vervangt guard_task_changes en undo_complete_task en herhaalt de
 # revoke in private. Mutaties op die onderdelen gelden daarom ook voor C.
 muts = {
@@ -202,6 +203,34 @@ where c.author_name is null;"""),
   'undo_niet_vervangen': (C, "create or replace function public.undo_complete_task(p_task_id uuid)", "create or replace function private.undo_ongebruikt(p_task_id uuid)"),
   'guard_taken_niet_vervangen': (C, "create or replace function private.guard_task_changes()", "create or replace function private.guard_ongebruikt()"),
   'huishouden_direct_verwijderen': (E, 'drop policy if exists "households: beheerder verwijdert" on public.households;', ""),
+  # ---- WP3 (…_300 retentie; AC-077, AC-078, D-040) ----
+  'run_purge_voor_authenticated': (P, "revoke execute on function public.run_purge() from public, anon, authenticated;",
+                                   "grant execute on function public.run_purge() to authenticated, anon;"),
+  'purge_private_aanroepbaar': (P, "revoke execute on function private.purge_expired_data(timestamptz) from public, anon, authenticated;\n", ""),
+  'run_purge_niet_definer': (P, "returns jsonb\nlanguage sql\nsecurity definer\n", "returns jsonb\nlanguage sql\n"),
+  'historie_te_kort': (P, "where completed_at < p_now - interval '2 years'", "where completed_at < p_now - interval '1 year'"),
+  'historie_te_lang': (P, "where completed_at < p_now - interval '2 years'", "where completed_at < p_now - interval '3 years'"),
+  'historie_grens_inclusief': (P, "where completed_at < p_now - interval '2 years'", "where completed_at <= p_now - interval '2 years' + interval '1 minute'"),
+  'meldingen_te_kort': (P, "where created_at < p_now - interval '90 days'", "where created_at < p_now - interval '89 days'"),
+  'meldingen_te_lang': (P, "where created_at < p_now - interval '90 days'", "where created_at < p_now - interval '91 days'"),
+  'lijsten_te_kort': (P, "where archived_at < p_now - interval '1 year'", "where archived_at < p_now - interval '11 months'"),
+  'lijsten_te_lang': (P, "where archived_at < p_now - interval '1 year'", "where archived_at < p_now - interval '13 months'"),
+  'lijsten_ook_actief': (P, "where archived_at < p_now - interval '1 year'", "where coalesce(archived_at, created_at) < p_now - interval '1 year' or archived_at is null"),
+  'uitnodiging_least': (P, "coalesce(accepted_at, expires_at) < p_now", "least(accepted_at, expires_at) < p_now"),
+  'uitnodiging_alleen_verloop': (P, "coalesce(accepted_at, expires_at) < p_now", "expires_at < p_now"),
+  'uitnodiging_open_ook_weg': (P, "coalesce(accepted_at, expires_at) < p_now - interval '30 days'", "created_at < p_now - interval '30 days'"),
+  'taken_te_kort': (P, "where deleted_at < p_now - interval '90 days'", "where deleted_at < p_now - interval '89 days'"),
+  'taken_te_lang': (P, "where deleted_at < p_now - interval '90 days'", "where deleted_at < p_now - interval '91 days'"),
+  'losse_taak_nooit_weg': (P, "(occurrence_date is null or occurrence_date < v_today - 30)", "(occurrence_date < v_today - 30)"),
+  'reeks_zonder_datumregel': (P, "(occurrence_date is null or occurrence_date < v_today - 30)", "true"),
+  'reeks_datumgrens_inclusief': (P, "occurrence_date < v_today - 30)", "occurrence_date <= v_today - 30)"),
+  'actieve_taken_ook_weg': (P, "where deleted_at < p_now - interval '90 days'", "where coalesce(deleted_at, created_at) < p_now - interval '90 days'"),
+  'tick_index_weg': (P, """create index if not exists tasks_open_sched_idx
+  on public.tasks (scheduled_date)
+  where status in ('todo', 'in_progress') and deleted_at is null;
+""", ""),
+  'tick_index_zonder_predicaat': (P, """  on public.tasks (scheduled_date)
+  where status in ('todo', 'in_progress') and deleted_at is null;""", """  on public.tasks (scheduled_date);"""),
 }
 gevangen = 0
 for name, spec in muts.items():
