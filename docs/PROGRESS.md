@@ -12,6 +12,7 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-29T07:49 — onderhoud aan het agentensysteem vrijgegeven tot 08:19 UTC
 - 2026-09-28T20:33 — DESIGN FREEZE goedgekeurd door Jurgen (niveau 2)
 - 2026-09-28T20:32 — Jurgen trekt de Design Freeze in
 - 2026-09-28T20:29 — onderhoud aan het agentensysteem vrijgegeven tot 20:59 UTC
@@ -57,6 +58,7 @@ Volgende stap: WP2b — M3 back-up en M4 restore-test op live, dan M5: aantallen
 - Rooktest WP1 op live (2026-09-28): "Het werk goed."
 - Rooktest WP2a en V-45…V-47 (2026-09-29): "Alles werkt. Adres mag opgeslagen worden. Direct bouwen. Binnen zetten moet er ook bij. Vanaf die middag." → rooktest WP2a geslaagd · V-45 adres (postcode + huisnummer) mag worden bewaard · V-46 afvalkalender als eigen werkpakket direct na WP3, vóór de nieuwe schermen · V-47 ook een taak "bak binnenzetten", op de ophaaldag vanaf de middag.
 - W-03, antwoorden op de gebundelde vragen (2026-09-29): "1. Ja graag ook herinnering om 18.00 2. Graag zo doen 3. Pmd, rest en papier. Alles bakken 4. Top 5." → V-48 binnenzetten vanaf 12:00, uiterlijk einde van de dag, met herinnering om 18:00 · V-49 herinnering blijft 21:00, de taak zegt "mag vanaf 22:00 buiten, uiterlijk 07:45" · V-55 rest, papier en PMD zijn alle drie containers (dus altijd binnenzetten) · V-51 één gecombineerde taak per dag. V-52 ("5.") leeg gelaten; V-53, V-54, V-56, V-50, V-57 nog niet beantwoord → opnieuw gevraagd.
+- W-03, antwoorden op V-50, V-52, V-53, V-54, V-56, V-57 (2026-09-29): "5. 14 dagen 6. Voorstel voglen 7. Voorstel volgen 8. Voorstel volgen 9. Voorstel volgen 10. Hoe doe ik dit?" → V-52 afvaltaken 14 dagen vooruit · V-54 afvaltaken niet hernoemen/verplaatsen/verwijderen; wel afvinken, bezig, notitie, deze keer overslaan; vergeten buitenzetten vervalt na de ophaaldag vanzelf · V-56 de handmatige reeks "Afvalcontainer buiten zetten" stopt Jurgen zelf zodra de afvalkalender werkt · V-50 afvalherinnering volgt de instelling "Herinneringen"; geen "deadline nadert/verlopen" voor afvaltaken; na > 48 uur niet bijwerken één melding aan de beheerders · V-53 adres alleen voor beheerders (invullen, wijzigen, zien); gezinsleden zien "Afvalkalender staat aan" · V-57 uitleg gegeven hoe de netwerkinstelling werkt.
 - WP2b M5, bevestiging wissen (2026-09-29, zelfde sessie als M3–M5): "Ja. Wissen" → toestemming voor M6 (`…_210_scope_contract` op live).
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
