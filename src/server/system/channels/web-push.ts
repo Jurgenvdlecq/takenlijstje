@@ -11,7 +11,7 @@ import type { PushSubscriptionRow as PushSubscriptionTableRow } from "@/types/da
 let configured = false;
 
 /** Per verzoek naar de pushdienst (TECHNICAL_DESIGN §10) */
-const PUSH_TIMEOUT_MS = 10_000;
+export const PUSH_TIMEOUT_MS = 10_000;
 /** Hoe lang de pushdienst een melding bewaart als het toestel offline is */
 const PUSH_TTL_SECONDS = 60 * 60 * 6;
 /** Hoeveel pushes tegelijk (§10) */
@@ -44,7 +44,12 @@ export function pushPayload(message: NotificationMessage): string {
  * Stuurt één melding naar één abonnement. Een verlopen of ingetrokken
  * abonnement (404/410) wordt opgeruimd. Geeft terug of het gelukt is.
  */
-export async function sendPush(db: DbClient, sub: PushSubscriptionRow, message: NotificationMessage): Promise<boolean> {
+export async function sendPush(
+  db: DbClient,
+  sub: PushSubscriptionRow,
+  message: NotificationMessage,
+  timeout = PUSH_TIMEOUT_MS,
+): Promise<boolean> {
   // Alleen de bekende pushdiensten; een ander adres wordt nooit aangeschreven
   if (!isAllowedPushEndpoint(sub.endpoint)) {
     await db.from("push_subscriptions").delete().eq("id", sub.id);
@@ -58,7 +63,7 @@ export async function sendPush(db: DbClient, sub: PushSubscriptionRow, message: 
       pushPayload(message),
       {
         TTL: PUSH_TTL_SECONDS,
-        timeout: PUSH_TIMEOUT_MS,
+        timeout,
         urgency: message.type === "overdue" || message.type === "deadline_soon" ? "high" : "normal",
       },
     );

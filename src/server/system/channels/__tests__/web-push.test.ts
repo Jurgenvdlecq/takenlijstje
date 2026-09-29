@@ -58,7 +58,9 @@ describe("sendPush", () => {
     webpush.sendNotification.mockResolvedValue({ statusCode: 201 });
     const { db, acties } = nepDb();
     expect(await sendPush(db, sub, message)).toBe(true);
-    const [, payload, options] = webpush.sendNotification.mock.calls[0];
+    const [target, payload, options] = webpush.sendNotification.mock.calls[0];
+    // web-push krijgt de genormaliseerde URL (new URL(...).href), zelfde host
+    expect(target.endpoint).toBe(new URL(sub.endpoint).href);
     expect(options).toMatchObject({ timeout: 10_000, TTL: 6 * 60 * 60 });
     expect(JSON.parse(payload)).toMatchObject({ title: "Herinnering: Afwas", tag: "reminder:t:60:x" });
     expect(acties).toEqual([{ actie: "update", id: "sub-1", waarden: { last_used_at: expect.any(String) } }]);
@@ -88,6 +90,15 @@ describe("sendPush", () => {
     "https://fcm.googleapis.com.evil.com/x",
     "https://user:pass@fcm.googleapis.com/x",
     "https://fcm.googleapis.com:8443/x",
+    "https://evil.com;.fcm.googleapis.com/x",
+    "https://169.254.169.254;.fcm.googleapis.com/x",
+    "https://localhost;.push.apple.com/x",
+    "https://evil.com{.fcm.googleapis.com/x",
+    "https://evil.com`.fcm.googleapis.com/x",
+    "https://evil.com'.fcm.googleapis.com/x",
+    'https://evil.com".fcm.googleapis.com/x',
+    "https://evil.com\\.fcm.googleapis.com/x",
+    "https://FCM.GoogleAPIs.com/x",
   ])("niet-toegestaan endpoint %s: niet aangeschreven, abonnement verwijderd", async (endpoint) => {
     const { db, acties } = nepDb();
     expect(await sendPush(db, { ...sub, endpoint }, message)).toBe(false);

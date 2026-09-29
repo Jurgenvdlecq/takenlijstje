@@ -147,3 +147,10 @@ Keuzes die de bouwer na de Design Freeze zelfstandig maakt binnen het goedgekeur
   - **Planner:** alleen versturen als de tick-URL in Vault met `https://` begint (punt 3); extensies in `pg_catalog`/`extensions` (punt 6); `revoke execute on all functions in schema net from anon, authenticated`, omdat alleen de planner pg_net gebruikt. Een extensie-update van Supabase kan die rechten terugzetten; de controle hoort daarom bij elke livecontrole (query L4 uit de security-review).
   - **Cron-geheim:** beide kanten eerst SHA-256, dan `timingSafeEqual`; zo lekt ook de lengte niet (punt 4).
   - **Tick waarschuwt** in de log als er huishoudens zonder leden zijn opgeruimd of zonder actieve beheerder bestaan (punt 7).
+- **D-043: herstel na performance-review WP3 (GO, LAAG-punten).**
+  - `generated_until` in één verzoek per (oude, nieuwe) waarde; id-lijsten (`overslaan`, `pushed_at`, horizon) in blokken van 200, zodat de URL ook na lange stilstand onder de gatewaygrens blijft.
+  - Index `notifications_task_idx` in `…_300` (hard verwijderen van taken zet `notifications.task_id` leeg).
+  - Time-out van de laatste push begrensd op budget + 5 s, zodat de tick binnen de 55 s van pg_net blijft.
+  - "Taak gedaan" (met push) loopt via `after()` na het antwoord van het afvinken; de planning van de volgende uitvoering blijft vóór het antwoord.
+  - **Functieregio Vercel `fra1`** (`vercel.json` `regions`), naast de database in eu-central-1 (Frankfurt). Zonder instelling kiest Vercel de standaardregio in de VS, wat elke query ~90 ms trager maakt. Geen kosten; Hobby staat één regio toe.
+  - Niet gedaan (bewust): index op `occurrence_date` (punt 6, pas bij veel groei).

@@ -15,6 +15,9 @@ create index if not exists tasks_open_sched_idx
 create index if not exists tasks_deleted_idx on public.tasks (deleted_at) where deleted_at is not null;
 create index if not exists task_completions_completed_idx on public.task_completions (completed_at);
 create index if not exists notifications_created_idx on public.notifications (created_at);
+-- Het hard verwijderen van taken zet notifications.task_id leeg (FK "set null");
+-- zonder index is dat per taak een volledige scan (performance-review WP3, punt 3)
+create index if not exists notifications_task_idx on public.notifications (task_id) where task_id is not null;
 create index if not exists shopping_lists_archived_idx on public.shopping_lists (archived_at) where archived_at is not null;
 
 create or replace function private.purge_expired_data(p_now timestamptz default now())

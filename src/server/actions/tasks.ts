@@ -24,6 +24,7 @@ import {
   type TaskUpdateInput,
 } from "@/lib/validation";
 import type { CompletionRow, RecurrenceRow, TaskRow, TaskStatus } from "@/types/database";
+import { after } from "next/server";
 import { z } from "zod";
 import { requireMember } from "../context";
 import { check, expectRows, runAction, UserError, type ActionResult } from "../errors";
@@ -54,11 +55,12 @@ export async function completeTaskAction(raw: z.input<typeof completeInput>): Pr
       }),
     ) as CompletionRow;
 
-    // Volgende uitvoering inplannen, en iedereen die "taak gedaan" aan heeft
-    // informeren, ook wie afvinkte; zonder naam, zodat tekst en ontvangers niet
-    // verraden wie het deed (V-21, V-38a). Beide onafhankelijk, dus tegelijk.
-    await Promise.all([
-      completion.recurrence_id ? topUp(household.id, [completion.recurrence_id]) : Promise.resolve(),
+    // Volgende uitvoering inplannen (de gebruiker ziet hem meteen). Iedereen die
+    // "taak gedaan" aan heeft informeren, ook wie afvinkte; zonder naam, zodat
+    // tekst en ontvangers niet verraden wie het deed (V-21, V-38a). De melding
+    // (met push) loopt na het antwoord, zodat een trage pushdienst het afvinken
+    // niet ophoudt (performance-review WP3, punt 5).
+    after(() =>
       notify({
         householdId: household.id,
         message: {
@@ -68,7 +70,8 @@ export async function completeTaskAction(raw: z.input<typeof completeInput>): Pr
           dedupeKey: `completed:${completion.id}`,
         },
       }),
-    ]);
+    );
+    if (completion.recurrence_id) await topUp(household.id, [completion.recurrence_id]);
 
     return completion;
   });

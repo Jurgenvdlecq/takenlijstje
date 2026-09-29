@@ -46,6 +46,16 @@ function occurrenceRows(row: RecurrenceRow, occurrences: PlannedOccurrence[]) {
   }));
 }
 
+/**
+ * id-lijsten gaan als `in.(…)` in de URL; in blokken blijft die ruim onder de
+ * grens van de gateway, ook na lange stilstand (performance-review WP3, punt 2)
+ */
+export function chunks<T>(items: T[], size = 200): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 /** Vaste tijdzone van elk huishouden (V-39); terugval als de rij hem niet heeft */
 export const HOUSEHOLD_TIMEZONE = "Europe/Amsterdam";
 
@@ -188,9 +198,19 @@ export async function planAllSeries(db: DbClient, now = new Date()): Promise<num
   }
   // generated_until alleen als hij sinds het lezen niet veranderde: een reekswijziging
   // die tegelijk "opnieuw plannen" vroeg, wordt zo niet overschreven (code-review WP3, punt 5)
+  const groups = new Map<string, { from: string | null; to: string; ids: string[] }>();
   for (const u of horizonUpdates) {
-    const update = db.from("task_recurrences").update({ generated_until: u.to }).eq("id", u.id);
-    check(await (u.from === null ? update.is("generated_until", null) : update.eq("generated_until", u.from)));
+    const key = `${u.from}|${u.to}`;
+    const group = groups.get(key) ?? { from: u.from, to: u.to, ids: [] };
+    group.ids.push(u.id);
+    groups.set(key, group);
+  }
+  // Eén verzoek per (oude, nieuwe) waarde in plaats van per reeks (performance-review WP3, punt 1)
+  for (const g of groups.values()) {
+    for (const ids of chunks(g.ids)) {
+      const update = db.from("task_recurrences").update({ generated_until: g.to }).in("id", ids);
+      check(await (g.from === null ? update.is("generated_until", null) : update.eq("generated_until", g.from)));
+    }
   }
   return created;
 }
@@ -230,14 +250,18 @@ export async function skipAllSuperseded(db: DbClient, now = new Date()): Promise
   if (!ids.length) return 0;
   // Alleen wat nog open is: een taak die intussen is afgevinkt of verwijderd,
   // blijft zoals hij is (code-review WP3, punt 1)
-  const skipped = check(
-    await db
-      .from("tasks")
-      .update({ status: "skipped" })
-      .in("id", ids)
-      .in("status", ["todo", "in_progress"])
-      .is("deleted_at", null)
-      .select("id"),
-  );
-  return skipped.length;
+  let skipped = 0;
+  for (const part of chunks(ids)) {
+    const rows = check(
+      await db
+        .from("tasks")
+        .update({ status: "skipped" })
+        .in("id", part)
+        .in("status", ["todo", "in_progress"])
+        .is("deleted_at", null)
+        .select("id"),
+    );
+    skipped += rows.length;
+  }
+  return skipped;
 }

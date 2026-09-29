@@ -7,8 +7,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  */
 vi.mock("server-only", () => ({}));
 
+import type { TickReport } from "@/server/system/tick";
+
 const tick = vi.hoisted(() => ({
-  runTick: vi.fn(async () => ({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, failed: [] })),
+  runTick: vi.fn(
+    async (): Promise<TickReport> => ({ households: 1, planned: 2, skipped: 0, notified: 3, pushed: 1, purged: { tasks: 0 }, failed: [] }),
+  ),
 }));
 vi.mock("@/server/system/tick", () => tick);
 
@@ -35,6 +39,16 @@ describe("cron-tick: authenticatie", () => {
 
   it("met een fout geheim: 401 en geen tick", async () => {
     const res = await GET(verzoek({ authorization: "Bearer iets-anders" }));
+    expect(res.status).toBe(401);
+    expect(tick.runTick).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["het juiste geheim met iets erachter", "Bearer test-cron-geheim-0123456789x"],
+    ["alleen een voorvoegsel van het geheim", "Bearer test-cron-geheim-012345678"],
+    ["andere hoofdletters", "bearer test-cron-geheim-0123456789"],
+  ])("gehashte vergelijking (security-review WP3, punt 4): %s → 401", async (_naam, authorization) => {
+    const res = await GET(verzoek({ authorization }));
     expect(res.status).toBe(401);
     expect(tick.runTick).not.toHaveBeenCalled();
   });
@@ -76,7 +90,7 @@ describe("cron-tick: authenticatie", () => {
   });
 
   it("faalden alle stappen: ook 500", async () => {
-    tick.runTick.mockResolvedValueOnce({ households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, failed: ["plannen", "overslaan", "meldingen", "opruimen"] } as never);
+    tick.runTick.mockResolvedValueOnce({ households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, failed: ["plannen", "overslaan", "meldingen", "opruimen"] });
     const res = await POST(verzoek({ authorization: "Bearer test-cron-geheim-0123456789" }));
     expect(res.status).toBe(500);
   });

@@ -16,9 +16,9 @@ import { isOverdue } from "@/domain/status";
 import type { NotificationMessage } from "@/server/notifications/types";
 import type { MemberRow, PreferencesRow, TaskRow } from "@/types/database";
 import { check } from "../errors";
-import { HOUSEHOLD_TIMEZONE, planAllSeries, selectAll, skipAllSuperseded } from "../services/scheduling";
+import { chunks, HOUSEHOLD_TIMEZONE, planAllSeries, selectAll, skipAllSuperseded } from "../services/scheduling";
 import { createAdminClient } from "./admin-client";
-import { PUSH_CONCURRENCY, runLimited, sendPush, type PushSubscriptionRow } from "./channels/web-push";
+import { PUSH_CONCURRENCY, PUSH_TIMEOUT_MS, runLimited, sendPush, type PushSubscriptionRow } from "./channels/web-push";
 import { toRow } from "./dispatcher";
 
 /** Na zoveel ms geen nieuwe pushes meer starten (§11.3); de functie mag 60 s */
@@ -239,7 +239,9 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
             complete = false;
             break;
           }
-          if (await sendPush(db, sub, n.pending.message)) result.pushed++;
+          // De laatste verzending mag het budget hooguit 5 s overschrijden (performance-review WP3, punt 4)
+          const timeout = Math.max(1000, Math.min(PUSH_TIMEOUT_MS, pushDeadline + 5000 - Date.now()));
+          if (await sendPush(db, sub, n.pending.message, timeout)) result.pushed++;
         }
         if (complete) handled.push(n.id);
       }
@@ -248,8 +250,8 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
   );
 
   // pushed_at op id (niet op titel, §11.3); wat na het tijdsbudget overbleef, blijft leeg
-  if (handled.length) {
-    check(await db.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", handled));
+  for (const ids of chunks(handled)) {
+    check(await db.from("notifications").update({ pushed_at: new Date().toISOString() }).in("id", ids));
   }
   return result;
 }
