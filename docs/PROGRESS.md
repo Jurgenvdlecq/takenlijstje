@@ -2,8 +2,8 @@
 
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
-Fase: Bouwen — WP3 staat live (sinds 2026-09-29, vastgesteld 2026-09-30); V-58 besloten (geaccepteerd); open: rooktest WP3/M7; parallel: ontwerp W-03 afvalkalender
-Volgende stap: (1) rooktest WP3 door Jurgen op live (= tevens M7 van WP2b); (2) AAE-taak WP3-LIVE-001 afsluiten (RESULT.json) en de documenten + migratie `_320` committen/pushen. Daarna W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b. M8 (back-up weg) ≈ 2026-10-29 na melding.
+Fase: Bouwen — WP1 t/m WP3 live en rooktest OK (2026-09-30); volgende: W-03 afvalkalender (ontwerp) als WP3b, daarna WP4 op `v2-ui`
+Volgende stap: W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b. M8 (back-up weg) ≈ 2026-10-29 na melding aan Jurgen. Bij WP9: V-58 hercontroleren.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -64,6 +64,7 @@ Volgende stap: (1) rooktest WP3 door Jurgen op live (= tevens M7 van WP2b); (2) 
 - WP2b M5, bevestiging wissen (2026-09-29, zelfde sessie als M3–M5): "Ja. Wissen" → toestemming voor M6 (`…_210_scope_contract` op live).
 - Controle mogelijke sleutel in commit b8a10a0 (security-review WP1, punt 12) (2026-09-28): "Staat geen lange code" → in `.env.example` van die commit staat geen echte sleutel; roteren is niet nodig. Punt 12 is daarmee afgesloten.
 
+- Rooktest WP3 op live, tevens M7 van WP2b (2026-09-30): "Rooktest ok" → inloggen, Vandaag, afvinken en terugdraaien, historie zichtbaar. Tijdens de rooktest gemeld: in Taken lijkt "Alles" gelijk aan "Open" (45 vs 60 taken, zelfde bovenkant). Verklaard: voltooide taken staan achteraan onder datums uit het verleden; geen gegevensfout. Input voor WP6: voltooide taken in "Alles" herkenbaar tonen (op datum of als groep "Gedaan") en het filterbolletje niet tonen bij een snelkeuze. Nu bewust niet aangepast (oude UI wordt vervangen).
 - Installatie Adaptive Agent Environment v3 (2026-09-29, na `/onderhoud-go`): installatieplan gemeld met 3 conflicten (aangepaste poortbestanden in `.claude/gate`). Keuzes van Jurgen: (1) "Archiveren en installeren" → `.claude/gate` wordt verplaatst naar `docs/archief/agentsysteem-v2/gate`, daarna plan opnieuw en `--apply` alleen bij 0 conflicten; (2) "Eigen regels behouden" → `CLAUDE.md` via `--resolved-claude` met de algemene regels (Nederlands, gewone taal, eerst PROGRESS.md lezen) plus de AAE-import; de oude niveau- en goedkeuringsregels vervallen. Werkbranch: `claude/agentsysteem-v3-install` (lokaal, geen commit/push).
 
 ## Open vragen
@@ -90,8 +91,8 @@ Volgende stap: (1) rooktest WP3 door Jurgen op live (= tevens M7 van WP2b); (2) 
 | --- | --- | --- | --- | --- |
 | WP1 | Rechtenmodel en securityfixes op live (B-01…B-05, V-29) | zie ACCEPTANCE_CRITERIA (WP1) | code-review GO (r3), security GO (r2), test-writer GO (r4) | live 2026-09-28; rooktest Jurgen OK → **afgerond** |
 | WP2a | Datamodel: code eruit, expand-migratie, deploy | ACCEPTANCE_CRITERIA (WP2a) | rooktest | live 2026-09-29 (performance GO, security GO, code GO r2, tests groen, M0 identiek); rooktest Jurgen OK → **afgerond** |
-| WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | M6 live 2026-09-29; code GO, security GO, tests groen; open: rooktest M7, M8 (≈ 2026-10-29) |
-| WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | **live sinds 2026-09-29** (migraties _220/_300/_310 + planner, vastgesteld 2026-09-30; `_320` no-op, zie V-58); code GO (r2), security GO (r2), performance GO, tests GO (unit 354, integratie 30, DB, mutatie, E2E 58/58); AC-063/AC-064 gemeten: OK; open: V-58 + rooktest |
+| WP2b | Back-up, restore-test, **bevestiging Jurgen "ja, wissen"**, contract-migratie (BR-46) | ACCEPTANCE_CRITERIA (WP2b) | rooktest | M6 live 2026-09-29; code GO, security GO, tests groen; M7 rooktest Jurgen OK (2026-09-30); open: M8 (≈ 2026-10-29) |
+| WP3 | Planner elke 15 min (Supabase Cron), tick, meldingen, bewaartermijnen | ACCEPTANCE_CRITERIA (WP3) | meting ≤ 15 min | **live sinds 2026-09-29** (migraties _220/_300/_310 + planner, vastgesteld 2026-09-30; `_320` no-op, zie V-58); code GO (r2), security GO (r2), performance GO, tests GO (unit 354, integratie 30, DB, mutatie, E2E 58/58); AC-063/AC-064 gemeten: OK; V-58 geaccepteerd; rooktest Jurgen OK (2026-09-30) → **afgerond** |
 | WP4 | Tokens, lettertype, shell, navigatie, states, sheets, snapshot | ACCEPTANCE_CRITERIA (WP4) | CP1 | open |
 | WP5 | Vandaag, afvinken (kernflow), taakdetail | ACCEPTANCE_CRITERIA (WP5) | CP2 → CP3 | open |
 | WP6 | Taak maken/wijzigen, reeksen, Taken | ACCEPTANCE_CRITERIA (WP6) | CP3-aanvulling | open |
