@@ -4,18 +4,22 @@ on:
   push:
     branches:
       - claude/aae-v3-1-direct
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   upgrade:
-    if: ${{ !contains(github.event.head_commit.message, '[aae-v31-complete]') }}
+    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[aae-v31-complete]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout upgrade branch
         uses: actions/checkout@v4
         with:
+          ref: claude/aae-v3-1-direct
           fetch-depth: 0
 
       - name: Fetch and verify v3.1 package
