@@ -120,7 +120,7 @@ jobs:
           .claude/agents/aae-test-writer.md
           .claude/settings.json
           EOF
-          git diff --name-only | sort > /tmp/actual-paths.txt
+          { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u > /tmp/actual-paths.txt
           sort "$expected_file" -o "$expected_file"
           echo "Changed paths:"
           cat /tmp/actual-paths.txt
