@@ -24,7 +24,7 @@ export function prompt(root,text,extra={}){return handleEvent(root,ev(root,'User
 export function pre(root,tool_name,tool_input,extra={}) {return handleEvent(root,ev(root,'PreToolUse',{tool_name,tool_input,tool_use_id:crypto.randomUUID(),...extra}));}
 export function task(overrides={}) {
   const c={schema_version:3,id:'T-001',title:'Gerichte testwijziging',goal:'Een afgebakende wijziging betrouwbaar uitvoeren.',phase:'implementation',mode:'lean',risk:'low',uncertainty:'low',risk_flags:[],scope:{read:['src'],write:['src/a.js']},
-    acceptance:[{id:'AC1',text:'De bestaande hoofdregel blijft correct werken.'}],test_plan:['scope','functional','regression'].map(kind=>({kind,method:'inspection',description:'Controleer gericht de bedoelde regel.'})),agents:[],commands:[],budget:{agent_calls:0,max_parallel:1,command_runs:0},approval_required:false,design_freeze:false,...overrides};
+    acceptance:[{id:'AC1',text:'De bestaande hoofdregel blijft correct werken.'}],test_plan:['scope','functional','regression'].map(kind=>({kind,method:'inspection',description:'Controleer gericht de bedoelde regel.'})),agents:[],commands:[],integrations:{},budget:{agent_calls:0,max_parallel:1,command_runs:0,external_calls:0},approval_required:false,design_freeze:false,...overrides};
   if(c.phase==='analysis'){c.scope={read:['src'],write:[]};c.test_plan=[{kind:'analysis',method:'inspection',description:'Onderbouw het antwoord met de relevante bron.'}];}
   return c;
 }

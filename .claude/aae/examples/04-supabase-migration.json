@@ -1,0 +1,35 @@
+{
+  "schema_version": 3,
+  "id": "DB-MIG-001",
+  "title": "Bestaande Supabase-migratie toepassen",
+  "goal": "Een bekende niet-destructieve migratie toepassen en gericht controleren.",
+  "phase": "implementation",
+  "mode": "standard",
+  "risk": "normal",
+  "uncertainty": "low",
+  "risk_flags": ["migration"],
+  "scope": {"read": ["supabase/migrations"], "write": []},
+  "acceptance": [{"id": "AC1", "text": "De bedoelde migratie staat live geregistreerd en het relevante gedrag is gecontroleerd."}],
+  "test_plan": [
+    {"kind": "scope", "method": "inspection", "description": "Controleer projectbinding en migratienaam."},
+    {"kind": "functional", "method": "inspection", "description": "Controleer het bedoelde databasegedrag na migratie."},
+    {"kind": "regression", "method": "inspection", "description": "Controleer de direct geraakte bestaande regel."},
+    {"kind": "migration", "method": "inspection", "description": "Controleer list_migrations en apply_migration receipt."},
+    {"kind": "rollback", "method": "inspection", "description": "Leg rollback of veilige idempotente herhaalroute vast."},
+    {"kind": "data-preservation", "method": "inspection", "description": "Bevestig dat de migratie geen bestaande data wist."}
+  ],
+  "agents": [],
+  "commands": [],
+  "integrations": {
+    "supabase": {
+      "project_ref": "abcde-project-ref",
+      "tools": ["get_project_url", "list_migrations", "execute_sql", "apply_migration"],
+      "max_calls": 8,
+      "sensitive_migrations": [],
+      "dangerous_sql": []
+    }
+  },
+  "budget": {"agent_calls": 0, "max_parallel": 1, "command_runs": 0, "external_calls": 8},
+  "approval_required": false,
+  "design_freeze": false
+}

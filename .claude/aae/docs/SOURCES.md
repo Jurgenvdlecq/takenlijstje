@@ -8,3 +8,7 @@ Geraadpleegd op 29 september 2026. Gebruik de actuele officiele documentatie bij
 - https://code.claude.com/docs/en/costs : abonnementsgebruik en API-kostenschatting zijn niet hetzelfde.
 
 Ondersteunde implementatiebasis: Node 20+ zonder externe runtimepackages, normale Claude Code-sessie in een projectroot, CLI-baseline 2.1.246+. Lokale tests worden op Node 22/Linux uitgevoerd. macOS/WSL/native Windows en daadwerkelijke Claude Code-hostwerking moeten in de eigen omgeving worden gecontroleerd. Geen universele compatibiliteitsgarantie voor toekomstige versies, plugins of managed beleid.
+
+- https://supabase.com/docs/guides/ai-tools/mcp : officiele Supabase MCP-tools, project-scoping, read_only en feature groups. V3.1 ondersteunt alleen een expliciete subset; onbekende tools blijven geblokkeerd.
+- https://supabase.com/docs/guides/platform/personal-access-tokens : fijnmazige Supabase MCP-permissies voor database/migraties.
+- https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request : GitHub pull-requestactie; v3.1 ondersteunt alleen aanmaken, niet mergen.
