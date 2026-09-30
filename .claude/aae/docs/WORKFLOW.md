@@ -3,7 +3,7 @@
 ## Risico en routing
 De hoofdsessie verricht altijd de supervisorfunctie; een aparte supervisor-agent is alleen nodig bij wezenlijke onzekerheid. Begin niet blind Lean wanneer informatie over rechten/data/foutimpact ontbreekt. Lees hoogstens de bronnen die dat verschil bepalen. De gebruiker hoeft geen agents of modellen te kiezen.
 
-Lean: duidelijke kleine wijziging, laag risico/lage onzekerheid, nul of een specialist. Standard: samenhangende gewone feature of analyse; meestal een tot twee specialisten. High Assurance: concrete hoge impact op geld, autorisatie, gevoelige data of migratie. Het project is niet permanent een niveau; de huidige verandering bepaalt de aanpak.
+Lean: duidelijke kleine wijziging, laag risico/lage onzekerheid, nul of een specialist. Standard: samenhangende gewone feature of analyse; meestal een tot twee specialisten. High Assurance: concrete hoge impact op geld, autorisatie of gevoelige data; migratie is alleen High Assurance wanneer de concrete migratie dat risico werkelijk heeft. Het project is niet permanent een niveau; de huidige verandering bepaalt de aanpak.
 
 Standaardlimiet zonder extra toestemming: Lean 1 agentaanroep, Standard 3 (inclusief mogelijke supervisor), High Assurance 6. Een taakbudget kan bewust lager zijn. Parallel 1; 2 kan alleen met onafhankelijke vragen, onderbouwing en GO. Maximaal 12 totaal als absolute schemalimiet; splits grotere opdrachten in door de gebruiker begrepen uitkomsten. Geen nieuwe taak-ID als automatische budgetreset.
 

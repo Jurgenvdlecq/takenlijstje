@@ -3,7 +3,7 @@
 ## Geen blinde vervanging
 Gebruik `install.mjs` in de distributie. Standaard alleen een plan; `--apply` voert uit. Pak het pakket buiten de doelrepository uit. Node >=20. Geen netwerk, Git, appbuild, schema-update of agentstart door de installer.
 
-De installer controleert de payloadhashes, detecteert symlinks en vergelijkt bestaande systeemfiles. Eigen beheer: `.claude/aae` en `aae-*` agentdefinities. Gedeeld: CLAUDE.md, .claude/settings.json, settings.local.json en .gitignore. Eigen projecttekst en overige permissions/hooks blijven behouden. Alleen herkenbare eigen hookhandlers worden verwijderd/vervangen. Herkende v1/v2-agentbestanden krijgen een herstelkopie voordat ze uit de actieve instructiemappen worden gehaald. Oude `docs/*` blijven staan, maar zijn geen v3-goedkeuringsbron.
+De installer controleert de payloadhashes, detecteert symlinks en vergelijkt bestaande systeemfiles. Eigen beheer: `.claude/aae` en `aae-*` agentdefinities. Bij een bestaande exacte v3-installatie gebruikt de installer het beheermanifest om de v3.1-update zonder blinde overschrijving te plannen. Gedeeld: CLAUDE.md, .claude/settings.json, settings.local.json en .gitignore. Eigen projecttekst en overige permissions/hooks blijven behouden. Alleen herkenbare eigen hookhandlers worden verwijderd/vervangen. Herkende v1/v2-agentbestanden krijgen een herstelkopie voordat ze uit de actieve instructiemappen worden gehaald. Oude `docs/*` blijven staan, maar zijn geen v3/v3.1-goedkeuringsbron.
 
 Een gewijzigde oude agent of onbekende wijziging aan een beheerd v3-bestand geeft een conflict, geen stil verlies. Een CLAUDE.md met oude aansturing en eigen afspraken moet eerst gericht worden samengevoegd. Bewaar de eigen afspraken en verwijder uitsluitend achterhaalde aansturing. Daarna:
 
@@ -14,7 +14,7 @@ node install.mjs --project "/project" --resolved-claude "/tijdelijk/CLAUDE-samen
 Pas na review hetzelfde met `--apply`. De tijdelijke kopie wordt niet vertrouwd als semantisch perfect; dat moet de gebruiker/assistent beoordelen. Verander niet alleen de conflictmelding om door te kunnen.
 
 ## Bestaande beperkingen
-Global, managed, plugin- en geneste instructies kunnen aanvullend gelden. De installer wist ze niet. `doctor` kijkt alleen naar de lokale aanwezigheid en integriteit. Controleer na een nieuwe sessie `/hooks`, `/agents` en de effectieve rechten. Een host die hooks uitschakelt of Node niet kan starten valt buiten deze gate. Geen bypassPermissions.
+Global, managed, plugin- en geneste instructies kunnen aanvullend gelden. De installer wist ze niet. `doctor` kijkt alleen naar de lokale aanwezigheid en integriteit. Controleer na een nieuwe sessie `/hooks`, `/agents` en bij gebruik van Supabase een read-only `get_project_url`-probe en de effectieve rechten. Een host die hooks uitschakelt of Node niet kan starten valt buiten deze gate. Geen bypassPermissions.
 
 ## Herstel
 Elke toegepaste installatie heeft `.aae-backups/<tijd-id>/RESTORE.json`. Het bestand bevat geen werkende uitvoeringsinstructie, maar een inventaris met voor/na-hashes en backupblobs. De originele bestanden worden met hun mode bewaard. Bewaar de uitgepakte pakketmap voor terugdraaien.

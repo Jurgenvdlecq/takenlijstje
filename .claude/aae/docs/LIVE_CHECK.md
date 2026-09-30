@@ -27,3 +27,19 @@ Gebruik een fictieve autorisatiefunctie zonder productiegegevens. Verwacht: posi
 
 ## Vastleggen
 Noteer CLI-versie, OS/host, hoofdsessiemodel, gebruikte agentmodellen voor zover daadwerkelijk gemeld, elke proef PASS/FAIL/NOT_RUN, gewijzigde bestanden en concrete hookwaarnemingen. Screenshot/hostlog waar nuttig, geen credentials. Stop bij een afwijking en pas gericht de compatibiliteit aan; geen algemene herbouw. Beoordeel gebruik met Claude's eigen meetgegevens, niet met een verzonnen Max-percentage.
+
+## V3.1 extra: externe adapters
+Voer dit alleen uit als de bijbehorende connector al normaal beschikbaar is. Installeer of activeer niets speciaal voor deze proef.
+
+### Supabase - alleen lezen
+Gebruik een wegwerp- of niet-productieve taakroute die uitsluitend `get_project_url` en `list_migrations` toestaat, met het verwachte project_ref en een extern budget van 2. Verwacht:
+1. `get_project_url` bindt het project aan de **huidige gebruikersvraag**.
+2. `list_migrations` werkt daarna read-only zonder agentcall.
+3. Een onbekende Supabase-tool wordt geweigerd.
+4. Start daarna een nieuwe gewone gebruikersvraag zonder nieuwe projectprobe. Verwacht dat een Supabase-read opnieuw om live projectverificatie vraagt; oude verificatie mag niet stil hergebruikt worden.
+5. Controleer dat receipts alleen metadata/digests bevatten, geen queryresultaten of secrets.
+
+Voer in deze live-check **geen** echte `apply_migration`, muterende `execute_sql`, Vault-secret of productiecronwijziging uit. De muterende paden zijn geautomatiseerd getest; de eerste echte migratie moet gewoon een normale AAE-taak zijn met voorcontrole, expliciete `AAE GO` en nacontrole.
+
+### GitHub PR - optioneel in wegwerprepo
+Alleen als je een wegwerprepository/branch hebt: routeer exact `create_pull_request` met vaste base/head en extern budget 1. Verwacht dat PR-aanmaak pas na actuele `AAE GO` mag en dat merge/deploy onbekend/geblokkeerd blijven. Sla deze proef over in een productierepository als een extra PR geen waarde heeft.

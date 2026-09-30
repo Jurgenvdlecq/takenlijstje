@@ -1,9 +1,10 @@
-/** AAE 3 - local workflow guard, not an OS security boundary. No dependencies. */
+/** AAE 3.1 - local workflow guard, not an OS security boundary. No dependencies. */
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {SUPABASE_TOOLS,GITHUB_TOOLS} from './integrations.mjs';
 
-export const VERSION = '3.0.0';
+export const VERSION = '3.1.0';
 export const TASK = 'docs/aae/TASK.json';
 export const RESULT = 'docs/aae/RESULT.json';
 export const STATE = '.claude/aae/state';
@@ -17,7 +18,7 @@ export const RISK_CHECKS = {
   background_jobs: ['idempotency','retry'],
   external_effects: ['failure-handling']
 };
-export const HIGH_FLAGS = ['authorization','migration','financial','sensitive_data'];
+export const HIGH_FLAGS = ['authorization','financial','sensitive_data'];
 const CHECKS = new Set(['scope','functional','regression','analysis', ...Object.values(RISK_CHECKS).flat()]);
 const DOCS = new Set([TASK, RESULT, 'docs/aae/PROJECT_PROFILE.md','docs/aae/PROGRESS.md','docs/aae/DECISIONS.md']);
 const SKIP = new Set(['node_modules','.git','.claude','.next','dist','build','coverage','.venv','venv','__pycache__']);
@@ -84,9 +85,33 @@ export function atomicJson(root,p,value) {
 export function requiredChecks(task) {
   return [...new Set([...(task.phase==='analysis'?['analysis']:['scope','functional','regression']), ...task.risk_flags.flatMap(f=>task.phase==='implementation'?RISK_CHECKS[f]:[])])];
 }
+
+function branchName(x,name){requireThat(typeof x==='string'&&x.trim().length>=1&&x.length<=240&&!/[\x00-\x1f]/.test(x),name+': ongeldige branchnaam');}
+function projectRef(x){requireThat(typeof x==='string'&&/^[a-z0-9][a-z0-9-]{4,63}$/i.test(x),'Supabase project_ref is ongeldig.');}
+export function validateIntegrations(t){
+  const all=t.integrations??{};
+  keys(all,['supabase','github'],[],'Integraties');
+  let maxCalls=0,mutating=false,sensitive=false;
+  if(all.supabase){
+    const x=all.supabase;keys(x,['project_ref','tools','max_calls','sensitive_migrations','dangerous_sql'],['project_ref','tools','max_calls'],'Supabase-integratie');
+    projectRef(x.project_ref);array(x.tools,1,SUPABASE_TOOLS.length,'Supabase-tools');requireThat(new Set(x.tools).size===x.tools.length,'Dubbele Supabase-tool.');
+    for(const tool of x.tools)choice(tool,SUPABASE_TOOLS,'Supabase-tool');number(x.max_calls,1,30,'Supabase-aanroepen');maxCalls+=x.max_calls;
+    const sm=x.sensitive_migrations??[];array(sm,0,8,'Gevoelige migraties');for(const n of sm)text(n,'Migratienaam',200);
+    const ds=x.dangerous_sql??[];array(ds,0,2,'Gevoelige SQL');for(const q of ds)text(q,'Gevoelige SQL',16000);
+    if(x.tools.includes('apply_migration')){requireThat(t.risk_flags.includes('migration'),'apply_migration vereist risicovlag migration.');mutating=true;}
+    if(ds.length||sm.length){requireThat(t.risk==='high'&&t.mode==='high-assurance','Gevoelige databaseacties vereisen expliciet High Assurance.');sensitive=true;mutating=true;}
+  }
+  if(all.github){
+    const x=all.github;keys(x,['tools','max_calls','base','head'],['tools','max_calls','base','head'],'GitHub-integratie');
+    array(x.tools,1,GITHUB_TOOLS.length,'GitHub-tools');requireThat(new Set(x.tools).size===x.tools.length,'Dubbele GitHub-tool.');for(const tool of x.tools)choice(tool,GITHUB_TOOLS,'GitHub-tool');
+    number(x.max_calls,1,4,'GitHub-aanroepen');branchName(x.base,'Base');branchName(x.head,'Head');requireThat(t.risk_flags.includes('external_effects'),'create_pull_request vereist risicovlag external_effects.');maxCalls+=x.max_calls;mutating=true;
+  }
+  return {all,maxCalls,mutating,sensitive};
+}
+export function integrationNeedsApproval(task){return validateIntegrations(task).mutating;}
 export function validateTask(t) {
   const req=['schema_version','id','title','goal','phase','mode','risk','uncertainty','risk_flags','scope','acceptance','test_plan','agents','commands','budget','approval_required','design_freeze'];
-  keys(t,[...req,'parallel_reason'],req,'Taakcontract');
+  keys(t,[...req,'parallel_reason','integrations'],req,'Taakcontract');
   requireThat(t.schema_version===3,'Taakcontract vereist schema_version 3.');
   identifier(t.id,'Taak-ID'); text(t.title,'Titel',200); text(t.goal,'Doel');
   choice(t.phase,['analysis','implementation'],'Fase');
@@ -101,8 +126,9 @@ export function validateTask(t) {
   array(t.scope.read,0,30,'Leesscope'); array(t.scope.write,0,30,'Schrijfscope');
   for(const p of [...t.scope.read,...t.scope.write]) relName(p);
   for(const p of t.scope.write) requireThat(!protectedPath(relName(p)),'Systeembestanden/administratie horen niet in applicatiescope: '+p);
-  if(t.phase==='analysis') requireThat(t.scope.write.length===0,'Analyse mag geen applicatieschrijfscope hebben.');
-  else requireThat(t.scope.write.length>0,'Implementatie vereist expliciete schrijfscope.');
+  const integrationInfo=validateIntegrations(t);
+  if(t.phase==='analysis') {requireThat(t.scope.write.length===0,'Analyse mag geen applicatieschrijfscope hebben.');requireThat(!integrationInfo.mutating,'Analyse mag geen externe mutaties bevatten.');}
+  else requireThat(t.scope.write.length>0||integrationInfo.mutating,'Implementatie vereist applicatieschrijfscope of een expliciete externe wijziging.');
   array(t.acceptance,1,12,'Acceptatiecriteria');
   for(const a of t.acceptance) {keys(a,['id','text'],['id','text'],'Acceptatiecriterium');identifier(a.id,'Criterium-ID');text(a.text,'Criterium');}
   requireThat(new Set(t.acceptance.map(a=>a.id)).size===t.acceptance.length,'Dubbele criterium-ID');
@@ -120,8 +146,10 @@ export function validateTask(t) {
   requireThat(new Set(t.agents.map(a=>a.name)).size===t.agents.length,'Dubbele agentselectie');
   if(t.mode==='lean') requireThat(t.agents.length<=1,'Lean heeft maximaal een specialist.');
   if(t.phase==='implementation'&&t.mode==='high-assurance') requireThat(t.agents.some(a=>['aae-security-reviewer','aae-code-reviewer','aae-test-writer'].includes(a.name)),'High Assurance implementatie vereist een gerichte onafhankelijke controle, niet een vaste agentketen.');
-  keys(t.budget,['agent_calls','max_parallel','command_runs'],['agent_calls','max_parallel','command_runs'],'Budget');
+  keys(t.budget,['agent_calls','max_parallel','command_runs','external_calls'],['agent_calls','max_parallel','command_runs'],'Budget');
   number(t.budget.agent_calls,0,12,'Agentbudget');number(t.budget.command_runs,0,40,'Commandobudget');number(t.budget.max_parallel,1,2,'Parallelisme');
+  if(integrationInfo.maxCalls){requireThat(Object.hasOwn(t.budget,'external_calls'),'Externe integraties vereisen budget.external_calls.');number(t.budget.external_calls,1,40,'Extern toolbudget');requireThat(integrationInfo.maxCalls<=t.budget.external_calls,'Extern toolbudget kleiner dan providerlimieten.');}
+  else if(Object.hasOwn(t.budget,'external_calls'))number(t.budget.external_calls,0,40,'Extern toolbudget');
   requireThat(t.agents.reduce((n,a)=>n+a.max_calls,0)<=t.budget.agent_calls,'Agentbudget kleiner dan geselecteerde max_calls.');
   if(t.budget.max_parallel>1) {text(t.parallel_reason,'Reden voor onafhankelijk parallel werk');requireThat(t.mode!=='lean','Geen parallelisme in Lean.');}
   array(t.commands,0,15,'Commandos');
@@ -166,7 +194,7 @@ export function commandFingerprint(root,c) {
   });
   return digest({argv:c.argv,purpose:c.purpose,timeout_ms:c.timeout_ms,refs});
 }
-export function defaultState(){return {version:3,halted:false,request:null,task:null,history:[],trusted_commands:{},sessions:{},events:[]};}
+export function defaultState(){return {version:3,halted:false,request:null,task:null,history:[],trusted_commands:{},integrations:{supabase:{verified_ref:null,verified_at:null,verified_request_key:null}},sessions:{},events:[]};}
 export function log(s,type,detail={}){s.events.push({at:now(),type,...detail});if(s.events.length>500)s.events=s.events.slice(-500);}
 export function withState(root,fn) {
   const dir=safePath(root,STATE);fs.mkdirSync(dir,{recursive:true,mode:0o700});
@@ -194,7 +222,7 @@ export function assertBound(root,s) {
 function commandNeedsApproval(root,s,c){return !s.trusted_commands[commandFingerprint(root,c)]||!['read','test','build','preview'].includes(c.purpose);}
 export function needsApproval(root,s,t,old) {
   const defaults={lean:1,standard:3,'high-assurance':6};
-  return old&&old.digest!==digest(t)&&(Boolean(old.approval)||old.contract.approval_required||old.contract.design_freeze||old.contract.mode==='high-assurance'||t.scope.write.some(p=>!scopeContains(old.contract.scope.write,p)))||t.approval_required||t.design_freeze||t.phase==='implementation'&&t.mode==='high-assurance'||t.budget.max_parallel>1||t.budget.agent_calls>defaults[t.mode]||t.agents.some(a=>a.model==='opus')||t.commands.some(c=>commandNeedsApproval(root,s,c))||old&&old.contract.phase==='analysis'&&t.phase==='implementation'||old&&(t.budget.agent_calls>old.contract.budget.agent_calls||t.budget.command_runs>old.contract.budget.command_runs);
+  return old&&old.digest!==digest(t)&&(Boolean(old.approval)||old.contract.approval_required||old.contract.design_freeze||old.contract.mode==='high-assurance'||t.scope.write.some(p=>!scopeContains(old.contract.scope.write,p)))||t.approval_required||t.design_freeze||t.phase==='implementation'&&t.mode==='high-assurance'||integrationNeedsApproval(t)||t.budget.max_parallel>1||t.budget.agent_calls>defaults[t.mode]||t.agents.some(a=>a.model==='opus')||t.commands.some(c=>commandNeedsApproval(root,s,c))||old&&old.contract.phase==='analysis'&&t.phase==='implementation'||old&&(t.budget.agent_calls>old.contract.budget.agent_calls||t.budget.command_runs>old.contract.budget.command_runs||(t.budget.external_calls||0)>(old.contract.budget.external_calls||0));
 }
 function assertCommandsApproved(root,s,t) {
   for(const c of t.contract.commands) requireThat(t.approved_commands[c.id]===commandFingerprint(root,c)||s.trusted_commands[commandFingerprint(root,c)],'Commando '+c.id+' of diens bronnen zijn gewijzigd. Vraag een nieuwe gerichte GO.');
@@ -211,14 +239,15 @@ export function route(root) {
     if(old&&old.id!==c.id){requireThat(!s.history.includes(c.id),'Oud taak-ID mag niet worden hergebruikt.');s.history.push(old.id);}
     const same=old?.id===c.id;
     requireThat(!(same&&old.status==='closed'),'Dit taak-ID is afgerond. Gebruik een nieuw ID bij een nieuwe gebruikersopdracht.');
-    const usage=same?{...old.usage,agents:old.usage.agents+(old.request_key!==s.request.key?(s.request.bootstrap_count||0):0)}:{agents:s.request.bootstrap_count||0,commands:0};
-    requireThat(c.budget.agent_calls>=usage.agents&&c.budget.command_runs>=usage.commands,'Nieuw budget mag verbruik niet uitwissen.');
+    const usage=same?{...old.usage,agents:old.usage.agents+(old.request_key!==s.request.key?(s.request.bootstrap_count||0):0),external:old.usage.external||0}:{agents:s.request.bootstrap_count||0,commands:0,external:0};
+    requireThat(c.budget.agent_calls>=usage.agents&&c.budget.command_runs>=usage.commands&&(c.budget.external_calls||0)>=usage.external,'Nieuw budget mag verbruik niet uitwissen.');
     const approved=same&&old.digest===d&&old.approval?.digest===d&&old.approval.request_key===s.request.key;
     const required=needsApproval(root,s,c,same?old:null);
     const approved_commands=approved?old.approved_commands:{};
     if(!required)for(const cmd of c.commands)approved_commands[cmd.id]=commandFingerprint(root,cmd);
     s.task={id:c.id,digest:d,contract:c,status:required&&!approved?'pending':'active',owner:s.request.session,request_key:s.request.key,approval:approved?old.approval:null,approved_commands,
-      usage,calls:same?old.calls:{},command_counts:same?old.command_counts:{},command_receipts:same?old.command_receipts:[],command_running:null,denials:0};
+      usage,calls:same?old.calls:{},command_counts:same?old.command_counts:{},command_receipts:same?old.command_receipts:[],command_running:null,
+      external_calls:same?(old.external_calls||{}):{},external_receipts:same?(old.external_receipts||[]):[],sensitive_approval:approved?(old.sensitive_approval||null):null,denials:0};
     s.request.task_id=c.id;
     log(s,'route',{task:c.id,digest:d,status:s.task.status});
     return {task_id:c.id,route_digest:d,status:s.task.status,required_checks:requiredChecks(c),agents:c.agents.map(a=>({name:a.name,question:a.question,model:a.model})),usage,budget:c.budget,
@@ -234,11 +263,21 @@ export function userPrompt(root,e) {
     if(e.prompt_id&&s.sessions[session]?.seen?.includes(e.prompt_id)) return context('UserPromptSubmit','AAE: deze gebruikersprompt is al verwerkt.');
     const se=s.sessions[session]??={seen:[]};
     if(e.prompt_id){se.seen.push(e.prompt_id);se.seen=se.seen.slice(-100);}
+    const sensitiveCommand=prompt.match(/^AAE GEVOELIG GO(?:\s+([A-Za-z0-9_-]+))?$/i);
+    if(sensitiveCommand){
+      requireThat(s.task&&s.request,'Geen actieve taak voor gevoelige toestemming.');
+      requireThat(!sensitiveCommand[1]||sensitiveCommand[1]===s.task.id,'Gevoelige goedkeuring noemt een ander taak-ID.');
+      requireThat(s.task.status==='active'&&s.task.approval?.digest===s.task.digest&&s.task.approval.request_key===s.request.key,'Eerst de gewone route met AAE GO goedkeuren.');
+      const info=validateIntegrations(getTask(root));requireThat(info.sensitive,'De actuele route bevat geen exact geplande gevoelige databaseactie.');
+      s.task.sensitive_approval={digest:s.task.digest,request_key:s.request.key,at:now(),source:'UserPromptSubmit'};
+      log(s,'user_sensitive_go',{task:s.task.id});
+      return context('UserPromptSubmit','AAE: gevoelige GO geldt uitsluitend voor de exact in '+s.task.id+' vastgelegde gevoelige migraties/SQL en vervalt bij routewijziging.');
+    }
     const command=prompt.match(/^AAE (GO|PAUZE|VERDER|NIEUW|HERSTEL|STATUS|VERTROUW)(?:\s+([A-Za-z0-9_-]+))?$/i);
     if(command) {
       const action=command[1].toUpperCase();
       if(action==='STATUS')return context('UserPromptSubmit',JSON.stringify(summary(s)));
-      if(action==='PAUZE') {s.halted=true;if(s.task){s.task.status='paused';s.task.approval=null;}log(s,'user_pause');return context('UserPromptSubmit','AAE: gepauzeerd. Stop werkzaamheden en laat lopende agents stoppen; deze melding annuleert geen OS-processen.');}
+      if(action==='PAUZE') {s.halted=true;if(s.task){s.task.status='paused';s.task.approval=null;s.task.sensitive_approval=null;}log(s,'user_pause');return context('UserPromptSubmit','AAE: gepauzeerd. Stop werkzaamheden en laat lopende agents stoppen; deze melding annuleert geen OS-processen.');}
       if(action==='HERSTEL') {
         requireThat(s.task||liveBootstrap(s).length,'Geen taak of agent om te herstellen.');
         for(const call of allLive(s))call.status='abandoned';
@@ -269,7 +308,7 @@ export function userPrompt(root,e) {
       if(action==='GO') {
         requireThat(t.status!=='closed','Afgeronde taak wordt niet opnieuw vrijgegeven. Maak een nieuwe opdracht.');
         s.halted=false;t.owner=session;t.request_key=s.request.key;t.status='active';
-        t.approval={digest:t.digest,task_id:t.id,request_key:s.request.key,at:now(),source:'UserPromptSubmit'};
+        t.approval={digest:t.digest,task_id:t.id,request_key:s.request.key,at:now(),source:'UserPromptSubmit'};t.sensitive_approval=null;
         for(const cmd of c.commands)t.approved_commands[cmd.id]=commandFingerprint(root,cmd);
         log(s,'user_go',{task:t.id,digest:t.digest});
         return context('UserPromptSubmit','AAE: GO geldt alleen voor '+t.id+' / '+t.digest.slice(0,12)+'. Fase: '+c.phase+'. Geen toestemming buiten deze scope.');
@@ -289,13 +328,13 @@ export function userPrompt(root,e) {
     requireThat(allLive(s).length===0&&!s.task?.command_running,'Er loopt nog werk. Eerst afronden of AAE PAUZE en na stoppen AAE HERSTEL.');
     requireThat(!s.task||s.task.owner===session||['closed','paused'].includes(s.task.status),'Een andere sessie beheert deze werkmap. Geen tweede bouwer: stop die sessie of gebruik bewust AAE VERDER.');
     s.request={key:crypto.randomUUID(),session,hash:sha(prompt),bootstrap_count:0,bootstrap_calls:{},task_id:null};
-    if(s.task){s.task.approval=null;/* old snapshot is not bound to this request */}
+    if(s.task){s.task.approval=null;s.task.sensitive_approval=null;/* old snapshot is not bound to this request */}
     log(s,'user_request',{session});
-    return context('UserPromptSubmit','AAE v3: nieuwe vraag. Eerst lichte routing; hergebruik context. Geen oude bouwtoestemming. Gesprek mag zonder route. Een kleine duidelijke taak heeft geen aparte supervisor nodig.');
+    return context('UserPromptSubmit','AAE v3.1: nieuwe vraag. Eerst lichte routing; hergebruik context. Geen oude bouwtoestemming. Gesprek mag zonder route. Een kleine duidelijke taak heeft geen aparte supervisor nodig.');
   });
 }
 export function summary(s) {
   if(!s.task)return {status:'no-task',bootstrap_calls:s.request?.bootstrap_count||0};
-  const t=s.task;return {task_id:t.id,route_digest:t.digest,status:t.status,phase:t.contract.phase,owner:t.owner,usage:t.usage,budget:t.contract.budget,active_agents:liveCalls(s).map(c=>({role:c.role,status:c.status})),command_running:t.command_running||null,note:'Aanroepregistratie; geen meting van Claude Max-tegoed of werkelijke modeltokens.'};
+  const t=s.task;return {task_id:t.id,route_digest:t.digest,status:t.status,phase:t.contract.phase,owner:t.owner,usage:t.usage,budget:t.contract.budget,external_verified:s.integrations?.supabase?.verified_ref||null,active_agents:liveCalls(s).map(c=>({role:c.role,status:c.status})),command_running:t.command_running||null,note:'Aanroepregistratie; geen meting van Claude Max-tegoed of werkelijke modeltokens.'};
 }
 export function inspect(root){return withState(root,s=>summary(s));}

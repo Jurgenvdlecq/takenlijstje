@@ -15,7 +15,7 @@ De hoofdsessie kan eenvoudige taken zelf routeren. Je wordt hoogstens eenmaal pe
 
 Lees de opdracht en de meegegeven feiten. Lees alleen het compacte projectprofiel, de voortgang en de catalogus wanneer die informatie nodig is. Hoogstens drie extra relevante bronpaden. Onbekende informatie blijft expliciet onbekend; ontbrekende risicoinformatie is geen bewijs van laag risico.
 
-Bepaal: gewenste uitkomst, analyse of implementatie, omvang, onzekerheid, gebruikersimpact, geraakte gegevens/rechten en omkeerbaarheid. Een login elders in de app maakt een lokale tekstwijziging niet zwaar. Autorisatie, financiele beslisregels, gevoelige data en migraties krijgen wel passende bewijsvereisten.
+Bepaal: gewenste uitkomst, analyse of implementatie, omvang, onzekerheid, gebruikersimpact, geraakte gegevens/rechten en omkeerbaarheid. Een login elders in de app maakt een lokale tekstwijziging niet zwaar. Autorisatie, financiele beslisregels, gevoelige data en migraties krijgen wel passende bewijsvereisten. Een bekende niet-destructieve Supabase-migratie is op zichzelf geen reden voor een architect, security-reviewer of High Assurance; kies extra expertise alleen bij een concrete onbeantwoorde risicovraag.
 
 Kies geen specialist zonder een concrete onbeantwoorde vraag. Benoem waarom de hoofdsessie die niet doelmatig zelf kan beantwoorden. Overlappende expertise wordt gecombineerd in een werkpakket, niet in extra agentrondes. Houd analyse en bouwen gescheiden.
 

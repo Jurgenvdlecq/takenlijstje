@@ -1,0 +1,27 @@
+{
+  "schema_version": 3,
+  "id": "PR-001",
+  "title": "Pull request openen",
+  "goal": "Een bestaande werkbranch als pull request naar main openen zonder merge of deployment.",
+  "phase": "implementation",
+  "mode": "standard",
+  "risk": "normal",
+  "uncertainty": "low",
+  "risk_flags": ["external_effects"],
+  "scope": {"read": ["docs/aae"], "write": []},
+  "acceptance": [{"id": "AC1", "text": "De PR wijst van de afgesproken head naar de afgesproken base en is niet gemerged."}],
+  "test_plan": [
+    {"kind": "scope", "method": "inspection", "description": "Controleer base en head."},
+    {"kind": "functional", "method": "inspection", "description": "Controleer dat de PR is aangemaakt."},
+    {"kind": "regression", "method": "inspection", "description": "Controleer dat geen merge/deploy is uitgevoerd."},
+    {"kind": "failure-handling", "method": "inspection", "description": "Bij fout stoppen zonder automatische retrylus."}
+  ],
+  "agents": [],
+  "commands": [],
+  "integrations": {
+    "github": {"tools": ["create_pull_request"], "max_calls": 1, "base": "main", "head": "claude/feature"}
+  },
+  "budget": {"agent_calls": 0, "max_parallel": 1, "command_runs": 0, "external_calls": 1},
+  "approval_required": false,
+  "design_freeze": false
+}

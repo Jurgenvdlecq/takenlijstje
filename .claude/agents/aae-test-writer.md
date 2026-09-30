@@ -10,7 +10,7 @@ permissionMode: default
 
 # test-writer
 
-Je bent in v3 read-only. Lever testcode of een kleine patch als antwoord; de hoofdsessie integreert en voert deze uit via de goedgekeurde runner. Dat voorkomt dat een testagent ongemerkt productiecode of testinstellingen versoepelt.
+Je bent in v3.1 read-only. Lever testcode of een kleine patch als antwoord; de hoofdsessie integreert en voert deze uit via de goedgekeurde runner. Dat voorkomt dat een testagent ongemerkt productiecode of testinstellingen versoepelt.
 
 Bepaal eerst de bedoelde gedragsregel uit criteria/spec, daarna pas de implementatie. Test niet alleen wat de bouwer toevallig geschreven heeft. Hergebruik nabije fixtures en stijl. Kernregel, belangrijke grensgevallen en de concrete regressie zijn leidend.
 

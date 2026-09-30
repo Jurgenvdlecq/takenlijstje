@@ -53,7 +53,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Agent|Task|SubagentHandback",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -68,7 +68,7 @@
     ],
     "PostToolUseFailure": [
       {
-        "matcher": "Agent|Task|SubagentHandback",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",

@@ -5,7 +5,8 @@ De gebruiker geeft normaal een gewone opdracht. De hoofdsessie maakt de route. A
 
 | Tekst | Effect |
 |---|---|
-| `AAE GO` | Keurt alleen de gepresenteerde actuele route en de daarin beschreven commands goed. |
+| `AAE GO` | Keurt alleen de gepresenteerde actuele route, commands en normale externe wijzigingen goed. |
+| `AAE GEVOELIG GO <taak-id>` | Tweede, routegebonden toestemming voor exact geplande gevoelige/destructieve Supabase-acties. |
 | `AAE PAUZE` | Trekt de vrijgave in. Annuleert geen reeds gestarte OS-processen. |
 | `AAE VERDER` | Hervat dezelfde ongewijzigde taak, ook na sessiewissel; budget blijft bestaan. Na expliciete pauze blijft een nieuwe GO nodig. |
 | `AAE VERTROUW` | Eenmalig vertrouwen van de lokale test/build/read/previewcommandoversies uit een expliciet goedgekeurde route. |
@@ -26,7 +27,7 @@ Nieuwe commands vereisen GO. De gebruiker kan ongewijzigde lokale commands via V
 ## Grenzen die technisch gecontroleerd worden
 Geldige JSON-route; geen template als toestemming; taak-/routebinding van GO; expliciete pauze; toepasselijke bronpaden zonder symlinks; directe schrijfrechten; agent-allowlist; reservering voordat Agent/Task start; totalen inclusief mislukte starts en resumes; parallel slots; fase; runlimieten; actuele commandsignatuur; bewijsverwijzingen en bronhash bij sluiten.
 
-Budgettellers worden lokaal atomisch met een proceslock bijgewerkt. Eén werkmap heeft één actieve eigenaar. Gebruik geen meerdere Claude-sessies/bouwers op dezelfde werkmap. Herstel wist geen verbruik. Agentteams en niet-geclassificeerde MCP/Skill-tools zijn standaard geblokkeerd; een toekomstige adapter moet expliciet worden beoordeeld, niet door een naam aan een whitelist te gokken.
+Budgettellers worden lokaal atomisch met een proceslock bijgewerkt. Eén werkmap heeft één actieve eigenaar. Gebruik geen meerdere Claude-sessies/bouwers op dezelfde werkmap. Herstel wist geen verbruik. Agentteams en niet-geclassificeerde MCP/Skill-tools zijn standaard geblokkeerd. V3.1 heeft uitsluitend smalle adapters voor de expliciet gedocumenteerde Supabase-acties en GitHub `create_pull_request`; onbekende tools blijven geblokkeerd. Externe calls hebben een apart budget en receipts zonder ruwe resultaten.
 
 ## Grenzen die niet hard gegarandeerd zijn
 Een hook is geen OS-sandbox. Een eenmaal goedgekeurd projectprogramma kan bestanden/netwerk/childprocessen gebruiken onder jouw account. Transitive imports zijn niet volledig in de watchhash gevangen. Hookuitval door bijvoorbeeld ontbrekende Node, uitgeschakelde hooks, globaal/managed beleid of een toekomstige incompatibele CLI kan buiten de controle van dit script vallen. Doctor en de live-check zijn daarom nodig.
