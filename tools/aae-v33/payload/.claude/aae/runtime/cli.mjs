@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {requireThat, readJson, validateContract, now, atomicText, safePath, STATE_DIR, WORK} from './core.mjs';
-import {withLock, activeWork, assertApproval, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
+import {withLock, activeWork, guardApproval, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
 import {liveRows, reconcile, finalizeRun, findTranscript, transcriptFinalText} from './reports.mjs';
 import {runCommand, closeTask, reportTemplate, doctor} from './runner.mjs';
 import {runPreflight, bundleActions, deployInfo} from './preflight.mjs';
@@ -105,7 +105,7 @@ try {
       // docs/aae/PROGRESS.md is gevolgd: ook de opdrachtregel schrijft het alleen onder een werkpakket in uitvoering met een geldige GO.
       const st = activeWork(root);
       requireThat(st && st.status === 'EXECUTING' && st.contract.envelope.phase === 'implementation', 'cli project schrijft een gevolgd bestand: alleen onder een werkpakket in uitvoering met GO.');
-      assertApproval(st);
+      guardApproval(root, st);
       return projectie(root);
     }); break;
     case 'prune': result = prune(root); break;

@@ -9,7 +9,7 @@ import {
   validateContract, envelopeHash, digest, now, sourceDigest, bashArgv, safeLocalArgv, dbLevel, atomicJson, VERSION, WORK, text as _text, choice
 } from './core.mjs';
 import {
-  withLock, listWork, loadWork, saveWork, activeWork, assertApproval, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
+  withLock, listWork, loadWork, saveWork, activeWork, guardApproval, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
 import {liveRows, LIVE, reconcile, finalizeRun, safeFinalize, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
 import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
@@ -75,7 +75,7 @@ function delegation(root, st, e) {
   requireThat(!input.isolation, 'Subagent-worktrees vallen buiten deze registratie.');
   requireThat(!input.resume, 'Hervatten wordt niet ondersteund: start een nieuwe, kleinere opdracht met nieuwe context.');
   requireThat(st && st.status === 'EXECUTING', 'Geen werkpakket in uitvoering. Zonder goedgekeurd werkpakket start ik geen agents.');
-  assertApproval(st);
+  guardApproval(root, st);
   const c = st.contract;
   requireThat(typeof input.prompt === 'string' && input.prompt.length <= 16000, 'Agentoverdracht ontbreekt of is te lang. Geef alleen relevante feiten en bronverwijzingen.');
   const existing = st.agents[e.tool_use_id], signature = digest(input);
@@ -124,7 +124,7 @@ function writePermission(root, st, e) {
       // Eén regel: gevolgde bestanden wijzigen kan alleen onder een GO; lokale genegeerde administratie en het eigen voorstel zijn vrij.
       if (kind === 'tracked' || (kind === 'technical' && isTracked(root, p))) {
         requireThat(st && st.status === 'EXECUTING', 'Zonder AAE GO verander ik geen gevolgde repositorybestanden (' + p + '). Sparren, onderzoeken en lezen mag wel; vraag een werkpakket met GO voor deze wijziging.');
-        assertApproval(st);
+        guardApproval(root, st);
         requireThat(st.contract.envelope.phase === 'implementation', 'Een analyse-werkpakket wijzigt geen gevolgde bestanden (' + p + ').');
       }
       const wk = workIdFromPath(p);
@@ -139,7 +139,7 @@ function writePermission(root, st, e) {
     }
     requireThat(!protectedPath(p), 'AAE/projectinstructies, state, credentials en instellingen zijn beschermd. Gebruik de installer voor systeemupdates.');
     requireThat(st && st.status === 'EXECUTING', 'Geen werkpakket in uitvoering (EXECUTING). Zonder goedgekeurd werkpakket verander ik geen applicatiecode.');
-    assertApproval(st);
+    guardApproval(root, st);
     const c = st.contract;
     requireThat(c.envelope.phase === 'implementation', 'Analyse-only: geen applicatiecode wijzigen.');
     requireThat(!hasLive(st) && !st.command_running && !liveExternal(st).length, 'Geen bronwijzigingen tijdens agent-, externe tool- of testuitvoering.');
@@ -159,10 +159,10 @@ function bashPermission(root, st, e) {
   if (m) {
     requireThat(NEEDS_ARG.has(m[1]) ? Boolean(m[2]) : !m[2], 'Onjuiste runnerargumenten.');
     if (m[1] === 'run' || m[1] === 'close') requireThat(st, 'Geen actief werkpakket voor ' + m[1] + '.');
-    if (m[1] === 'run') assertApproval(st);
+    if (m[1] === 'run') guardApproval(root, st);
     if (m[1] === 'project') {
       requireThat(st && st.status === 'EXECUTING' && st.contract.envelope.phase === 'implementation', 'cli project schrijft docs/aae/PROGRESS.md (gevolgd bestand): alleen onder een werkpakket in uitvoering met GO.');
-      assertApproval(st);
+      guardApproval(root, st);
     }
     return null;
   }
@@ -207,7 +207,7 @@ function preExternal(root, e, call) {
   requireThat(!liveExternal(st).length, 'Er loopt al een externe toolactie. Wacht op afronding.');
   const change = call.level !== 'read';
   requireThat(!change || st.status === 'EXECUTING', 'Externe wijziging vereist een werkpakket in uitvoering met goedkeuring.');
-  if (change) { assertApproval(st); requireThat(c.envelope.phase === 'implementation', 'Een analyse-werkpakket doet geen externe wijzigingen.'); }
+  if (change) { guardApproval(root, st); requireThat(c.envelope.phase === 'implementation', 'Een analyse-werkpakket doet geen externe wijzigingen.'); }
   requireThat(change || ['PLANNING', 'WAITING_FOR_APPROVAL', 'EXECUTING', 'NEEDS_HUMAN'].includes(st.status), 'Werkpakket is niet beschikbaar voor externe leesacties.');
   if (call.provider === 'supabase') {
     const inRef = projectRefFromInput(input);

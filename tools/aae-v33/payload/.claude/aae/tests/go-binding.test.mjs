@@ -10,7 +10,7 @@ import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, 
 import {validateContract, envelopeHash, shortHash, materialChanges, envelopeOf, clock} from '../runtime/core.mjs';
 import {registerContract, loadWork, saveWork, withLock, contractFile} from '../runtime/state.mjs';
 import {presentProposal} from '../runtime/commands.mjs';
-import {runCommand} from '../runtime/runner.mjs';
+import {runCommand, closeTask} from '../runtime/runner.mjs';
 import {assertGate} from '../runtime/gates.mjs';
 
 const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
@@ -133,22 +133,40 @@ test('GB09 de hash bindt minimaal ID, doel, criteria, schrijfgebied, risico, fla
 });
 
 // ---- elke bewakingshandeling controleert tegen de goedgekeurde volledige hash ----
-test('GB10 elke bewakingshandeling controleert de goedgekeurde hash: schrijven, agent, runner, gate en externe wijziging', met(async root => {
-  executing(root);
+test('GB10 elke bewakingshandeling controleert de goedgekeurde hash en de envelop; bij een afwijking wordt geweigerd en wacht het pakket op een beslissing', met(async root => {
+  const extern = {envelope: {providers: {github: {tools: ['create_pull_request'], max_calls: 1}}, budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 1, max_parallel: 1}}};
+  executing(root, extern);
   assert.equal(write(root, 'src/a.js'), null);
-  wijzig(root, s => { s.approved.envelope_hash = '0'.repeat(64); });
-  assert.match(msg(() => write(root, 'src/a.js')), /envelop-hash klopt niet/);
-  assert.match(msg(() => agentCall(root)), /envelop-hash klopt niet/);
-  assert.match(msg(() => bash(root, 'node .claude/aae/runtime/cli.mjs run t_ok')), /envelop-hash klopt niet/);
-  assert.match(msg(() => write(root, 'docs/aae/PROGRESS.md')), /envelop-hash klopt niet/);
-  await assert.rejects(() => runCommand(root, 't_ok'), /envelop-hash klopt niet/);
-  assert.throws(() => assertGate(root, st(root), st(root).contract, 'merge'), /envelop-hash klopt niet/);
-  // het contract zelf buiten de envelop gezet (buiten registratie om) werkt ook niet
-  wijzig(root, s => { s.approved.envelope_hash = envelopeHash(s.approved.contract); s.contract.envelope.areas.push(area('Extra', 'app')); });
-  assert.match(msg(() => write(root, 'src/a.js')), /buiten de goedgekeurde envelop/);
-  assert.match(msg(() => agentCall(root)), /buiten de goedgekeurde envelop/);
-  await assert.rejects(() => runCommand(root, 't_ok'), /buiten de goedgekeurde envelop/);
-  assert.match(msg(() => bash(root, 'node .claude/aae/runtime/cli.mjs project')), /buiten de goedgekeurde envelop|gevolgd bestand/);
+  const pr = {owner: 'o', repo: 'r', title: 'Titel van de pull request', head: 'claude/werk', base: 'main'};
+  const acties = {
+    schrijven: () => write(root, 'src/a.js'),
+    'gevolgd document': () => write(root, 'docs/aae/PROGRESS.md'),
+    agent: () => agentCall(root),
+    'runner via hook': () => bash(root, 'node .claude/aae/runtime/cli.mjs run t_ok'),
+    project: () => bash(root, 'node .claude/aae/runtime/cli.mjs project'),
+    'externe wijziging': () => pre(root, 'mcp__github__create_pull_request', pr, {tool_use_id: 'g1'}),
+    gate: () => assertGate(root, st(root), st(root).contract, 'merge'),
+    sluiten: () => closeTask(root)
+  };
+  const herstel = () => wijzig(root, s => { s.status = 'EXECUTING'; s.needs_human = null; s.activity = 'BUILDING'; s.approved.envelope_hash = envelopeHash(s.approved.contract); s.contract = structuredClone(s.approved.contract); });
+  const bijAfwijking = async (naam, kapot, patroon) => {
+    for (const [handeling, fn] of Object.entries(acties)) {
+      herstel(); kapot();
+      assert.match(msg(fn), patroon, naam + ' / ' + handeling);
+      assert.equal(st(root).status, 'NEEDS_HUMAN', naam + ' / ' + handeling + ': het pakket wacht op een beslissing');
+    }
+    herstel(); kapot();
+    await assert.rejects(() => runCommand(root, 't_ok'), patroon, naam + ' / runner');
+    assert.equal(st(root).status, 'NEEDS_HUMAN');
+  };
+  // 1: de opgeslagen goedgekeurde hash klopt niet met het goedgekeurde contract
+  await bijAfwijking('hash', () => wijzig(root, s => { s.approved.envelope_hash = '0'.repeat(64); }), /envelop-hash klopt niet/);
+  // 2: het huidige contract valt buiten de goedgekeurde envelop (buiten de registratie om gezet)
+  await bijAfwijking('envelop', () => wijzig(root, s => { s.contract.envelope.areas.push(area('Extra', 'app')); }), /buiten de goedgekeurde envelop/);
+  // 3: een gewijzigd doel in de state telt ook
+  await bijAfwijking('doel', () => wijzig(root, s => { s.contract.goal = 'Heel ander doel dat nooit is goedgekeurd door de gebruiker.'; }), /buiten de goedgekeurde envelop \(doel\)/);
+  // 4: zonder afwijking werkt alles zoals eerst (de controle blokkeert niets te veel)
+  herstel(); assert.equal(write(root, 'src/a.js'), null); assert.equal(st(root).status, 'EXECUTING');
 }));
 test('GB11 de GO-melding noemt werkpakket-ID en korte hash; `present` toont dezelfde herkenning', met(root => {
   plan(root);

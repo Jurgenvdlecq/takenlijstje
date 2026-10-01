@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks, areaWrite, SUPPORT_ROOTS} from './core.mjs';
 import {gitHead, refCommit, dirtyPaths} from './gitops.mjs';
-import {resultFile, assertApproval} from './state.mjs';
+import {resultFile, guardApproval} from './state.mjs';
 import {runCompleted} from './reports.mjs';
 import {deployInfo} from './preflight.mjs';
 
@@ -42,7 +42,7 @@ export function assertReady(root, st, c, prefix = '') {
 /** Merge en deployment zijn aparte capabilities. Een merge naar een branch die (mogelijk) automatisch deployt valt vanzelf onder de deploy-capability. */
 export function assertGate(root, st, c, kind, argv = null) {
   // Eerst de capabilities (goedkoop en duidelijk), daarna het bewijs; het bewijs blijft altijd verplicht (B5: de gate verdwijnt nooit).
-  assertApproval(st);
+  guardApproval(root, st);
   if (kind === 'merge') {
     requireThat(Boolean(c.envelope.git.merge), 'Merge is geen capability in deze envelop.');
     const d = deployInfo(root, c.envelope.git.merge.to);

@@ -78,6 +78,17 @@ export function activeWork(root) {
   return ids[0] || null;
 }
 /**
+ * Bewakingshandeling: controleert de goedgekeurde hash en envelop (assertApproval). Klopt het niet, dan wordt de handeling geweigerd en wacht
+ * het werkpakket op een beslissing van Jurgen (NEEDS_HUMAN); een nieuwe `cli present` + `AAE GO` keurt dan de actuele envelop opnieuw goed.
+ */
+export function guardApproval(root, st) {
+  try { assertApproval(st); }
+  catch (e) {
+    if (st && st.status === 'EXECUTING') { needsHuman(st, 'material_change', e.message, {reasons: ['goedkeuring ongeldig']}); saveWork(root, st); }
+    throw e;
+  }
+}
+/**
  * Alleen een pure analyse start zonder GO: sparren, onderzoeken en lezen. Geen gevolgde bestanden, geen git-, database- of externe wijziging,
  * geen niet-lokale commando's. Elke andere route, ook LIGHT, vraagt precies één AAE GO.
  */
