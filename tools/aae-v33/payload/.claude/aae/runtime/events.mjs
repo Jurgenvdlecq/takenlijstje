@@ -11,7 +11,7 @@ import {
 import {
   withLock, listWork, loadWork, saveWork, activeWork, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
-import {liveRows, LIVE, reconcile, finalizeRun, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
+import {liveRows, LIVE, reconcile, finalizeRun, safeFinalize, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
 import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
 import {assertGate} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
@@ -254,10 +254,6 @@ function findRow(root, pred) {
     if (row) return {st, row};
   }
   return null;
-}
-function safeFinalize(root, st, row, bronnen, opts) {
-  try { return finalizeRun(root, st, row, bronnen, opts); }
-  catch (err) { row.report = {status: 'REPORT_LOST', verified: false, fout: String(err.message).slice(0, 200), pogingen: (row.report?.pogingen || 0) + 1, at: now()}; log(st, 'report_opslag_mislukt', {run: row.run_key}); return row.report; }
 }
 function externalLifecycle(root, e) {
   const hit = listWork(root).map(id => loadWork(root, id)).find(s => s && s.external_calls[e.tool_use_id]);

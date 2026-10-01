@@ -158,6 +158,16 @@ test('review: de bronvingerafdruk omvat de goedgekeurde ondersteunende categorie
     assert.notEqual(sourceDigest(dir, c), a);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
+test('review: een geneste .claude-map (bijvoorbeeld een pakket-payload) telt mee in de bronvingerafdruk; de .claude op het hoogste niveau niet', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33dig-')));
+  try {
+    fs.mkdirSync(path.join(dir, 'tools/pakket/payload/.claude'), {recursive: true}); fs.mkdirSync(path.join(dir, '.claude'));
+    fs.writeFileSync(path.join(dir, 'tools/pakket/payload/.claude/a.mjs'), '1'); fs.writeFileSync(path.join(dir, '.claude/b.mjs'), '1');
+    const c = validateContract(structuredClone(contract({envelope: {areas: [{name: 'Pakket', write: ['tools/pakket'], support: []}]}}))), a = sourceDigest(dir, c);
+    fs.writeFileSync(path.join(dir, '.claude/b.mjs'), '2'); assert.equal(sourceDigest(dir, c), a, 'top-level .claude telt niet mee');
+    fs.writeFileSync(path.join(dir, 'tools/pakket/payload/.claude/a.mjs'), '2'); assert.notEqual(sourceDigest(dir, c), a, 'geneste .claude telt wel mee');
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
 test('envelophash: een plan-wijziging (agent/commando) verandert de envelop niet; een gebied wel', () => {
   const a = geldig(), b = geldig(); b.plan.agents.push({name: 'aae-architect', question: 'Ontwerp een kleinere variant.', files: ['src']});
   assert.equal(envelopeHash(a), envelopeHash(validateContract(b)));

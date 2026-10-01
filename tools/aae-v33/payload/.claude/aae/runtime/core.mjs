@@ -407,7 +407,8 @@ export const commandFingerprint = (root, m) => digest({argv: m.argv, purpose: m.
 export function sourceDigest(root, c) {
   const found = new Map(); let bytes = 0;
   function visit(p) {
-    if (p === 'docs/aae' || p.startsWith('docs/aae/') || p.split('/').some(s => SKIP.has(s))) return;
+    // .claude telt alleen op het hoogste niveau als systeemmap over te slaan; een geneste .claude (bijvoorbeeld een pakket-payload) is gewone bron.
+    if (p === 'docs/aae' || p.startsWith('docs/aae/') || p.split('/').some((s, i) => SKIP.has(s) && (s !== '.claude' || i === 0))) return;
     const f = safePath(root, p); let st;
     try { st = fs.lstatSync(f); } catch (e) { if (e.code === 'ENOENT') { found.set(p, 'absent'); return; } throw e; }
     if (st.isDirectory()) { for (const n of fs.readdirSync(f).sort()) visit(p + '/' + n); }

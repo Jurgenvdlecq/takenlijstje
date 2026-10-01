@@ -156,6 +156,11 @@ export function finalizeRun(root, st, row, bronnen, opts = {}) {
   log(st, 'report', {run: runKey, status, verdict, bronnen: akkoord.length});
   return row.report;
 }
+/** Zoals finalizeRun, maar een opslagfout geeft REPORT_LOST in plaats van een uitzondering: een hook mag hierdoor nooit een gewoon bericht blokkeren. */
+export function safeFinalize(root, st, row, bronnen, opts = {}) {
+  try { return finalizeRun(root, st, row, bronnen, opts); }
+  catch (err) { row.report = {status: 'REPORT_LOST', verified: false, fout: String(err.message).slice(0, 200), pogingen: (row.report?.pogingen || 0) + 1, at: now()}; log(st, 'report_opslag_mislukt', {run: row.run_key}); return row.report; }
+}
 export const runCompleted = row => row.status === 'stopped' && row.report?.status === 'COMPLETED';
 
 /**
@@ -194,7 +199,7 @@ export function reconcile(root, st, opts = {}) {
     if ((stilstaand && (hostWeg || sinds >= ceilingMs)) || (geenTranscript && row.host_observed?.state === 'absent')) {
       row.status = 'presumed_dead'; row.finished = new Date(nowMs).toISOString();
       const tekst = pad ? transcriptFinalText(pad) : null;
-      finalizeRun(root, st, row, tekst ? {transcript: tekst} : {}, opts);
+      safeFinalize(root, st, row, tekst ? {transcript: tekst} : {}, opts);
       log(st, 'agent_presumed_dead', {run: row.run_key, gerepareerd: Boolean(tekst)});
       wijzigingen.push({run: row.run_key, naar: 'presumed_dead'});
     } else if (row.status !== 'unverified') { row.status = 'unverified'; log(st, 'agent_unverified', {run: row.run_key}); wijzigingen.push({run: row.run_key, naar: 'unverified'}); }

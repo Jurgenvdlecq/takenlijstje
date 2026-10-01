@@ -142,6 +142,21 @@ test('review: een verloren rapport wordt ook uit de bewaarde handback hersteld, 
   assert.notEqual(st(root).agents['tu-1'].report.status, 'REPORT_LOST');
   assert.ok(agentCall(root, {id: 'tu-2', vraag: 'Beoordeel src/a.js.'}), 'een herstelbaar verloren rapport blokkeert dezelfde vraag niet');
 }));
+test('review: een opslagfout bij het afstemmen van een stille agent blokkeert nooit een gewoon bericht (REPORT_LOST, geen uitzondering)', met((root, cfg) => {
+  executing(root);
+  start(root, 'tu-a', 'vol00001', 'Beoordeel src/a.js.');
+  writeTranscript(cfg, 'vol00001', REPORT());
+  fs.writeFileSync(path.join(root, '.claude/aae/state/raw'), 'geen map'); // opslag niet beschrijfbaar
+  const t0 = Date.now();
+  clock.ms = () => t0 + 20 * 60000; assert.doesNotThrow(() => prompt(root, 'Hoe staat het ervoor?'));
+  clock.ms = () => t0 + 22 * 60000; assert.doesNotThrow(() => prompt(root, 'Nog een bericht.'));
+  const r = st(root).agents['tu-a'];
+  assert.equal(r.status, 'presumed_dead'); assert.equal(r.report.status, 'REPORT_LOST');
+  assert.equal(st(root).status, 'EXECUTING');
+  fs.rmSync(path.join(root, '.claude/aae/state/raw'));
+  clock.ms = () => t0 + 24 * 60000; prompt(root, 'En weer een bericht.');
+  assert.notEqual(st(root).agents['tu-a'].report.status, 'REPORT_LOST', 'vanzelf hersteld zodra opslag weer lukt');
+}));
 test('review: zonder transcript is alleen een hostbevestiging bewijs: hint of tijd geeft "onbevestigd", pas "host kent hem niet meer" geeft presumed_dead', met(root => {
   executing(root);
   start(root, 'tu-a', 'geen00001', 'Beoordeel src/a.js.');
