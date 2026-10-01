@@ -1,0 +1,11 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 10:55:49 GMT
+Server: Apache
+Last-Modified: Thu, 09 Dec 2021 11:26:59 GMT
+ETag: "18-5d2b4e279eece"
+Accept-Ranges: bytes
+Content-Length: 24
+Content-Type: text/plain
+

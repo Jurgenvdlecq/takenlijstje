@@ -1,0 +1,183 @@
+{
+  "probedAt": "2026-10-01T10:55:48.540Z",
+  "base": "https://huisvuilkalender.denhaag.nl",
+  "address": {
+    "postcode": "2591BB",
+    "nummer": 87,
+    "note": "openbaar testadres uit de HACS-integratie; geen persoonsgegeven"
+  },
+  "requests": [
+    {
+      "name": "robots.txt",
+      "url": "/robots.txt",
+      "status": 200,
+      "contentType": "text/plain",
+      "seconds": 0.763,
+      "redirectUrl": "",
+      "bytes": 24,
+      "curlError": null
+    },
+    {
+      "name": "A-adressen.json",
+      "url": "/rest/adressen/2591BB-87",
+      "status": 200,
+      "contentType": "application/json",
+      "seconds": 0.783,
+      "redirectUrl": "",
+      "bytes": 254,
+      "curlError": null
+    },
+    {
+      "name": "B-afvalstromen.json",
+      "url": "/rest/adressen/0518200000813196/afvalstromen",
+      "status": 200,
+      "contentType": "application/json",
+      "seconds": 0.644,
+      "redirectUrl": "",
+      "bytes": 20268,
+      "curlError": null
+    },
+    {
+      "name": "C-kalender-2026.json",
+      "url": "/rest/adressen/0518200000813196/kalender/2026",
+      "status": 200,
+      "contentType": "application/json",
+      "seconds": 0.564,
+      "redirectUrl": "",
+      "bytes": 577,
+      "curlError": null
+    },
+    {
+      "name": "C-kalender-2027.json",
+      "url": "/rest/adressen/0518200000813196/kalender/2027",
+      "status": 200,
+      "contentType": "application/json",
+      "seconds": 0.587,
+      "redirectUrl": "",
+      "bytes": 2,
+      "curlError": null
+    }
+  ],
+  "findings": {
+    "robots": {
+      "lines": 2,
+      "disallow": [
+        "Disallow:"
+      ],
+      "mentionsRest": false
+    },
+    "A": {
+      "isArray": true,
+      "count": 1,
+      "keys": [
+        "bagId",
+        "postcode",
+        "huisnummer",
+        "huisletter",
+        "huisnummerToevoeging",
+        "openbareRuimteNaam",
+        "woonplaatsNaam",
+        "latitude",
+        "longitude",
+        "woonplaatsId",
+        "gemeenteId"
+      ],
+      "bagIdKey": "bagId",
+      "bagIds": [
+        "0518200000813196"
+      ],
+      "bagIdMatches16Digits": [
+        true
+      ],
+      "types": {
+        "bagId": "string",
+        "postcode": "string",
+        "huisnummer": "number",
+        "huisletter": "string",
+        "huisnummerToevoeging": "string",
+        "openbareRuimteNaam": "string",
+        "woonplaatsNaam": "string",
+        "latitude": "number",
+        "longitude": "number",
+        "woonplaatsId": "number",
+        "gemeenteId": "number"
+      }
+    },
+    "B": {
+      "count": 5,
+      "keys": [
+        "id",
+        "parent_id",
+        "title",
+        "slug",
+        "tags",
+        "page_title",
+        "content",
+        "menu_title",
+        "icon",
+        "icon_data",
+        "ophaaldatum"
+      ],
+      "streams": [
+        {
+          "id": 1,
+          "title": "GFT",
+          "menu_title": "GFT",
+          "icon": "appel-gft",
+          "ophaaldatum": null
+        },
+        {
+          "id": 2,
+          "title": "PMD",
+          "menu_title": "PMD",
+          "icon": "petfles-blik-drankpak_pmd",
+          "ophaaldatum": null
+        },
+        {
+          "id": 3,
+          "title": "Papier",
+          "menu_title": "Papier",
+          "icon": "doos-karton-papier",
+          "ophaaldatum": "2026-10-27"
+        },
+        {
+          "id": 4,
+          "title": "Rest",
+          "menu_title": "Rest",
+          "icon": "zak-grijs-rest",
+          "ophaaldatum": null
+        },
+        {
+          "id": 5,
+          "title": "Kerstbomen",
+          "menu_title": "Kerstbomen",
+          "icon": "kerstboom-zonder-kruis",
+          "ophaaldatum": null
+        }
+      ]
+    },
+    "C2026": {
+      "count": 12,
+      "keys": [
+        "afvalstroom_id",
+        "ophaaldatum"
+      ],
+      "firstDate": "2026-01-20",
+      "lastDate": "2026-11-24",
+      "dateFormatIsYMD": true,
+      "nullDates": 0,
+      "perStream": {
+        "3": 12
+      }
+    },
+    "C2027": {
+      "count": 0,
+      "keys": [],
+      "firstDate": null,
+      "lastDate": null,
+      "dateFormatIsYMD": true,
+      "nullDates": 0,
+      "perStream": {}
+    }
+  }
+}

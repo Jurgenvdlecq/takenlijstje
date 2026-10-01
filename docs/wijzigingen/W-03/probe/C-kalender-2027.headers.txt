@@ -1,0 +1,12 @@
+HTTP/1.1 200 Connection Established
+
+HTTP/1.1 200 OK
+Date: Thu, 01 Oct 2026 10:55:52 GMT
+Server: Apache
+Cache-Control: no-cache, private
+Access-Control-Allow-Origin: *
+Set-Cookie: XSRF-TOKEN=<weggelaten; sessiecookie van de site, 2 uur geldig>; expires=Thu, 01 Oct 2026 12:55:52 GMT; Max-Age=7200; path=/; secure
+Set-Cookie: zwaste_session=<weggelaten; sessiecookie van de site, 2 uur geldig>; expires=Thu, 01 Oct 2026 12:55:52 GMT; Max-Age=7200; path=/; httponly
+Transfer-Encoding: chunked
+Content-Type: application/json
+
