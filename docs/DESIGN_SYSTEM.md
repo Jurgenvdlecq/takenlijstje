@@ -236,6 +236,7 @@ Eén set: **Lucide** (zit al in het project), lijndikte 1,75 (24 px) en 2 (14–
 | search / sliders-horizontal | zoeken / filter |
 | refresh-cw | laadfout, wacht op verbinding |
 | wifi-off | offlinebalk |
+| recycle (♻) | afvaltaak (meta "♻ Afvalkalender", 14 px, `text-3`) en de sectie Afvalkalender in Instellingen (W-03, UX §13.5). Geen prullenbak: die betekent "verwijderen" |
 Categorieën in Taken krijgen **geen** icoon; categorieën bij Boodschappen houden hun emoji (scanbaarheid in de winkel).
 
 ### 7.11 Lege staten

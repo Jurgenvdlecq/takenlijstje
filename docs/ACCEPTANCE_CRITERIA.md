@@ -9,7 +9,7 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
 | `docs/PRODUCT_SPEC.md` (ronde 3) | BR-nn en UC-nn |
 | `docs/UX_SPEC.md` | Flows §4, schermen §5, states §7, rechten in de interface §9 |
 | `docs/TECHNICAL_DESIGN.md` | Rechten per regel §5.2, gelijktijdigheid §7, datamigratie §12.4, teststrategie §13, work packages §15 |
-| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-35 |
+| `docs/PROGRESS.md` | Besluiten van Jurgen V-05 t/m V-39, en V-41 t/m V-57 (W-03) |
 
 ## Afspraken
 
@@ -54,6 +54,11 @@ Versie: ronde 1 (2026-09-28) · Kwaliteitsniveau 2 · Fase 6.
   - AC-054, AC-073, AC-178 en AC-179 horen bij WP2a. AC-073 staat daarom in de sectie WP2, niet bij WP3 (plan-critic ronde 2, punt 2).
   - AC-055 t/m AC-061 horen bij WP2b.
 - **Regressie.** Elke bevinding uit een review krijgt een extra AC en een test. Die criteria worden na de freeze toegevoegd, via de bouwer in `docs/DECISIONS.md` en een testverwijzing.
+- **W-03 — afvalkalender (WP3b).** De criteria AC-183 t/m AC-219 staan in de sectie WP3b, direct na WP3. Ze volgen PRODUCT_SPEC §14 (BR-47 t/m BR-59) en de antwoorden V-41 t/m V-57. Bevroren op 2026-10-01 (AAE-taak W03-AFVAL-001).
+  - "D" is de ophaaldag.
+  - Alle tijden zijn Europe/Amsterdam.
+  - De gemeentebron wordt in Unit en Int altijd nagebootst met vastgelegde antwoorden (fixtures). Alleen de Live-toets gebruikt de echte bron.
+  - De exacte taaknamen staan in UX_SPEC §13.3. Bij binnenzetten heet het "…bak binnenzetten" (bijvoorbeeld "Restafvalbak binnenzetten").
 
 ---
 
@@ -629,6 +634,383 @@ GEGEVEN een ingelogde gebruiker
 WANNEER hij `run_purge()` of `purge_expired_data()` aanroept
 DAN wordt dat geweigerd
 **Toets:** DB
+
+---
+
+## WP3b — Afvalkalender (W-03)
+
+### AC-183 — Adres instellen door een beheerder (WP3b; BR-48, BR-49, BR-50; UC-13)
+GEGEVEN Jurgen (beheerder) en een geldig Haags adres met ophaaldagen voor rest, papier en PMD
+WANNEER hij postcode en huisnummer invult, bij "Klopt dit?" het adres en de eerstvolgende ophaaldag per bak ziet, en bevestigt
+DAN:
+- is het adres bewaard;
+- staat er voor elke ophaaldag van vandaag t/m vandaag + 14 dagen één buitenzet-taak en één binnenzet-taak (BR-49);
+- zijn die zichtbaar op Vandaag en in de Kalender van de huidige schermen.
+
+Annuleert hij bij "Klopt dit?", dan is er niets bewaard en zijn er geen taken ontstaan.
+**Toets:** Int + E2E
+
+### AC-184 — Ongeldig formaat (WP3b; BR-48)
+GEGEVEN Jurgen in het adresformulier
+WANNEER hij een van deze dingen invult:
+- een postcode die niet uit 4 cijfers (niet beginnend met 0) en 2 letters bestaat;
+- een leeg huisnummer, een huisnummer dat geen getal is, of een getal buiten 1 t/m 99999
+DAN:
+- kan hij niet bevestigen;
+- ziet hij bij het veld wat er mis is;
+- wordt er niets bewaard en niets bij de gemeente opgevraagd.
+**Toets:** Unit + E2E
+
+### AC-185 — Adres onbekend of buiten Den Haag (WP3b; BR-48)
+GEGEVEN een correct geschreven postcode buiten Den Haag (bijvoorbeeld Rijswijk), of een Haags adres dat de huisvuilkalender niet kent
+WANNEER Jurgen het invult
+DAN:
+- ziet hij "Dit adres staat niet in de huisvuilkalender van Den Haag";
+- wordt er geen adres bewaard en ontstaan er geen taken;
+- blijft een eerder bewaard adres, met de taken ervan, ongewijzigd.
+**Toets:** Int + E2E
+
+### AC-186 — Adres zonder rest, papier of PMD (WP3b; BR-47, BR-48)
+GEGEVEN een Haags adres waarvoor de agenda alleen GFT geeft, of niets (bijvoorbeeld bij een ondergrondse container)
+WANNEER Jurgen het invult
+DAN:
+- ziet hij dat er voor dit adres geen ophaaldagen voor rest, papier of PMD zijn;
+- wordt er niets bewaard.
+**Toets:** Int
+
+### AC-187 — Schrijfwijze, toevoeging en meerdere adressen (WP3b; BR-48)
+GEGEVEN een van deze drie situaties:
+- (a) invoer "2511ab" en huisnummer "12 a";
+- (b) invoer "2511 AB" met "12A";
+- (c) een huisnummer waaronder de gemeente meerdere adressen kent (12, 12A, 12B), ingevuld zonder letter of toevoeging
+WANNEER Jurgen het invult
+DAN:
+- worden (a) en (b) op dezelfde manier opgevraagd en bewaard, als "2511 AB", huisnummer 12, toevoeging "A";
+- kiest de app bij (c) niet zelf, maar vraagt hij om de letter of toevoeging. Er is dan nog niets bewaard.
+**Toets:** Unit + Int
+
+### AC-188 — Bron onbereikbaar tijdens het instellen (WP3b; BR-48)
+GEGEVEN de gemeentebron geeft een fout of een time-out
+WANNEER Jurgen een adres invult en bevestigt, (a) zonder bestaand adres of (b) als wijziging van een bestaand adres
+DAN:
+- ziet hij "De huisvuilkalender van de gemeente is nu niet bereikbaar. Er is niets opgeslagen." (volledige tekst: UX_SPEC §13.7.1);
+- is er bij (a) geen adres bewaard;
+- zijn bij (b) het oude adres en de oude taken ongewijzigd;
+- is er in geen van beide gevallen een taak bijgekomen of verdwenen.
+**Toets:** Int
+
+### AC-189 — Een gezinslid kan de afvalkalender niet beheren (WP3b; BR-48, BR-56; PRODUCT_SPEC §7)
+GEGEVEN Lynn (gezinslid) en Kai (uitgezet lid)
+WANNEER Lynn Instellingen opent, of een van beiden met een direct verzoek (een actie, of rechtstreeks op de tabel) een adres invoert, wijzigt of de afvalkalender uitzet
+DAN:
+- ziet Lynn geen mogelijkheid om iets te wijzigen;
+- wordt elk verzoek geweigerd;
+- verandert er niets aan het adres, de opgehaalde ophaaldagen, de stand van het bijwerken of de taken;
+- vraagt de server bij de gemeente niets op.
+**Toets:** DB + Int + E2E
+
+### AC-190 — Wie het adres ziet (WP3b; BR-58, BR-26; V-53)
+GEGEVEN een huishouden met een bewaard adres, Jurgen (beheerder), Lynn (gezinslid) en Bas (ander huishouden)
+WANNEER ieder van hen Instellingen opent, en Lynn en Bas het adres en de adrescode proberen te lezen via elk mogelijk verzoek
+DAN:
+- ziet Jurgen het volledige adres en de stand van het bijwerken;
+- ziet Lynn alleen "Afvalkalender staat aan": geen adres, geen adrescode en geen stand van het bijwerken. Haar verzoeken geven het adres niet terug;
+- krijgt Bas niets terug, ook niet dat er een afvalkalender is.
+**Toets:** DB + E2E
+
+### AC-191 — Dubbel bevestigen en twee beheerders tegelijk (WP3b; BR-10, BR-50)
+GEGEVEN Jurgen tikt twee keer snel op "Bevestigen", en tegelijk bevestigt Ellen een ander geldig adres
+WANNEER alle verzoeken verwerkt zijn
+DAN:
+- is er precies één adres: het laatst bevestigde;
+- zijn er alleen afvaltaken voor dat adres;
+- bestaat geen enkele combinatie van ophaaldag en richting (buiten of binnen) twee keer.
+**Toets:** Int
+
+### AC-192 — De buitenzet-taak (WP3b; BR-49; V-44, V-49)
+GEGEVEN een ophaaldag voor restafval op dinsdag 6 oktober 2026
+WANNEER de taken klaarstaan
+DAN:
+- staat "Restafval buitenzetten" gepland op maandag 5 oktober om 21:00;
+- heeft de taak een herinnering om 21:00;
+- is de deadline dinsdag 6 oktober om 07:45. Afvinken om 07:50 registreert "te laat" (BR-12);
+- toont de taak "Mag vanaf 22:00 buiten, uiterlijk 07:45".
+**Toets:** Unit + Int + E2E
+
+### AC-193 — De binnenzet-taak (WP3b; BR-49; V-47, V-48, V-55)
+GEGEVEN dezelfde ophaaldag
+WANNEER de taken klaarstaan
+DAN:
+- staat "Restafvalbak binnenzetten" gepland op dinsdag 6 oktober;
+- staat die taak vóór 12:00 niet tussen wat nu te doen is, en vanaf 12:00 wel;
+- is de deadline het einde van dinsdag;
+- heeft de taak een herinnering om 18:00;
+- lukt afvinken om 10:00 ook.
+
+Voor papier en PMD geldt hetzelfde: elke bak krijgt ook een binnenzet-taak ("Papierbak binnenzetten", "PMD-bak binnenzetten"; UX_SPEC §13.3).
+**Toets:** Unit + E2E
+
+### AC-194 — Herinneringen alleen voor open afvaltaken (WP3b; BR-55, BR-31)
+GEGEVEN Jurgen met herinneringen aan, en ophaaldag dinsdag 6 oktober
+WANNEER de tick draait:
+- (a) om 21:00 op maandag, terwijl buitenzetten om 20:30 al is afgevinkt;
+- (b) om 18:00 op dinsdag, terwijl binnenzetten om 14:00 al is afgevinkt;
+- (c) zoals (a) en (b), maar met beide taken nog open
+DAN:
+- komt er bij (a) en (b) geen herinnering;
+- krijgt Jurgen bij (c) om 21:00 één herinnering die "vanaf 22:00" noemt, en om 18:00 één herinnering binnenzetten.
+
+Een tweede tick verstuurt niets opnieuw.
+**Toets:** Unit + Int
+
+### AC-195 — Twee bakken op dezelfde dag (WP3b; BR-49; V-51)
+GEGEVEN rest en papier hebben allebei ophaaldag dinsdag 6 oktober
+WANNEER de taken klaarstaan en de herinneringen verstuurd worden
+DAN:
+- is er één taak "Restafval en papier buitenzetten" (maandag 21:00) en één taak "Restafval- en papierbak binnenzetten" (dinsdag);
+- krijgt elke ontvanger om 21:00 één herinnering en om 18:00 één herinnering, niet één per bak.
+
+Bij alle drie de bakken heet de taak "Restafval, papier en PMD buitenzetten" en "Restafval-, papier- en PMD-bak binnenzetten". De volgorde van de bakken ligt altijd vast.
+**Toets:** Unit + Int
+
+### AC-196 — Alleen rest, papier en PMD (WP3b; BR-47; V-43)
+GEGEVEN de agenda voor het adres noemt ook GFT, grofvuil en een onbekende soort
+WANNEER de taken worden gemaakt
+DAN:
+- komen er alleen taken voor ophaaldagen van rest, papier en PMD;
+- noemt geen enkele taaknaam GFT, grofvuil of de onbekende soort;
+- ontstaat er voor een dag met alleen GFT geen taak.
+**Toets:** Unit
+
+### AC-197 — 14 dagen vooruit en nooit dubbel (WP3b; BR-50; V-52)
+GEGEVEN een bewaard adres, en ophaaldagen op vandaag + 3, vandaag + 14 en vandaag + 15
+WANNEER het bijwerken en het plannen twee keer achter elkaar draaien, en ook twee keer tegelijk
+DAN:
+- zijn er taken voor vandaag + 3 en vandaag + 14, en nog niet voor vandaag + 15;
+- zijn er na de tweede ronde geen extra taken of meldingen bijgekomen.
+
+De volgende dag komen de taken voor vandaag + 15 erbij.
+**Toets:** Int
+
+### AC-198 — Verschoven ophaaldag (feestdag) (WP3b; BR-51)
+GEGEVEN een open buitenzet-taak en een open binnenzet-taak voor ophaaldag vrijdag 25 december 2026, en de gemeente verschuift die dag naar zaterdag 26 december
+WANNEER het bijwerken draait
+DAN:
+- staat buitenzetten op vrijdag 25 december om 21:00, en binnenzetten op zaterdag 26 december;
+- zijn er voor ophaaldag 25 december geen afvaltaken meer;
+- is er niets als vergeten of overgeslagen geteld, en staat er niets in de historie.
+**Toets:** Unit + Int
+
+### AC-199 — Een ophaaldag verdwijnt uit de agenda (WP3b; BR-51)
+GEGEVEN open afvaltaken voor een ophaaldag die daarna uit de agenda verdwijnt, terwijl de andere ophaaldagen blijven
+WANNEER het bijwerken draait
+DAN:
+- zijn beide taken verdwenen;
+- staan ze niet in de historie;
+- tellen ze in het Overzicht niet mee als vergeten of overgeslagen.
+**Toets:** Int
+
+### AC-200 — Een ophaaldag verdwijnt terwijl de bak al buiten staat (WP3b; BR-51)
+GEGEVEN buitenzetten voor dinsdag is afgevinkt, en daarna verdwijnt die ophaaldag of verschuift hij naar woensdag
+WANNEER het bijwerken draait
+DAN:
+- blijft de afgevinkte buitenzet-taak ongewijzigd in de historie;
+- blijft binnenzetten voor dinsdag staan;
+- komen er bij een verschuiving ook taken voor woensdag.
+**Toets:** Int
+
+### AC-201 — Een bak komt erbij of valt weg op een dag (WP3b; BR-51; V-51)
+GEGEVEN een open taak "Restafval en papier buitenzetten", en de agenda haalt papier van die dag af, of voegt PMD toe
+WANNEER het bijwerken draait
+DAN:
+- heet de open taak "Restafval buitenzetten" of "Restafval, papier en PMD buitenzetten";
+- is er nog steeds één taak per richting.
+
+Was de taak al afgevinkt of overgeslagen, dan blijft hij ongewijzigd.
+**Toets:** Unit + Int
+
+### AC-202 — Afgevinkt en overgeslagen blijft onaangetast (WP3b; BR-51, BR-12)
+GEGEVEN afgevinkte en overgeslagen afvaltaken
+WANNEER de agenda iets verandert aan die ophaaldagen en het bijwerken draait
+DAN veranderen hun datum, naam, status en historie niet
+**Toets:** Int
+
+### AC-203 — Een nieuwe ophaaldag wordt laat ontdekt (WP3b; BR-50, BR-31)
+GEGEVEN de agenda voegt een ophaaldag toe voor woensdag 7 oktober 2026
+WANNEER het plannen draait:
+- (a) om 21:40 op dinsdag;
+- (b) om 23:00 op dinsdag;
+- (c) om 08:00 op woensdag;
+- (d) om 19:45 op woensdag;
+- (e) om 00:10 op donderdag
+DAN:
+- (a) komt de buitenzet-taak er, en de herinnering gaat nog mee;
+- (b) komt de buitenzet-taak er, zonder herinnering;
+- (c) komt alleen de binnenzet-taak er, met de herinnering om 18:00;
+- (d) komt alleen de binnenzet-taak er, zonder herinnering (meer dan 90 minuten na 18:00);
+- (e) komt er geen afvaltaak meer.
+**Toets:** Unit + Int
+
+### AC-204 — Bron tijdelijk onbereikbaar of onbruikbaar (WP3b; BR-52)
+GEGEVEN bestaande afvaltaken, en de gemeentebron geeft een van deze antwoorden:
+- een fout, een time-out of een onbegrijpelijk antwoord;
+- een volledig leeg antwoord voor alle drie de bakken, terwijl er eerder ophaaldagen in dat bereik bekend waren
+WANNEER het bijwerken draait
+DAN:
+- verandert er niets aan de afvaltaken, het adres en de opgehaalde ophaaldagen;
+- verschijnen er geen verzonnen ophaaldagen;
+- draaien de andere stappen van de achtergrondtaak gewoon (vergelijk AC-076);
+- wordt het later opnieuw geprobeerd;
+- bevat de log alleen een code, geen adres en geen adrescode.
+
+Geeft de bron alleen voor papier geen dagen, terwijl rest en PMD wel dagen hebben (zoals rond de kerst), dan geldt dat niet als storing. De open papiertaken voor verdwenen dagen vervallen volgens AC-199.
+**Toets:** Int
+
+### AC-205 — Langdurige storing (WP3b; BR-52, BR-55; V-50)
+GEGEVEN het bijwerken lukt al meer dan 48 uur niet, of het volledig lege antwoord uit AC-204 duurt voort, met Jurgen en Ellen (beheerders, Ellen met herinneringen uit) en Lynn (gezinslid)
+WANNEER de achtergrondtaak meerdere keren draait
+DAN:
+- zien Jurgen en Ellen in Instellingen "Afvalkalender niet bijgewerkt sinds <datum>";
+- krijgen Jurgen en Ellen elk precies één melding "De afvalkalender kon niet worden bijgewerkt…", met een link naar Instellingen, en niet bij elke ronde opnieuw;
+- krijgt Lynn geen melding en ziet ze geen waarschuwing;
+- noemt de melding het adres niet.
+
+Lukt het daarna weer, dan verdwijnt de waarschuwing en worden de taken aangevuld. Een latere, nieuwe storing van meer dan 48 uur geeft opnieuw één melding.
+**Toets:** Int + E2E
+
+### AC-206 — Zomer- en wintertijd (WP3b; BR-59, BR-40)
+GEGEVEN deze ophaaldagen:
+- (a) maandag 26 oktober 2026;
+- (b) maandag 29 maart 2027;
+- (c) zondag 25 oktober 2026, waarbij de wintertijd ingaat tussen buitenzetten en de deadline
+WANNEER de taken en de herinneringen worden gemaakt
+DAN liggen in alle drie gevallen:
+- de herinnering op de dag ervoor om 21:00 Nederlandse tijd;
+- de deadline van buitenzetten op de ophaaldag om 07:45 Nederlandse tijd;
+- "beschikbaar vanaf" van binnenzetten om 12:00 en de herinnering om 18:00 Nederlandse tijd.
+**Toets:** Unit
+
+### AC-207 — Buitenzetten en binnenzetten los afvinken (WP3b; BR-53, BR-12, BR-13)
+GEGEVEN een open buitenzet-taak en een open binnenzet-taak voor dezelfde ophaaldag
+WANNEER Lynn binnenzetten afvinkt terwijl buitenzetten nog open staat, en Kai (met account, actief) daarna het afvinken van binnenzetten terugdraait
+DAN:
+- blijft buitenzetten ongewijzigd open;
+- is binnenzetten na het terugdraaien weer open;
+- staat er in de historie nergens wie afvinkte.
+**Toets:** Int + E2E
+
+### AC-208 — Wat wel en niet kan met een afvaltaak (WP3b; BR-53; V-54)
+GEGEVEN een open afvaltaak
+WANNEER Jurgen (beheerder) of Lynn (gezinslid) probeert de taak te hernoemen, de datum, tijd, deadline, omschrijving of herinneringen te wijzigen, te verplaatsen, te verwijderen of om te zetten naar een terugkerende taak, via de interface of met een direct verzoek
+DAN:
+- ontbreken die keuzes in de interface;
+- wordt een direct verzoek geweigerd, en verandert er niets;
+- lukken afvinken, terugdraaien, "bezig", een notitie plaatsen en "deze keer overslaan" wel.
+**Toets:** DB + Int + E2E
+
+### AC-209 — Buitenzetten overslaan neemt binnenzetten mee (WP3b; BR-53)
+GEGEVEN een open buitenzet-taak en een open binnenzet-taak voor dezelfde ophaaldag
+WANNEER Lynn bij buitenzetten "Deze keer overslaan" kiest, en daarna "Ongedaan maken"
+DAN:
+- zijn na het overslaan beide taken overgeslagen, en komt er om 18:00 geen herinnering binnenzetten;
+- staan na het ongedaan maken beide weer open.
+
+Overslaan van alleen binnenzetten laat buitenzetten ongemoeid.
+**Toets:** Int + E2E
+
+### AC-210 — Verlopen en vanzelf vervallen (WP3b; BR-54; V-54)
+GEGEVEN buitenzetten en binnenzetten voor ophaaldag dinsdag, geen van beide afgevinkt, en de volgende ophaaldag vrijdag
+WANNEER het dinsdag 07:46 is, daarna het einde van dinsdag voorbij is, en daarna donderdag begint
+DAN:
+- staat buitenzetten om 07:46 bij Verlopen;
+- is buitenzetten na het einde van dinsdag "overgeslagen", en telt als vergeten;
+- staat binnenzetten vanaf woensdag bij Verlopen;
+- is binnenzetten aan het begin van donderdag (de dag van de volgende buitenzet-taak) "overgeslagen", en telt als vergeten.
+
+Vinkt iemand binnenzetten woensdag af, dan is hij gedaan, met "te laat".
+**Toets:** Unit + Int
+
+### AC-211 — Wie de afvalherinnering krijgt (WP3b; BR-55, BR-31; V-23, V-50)
+GEGEVEN Jurgen en Ellen met herinneringen aan (standaard), Lynn met de standaard (uit), en Kai uitgezet
+WANNEER het maandag 21:00 is voor een ophaaldag op dinsdag, en daarna de hele dinsdag
+DAN:
+- krijgen alleen Jurgen en Ellen de herinneringen van 21:00 en 18:00, elk één keer;
+- komen er voor afvaltaken geen meldingen "deadline nadert" of "verlopen", ook niet 's nachts of na 07:45;
+- tellen de afvaltaken gewoon mee in het dag- en avondoverzicht.
+
+Zet Lynn herinneringen aan, dan krijgt zij ze ook.
+**Toets:** Unit + Int
+
+### AC-212 — Geen adres of namen in meldingen, taken en logs (WP3b; BR-58, BR-12)
+GEGEVEN alle afvalmeldingen (herinneringen en storing), de pushinhoud, de taaknamen, de historie en de eigen logregels van de app bij een geslaagde en een mislukte bijwerking
+WANNEER die worden gecontroleerd
+DAN komen postcode, huisnummer, adrescode, straat en namen van leden er nergens in voor. De bak en de dag mogen er wel in staan
+**Toets:** Unit + Int
+
+### AC-213 — Afvalkalender uitzetten (WP3b; BR-56)
+GEGEVEN een bewaard adres, open afvaltaken, en afgevinkte en overgeslagen afvaltaken in de historie
+WANNEER Jurgen de afvalkalender uitzet en bevestigt
+DAN:
+- zijn het adres, de adrescode, de opgehaalde ophaaldagen en de stand van het bijwerken uit de database verdwenen;
+- zijn alle open afvaltaken verdwenen, zonder als vergeten te tellen;
+- staat de historie er nog;
+- maakt de achtergrondtaak daarna geen afvaltaken meer, en vraagt hij niets meer op bij de gemeente;
+- ziet Lynn geen "Afvalkalender staat aan" meer.
+
+Annuleert hij in de bevestiging, dan verandert er niets.
+**Toets:** DB + Int + E2E
+
+### AC-214 — Adres wijzigen (verhuizen) (WP3b; BR-56, BR-48)
+GEGEVEN een bewaard adres met open en afgevinkte afvaltaken
+WANNEER Jurgen een nieuw, geldig adres invult en bevestigt
+DAN:
+- zijn de open taken van het oude adres vervangen door die van het nieuwe adres;
+- blijven afgevinkte en overgeslagen taken ongewijzigd;
+- bestaan er nooit tegelijk taken voor beide adressen.
+
+Is het nieuwe adres ongeldig of onbekend, of annuleert hij, dan blijven het oude adres en de oude taken staan.
+**Toets:** Int
+
+### AC-215 — Handmatige taken blijven ongemoeid (WP3b; BR-57; V-56)
+GEGEVEN een handmatige reeks "Afvalcontainer buiten zetten" (elke maandag) en een losse taak "Container schoonmaken"
+WANNEER de afvalkalender wordt aangezet, bijgewerkt, gewijzigd en uitgezet
+DAN verandert er niets aan die reeks, die taak en hun uitvoeringen
+**Toets:** Int
+
+### AC-216 — Huishouden verwijderen wist het adres (WP3b; BR-58; UC-12; AC-138)
+GEGEVEN een huishouden met een bewaard adres
+WANNEER een beheerder het huishouden verwijdert (AC-138)
+DAN bestaan het adres, de adrescode, de opgehaalde ophaaldagen, de stand van het bijwerken en de afvaltaken niet meer. Andere huishoudens zijn ongemoeid
+**Toets:** DB
+
+### AC-217 — Werkt in de huidige schermen (WP3b; V-46)
+GEGEVEN de huidige interface, vóór WP4
+WANNEER het werkpakket live gaat
+DAN:
+- kan een beheerder daar het adres invoeren, controleren ("Klopt dit?"), wijzigen en uitzetten, en de stand van het bijwerken zien;
+- zijn de afvaltaken op Vandaag en in de Kalender te zien, en af te vinken, over te slaan en van een notitie te voorzien;
+- vergelijkt Jurgen bij de rooktest met zijn eigen adres de ophaaldagen met de site van de gemeente.
+
+In de nieuwe schermen (WP4 t/m WP8) moet hetzelfde kunnen.
+**Toets:** E2E (huidige build) + Live (rooktest door Jurgen)
+
+### AC-218 — Alleen het adres gaat naar de gemeente (WP3b; BR-58)
+GEGEVEN elke opvraging bij de gemeentebron (bij het instellen, bij het bijwerken en bij een wijziging)
+WANNEER het uitgaande verzoek wordt bekeken
+DAN:
+- bevat het alleen de postcode en het huisnummer, of de adrescode van de gemeente;
+- bevat het geen naam, e-mailadres, id van het huishouden, id van een lid of andere gegevens;
+- gaat het alleen naar de vaste basis-URL van de huisvuilkalender.
+**Toets:** Int + security-review
+
+### AC-219 — Alleen het systeem maakt afvaltaken (WP3b; BR-49, BR-20, BR-53)
+GEGEVEN "Gezinsleden mogen taken maken" staat uit
+WANNEER de afvalkalender plant, en daarnaast Lynn of Jurgen met een direct verzoek zelf een taak probeert aan te maken of te wijzigen zodat die als afvaltaak geldt
+DAN:
+- ontstaan de afvaltaken gewoon, zonder maker die een lid is;
+- wordt het directe verzoek geweigerd;
+- bestaat er geen door een lid gemaakte of gewijzigde afvaltaak.
+**Toets:** DB + Int
 
 ---
 
@@ -1435,29 +1817,42 @@ DAN:
 | BR-02 | AC-044, AC-066 |
 | BR-08 | AC-118, AC-119, AC-120 |
 | BR-09 | AC-006, AC-067, AC-122, AC-123 |
-| BR-10 | AC-036, AC-049, AC-097, AC-113, AC-127, AC-155 |
+| BR-10 | AC-036, AC-049, AC-097, AC-113, AC-127, AC-155, AC-191 |
 | BR-11 | AC-036, AC-037 |
-| BR-12 | AC-034, AC-038, AC-039, AC-040 |
-| BR-13 | AC-041, AC-042, AC-095, AC-096 |
+| BR-12 | AC-034, AC-038, AC-039, AC-040, AC-207, AC-212 |
+| BR-13 | AC-041, AC-042, AC-095, AC-096, AC-207 |
 | BR-14 | AC-106 |
 | BR-16 | AC-068 |
 | BR-17 | AC-069 |
 | BR-18 | AC-116 |
-| BR-20 | AC-010, AC-011, AC-080, AC-146 |
+| BR-20 | AC-010, AC-011, AC-080, AC-146, AC-219 |
 | BR-22 | AC-001 t/m AC-008, AC-119, AC-120 |
 | BR-23 | AC-012, AC-013, AC-014, AC-124 |
 | BR-24 | AC-019, AC-020, AC-021, AC-136, AC-141 |
 | BR-25 | AC-016, AC-017, AC-018, AC-159 |
-| BR-26 | AC-026, AC-027 |
+| BR-26 | AC-026, AC-027, AC-190 |
 | BR-30 | AC-063, AC-064 |
-| BR-31 | AC-052, AC-070 t/m AC-075 |
-| BR-40 | AC-117 |
+| BR-31 | AC-052, AC-070 t/m AC-075, AC-194, AC-203, AC-211 |
+| BR-40 | AC-117, AC-206 |
 | BR-41 | AC-047, AC-048 |
 | BR-42 | AC-050, AC-154 |
 | BR-43 | AC-031, AC-133 |
 | BR-44 | AC-046 |
 | BR-45 | AC-077, AC-078 |
 | BR-46 | AC-054 t/m AC-061 |
+| BR-47 | AC-186, AC-196 |
+| BR-48 | AC-183 t/m AC-189, AC-214 |
+| BR-49 | AC-183, AC-192, AC-193, AC-195, AC-219 |
+| BR-50 | AC-183, AC-191, AC-197, AC-203 |
+| BR-51 | AC-198 t/m AC-202 |
+| BR-52 | AC-204, AC-205 |
+| BR-53 | AC-207, AC-208, AC-209, AC-219 |
+| BR-54 | AC-210 |
+| BR-55 | AC-194, AC-205, AC-211 |
+| BR-56 | AC-189, AC-213, AC-214 |
+| BR-57 | AC-215 |
+| BR-58 | AC-190, AC-212, AC-216, AC-218 |
+| BR-59 | AC-206 |
 
 **Regressie op bevindingen:**
 
@@ -1481,10 +1876,10 @@ DAN:
 | P-01 | AC-090 |
 
 **Een geweigerde actie per rol:**
-- Gezinslid: AC-001, AC-012, AC-020, AC-048.
-- Uitgezet lid: AC-022.
-- Beheerder: AC-014 (de maker wijzigen), AC-019 (de laatste beheerder degraderen) en AC-021 (zichzelf uitzetten).
-- Buitenstaander: AC-026, AC-027.
+- Gezinslid: AC-001, AC-012, AC-020, AC-048; W-03: AC-189 (afvalkalender beheren), AC-190 (adres lezen), AC-208 (afvaltaak wijzigen of verwijderen), AC-219 (zelf een afvaltaak maken).
+- Uitgezet lid: AC-022; W-03: AC-189.
+- Beheerder: AC-014 (de maker wijzigen), AC-019 (de laatste beheerder degraderen) en AC-021 (zichzelf uitzetten); W-03: AC-208 (een afvaltaak wijzigen, verplaatsen of verwijderen), AC-219.
+- Buitenstaander: AC-026, AC-027; W-03: AC-190.
 
 **Verwerkte besluiten van Jurgen (V-30 t/m V-35):**
 - AC-056 en AC-061: V-33.
@@ -1517,3 +1912,22 @@ Geen. Verwerkt:
 - V-37: AC-181;
 - V-38: AC-073;
 - V-39: AC-182.
+
+**Verwerkte besluiten van Jurgen (W-03):**
+
+| Besluit | AC's |
+| --- | --- |
+| V-41 t/m V-44 | AC-183, AC-192, AC-196 |
+| V-45 | AC-183, AC-213, AC-216 |
+| V-46 | AC-217 |
+| V-47 en V-48 | AC-193, AC-194 |
+| V-49 | AC-192, AC-194 |
+| V-50 | AC-205, AC-211 |
+| V-51 | AC-195, AC-201 |
+| V-52 | AC-197 |
+| V-53 | AC-189, AC-190, AC-205 |
+| V-54 | AC-208, AC-209, AC-210 |
+| V-55 | AC-193 |
+| V-56 | AC-215 |
+
+Open bij Jurgen voor W-03: geen.

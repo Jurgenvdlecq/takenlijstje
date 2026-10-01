@@ -563,3 +563,362 @@ Afgestemd op Jurgens doel (V-19): minder vergeten, en minder gevoel van oneerlij
 - `[AANNAME]` De bestaande, geteste herhalingsregels (maandeinde, schrikkeljaar, n-de weekdag) zijn correct en blijven ongewijzigd (ook vastgelegd in PROGRESS).
 
 **Open vragen:** geen.
+
+## 14. Afvalkalender (W-03)
+
+*Bevroren op 2026-10-01 (AAE-taak W03-AFVAL-001, GO van Jurgen). Bron: `docs/wijzigingen/W-03/product-analyst-r2.md`, deel 1; taaknamen volgens UX_SPEC §13.3.*
+
+**Doel.** Het gezin heeft drie minicontainers: restafval, papier en PMD (V-55). Elke bak heeft een eigen ophaalritme, en de gemeente verschuift dat soms, bijvoorbeeld rond feestdagen. Nu moet iemand dat onthouden, en dat gaat mis ("met name door Jurgen", V-19).
+
+De app leest daarom de huisvuilkalender van de gemeente Den Haag voor het adres van het huishouden. Per ophaaldag zet hij zelf twee taken klaar:
+- de avond ervoor **buitenzetten**, met een herinnering om 21:00;
+- op de ophaaldag **binnenzetten**, vanaf 12:00, met een herinnering om 18:00.
+
+Niemand hoeft afvaltaken nog met de hand bij te houden.
+
+**Besluiten van Jurgen (bindend):**
+
+| Vraag | Besluit |
+| --- | --- |
+| V-41 | Keuze B: de app leest de kalender zelf in, uit huisvuilkalender.denhaag.nl |
+| V-43 | Alleen rest, papier en PMD; geen GFT |
+| V-42/V-44 | Herinnering om 21:00 op de avond vóór de ophaaldag |
+| V-45 | Postcode en huisnummer mogen worden bewaard |
+| V-46 | Eigen werkpakket direct na WP3, in de huidige schermen |
+| V-47 | Ook een taak "binnenzetten" op de ophaaldag, vanaf de middag |
+| V-48 | Binnenzetten vanaf 12:00, uiterlijk het einde van de ophaaldag, herinnering om 18:00 |
+| V-49 | De herinnering blijft om 21:00. De taak zegt "mag vanaf 22:00 buiten, uiterlijk 07:45" |
+| V-50 | De afvalherinnering volgt de instelling "Herinneringen". Afvaltaken krijgen geen "deadline nadert" en geen "verlopen". Lukt bijwerken meer dan 48 uur niet: één melding aan de beheerders |
+| V-51 | Meerdere bakken op één dag: één gecombineerde taak |
+| V-52 | 14 dagen vooruit |
+| V-53 | Het adres is alleen voor beheerders (invullen, wijzigen, zien). Gezinsleden zien alleen "Afvalkalender staat aan" |
+| V-54 | Afvaltaken zijn niet te hernoemen, te verplaatsen of te verwijderen. Afvinken, "bezig", een notitie en "deze keer overslaan" mogen wel. Een vergeten buitenzet-taak vervalt na de ophaaldag vanzelf |
+| V-55 | Rest, papier en PMD zijn alle drie containers, dus er is altijd een binnenzet-taak |
+| V-56 | De bestaande handmatige reeks "Afvalcontainer buiten zetten" stopt Jurgen zelf zodra de afvalkalender werkt |
+
+**Gebruikers en rollen**
+- **Beheerder** (in het ontwerp Ellen en Jurgen; op live nu alleen Jurgen, omdat leden zonder account sinds WP2b niet meer bestaan):
+  - zet de afvalkalender aan en voert het adres in;
+  - wijzigt het adres of zet de afvalkalender uit;
+  - ziet het adres en of de kalender goed wordt bijgewerkt;
+  - krijgt de storingsmelding (BR-52).
+- **Gezinslid** (Lynn en Kai, als ze een account krijgen):
+  - ziet de afvaltaken en handelt ze af, net als andere taken (BR-53);
+  - ziet in Instellingen alleen "Afvalkalender staat aan", zonder adres en zonder status (V-53).
+- **Wie het resultaat ziet zonder het te gebruiken:** de gemeente Den Haag en haar leverancier van de huisvuilkalender (Opzet). Zij krijgen bij elke opvraging alleen het adres (BR-58).
+- **Het adres hoort bij het huishouden,** niet bij de beheerder die het invoerde. Verwijdert die beheerder zijn account, dan blijft het adres staan.
+
+**Use cases**
+
+*UC-13 — Afvalkalender instellen (beheerder)*
+- **Begin:** Instellingen, onderdeel Huishouden, "Afvalkalender".
+- **Stappen:**
+  1. De beheerder vult postcode en huisnummer in, eventueel met een huisletter of toevoeging.
+  2. De app zoekt het adres op in de huisvuilkalender van Den Haag.
+  3. De app toont ter controle het gevonden adres, zoals de gemeente het teruggeeft, en de eerstvolgende ophaaldag per bak ("Klopt dit?").
+  4. De beheerder bevestigt.
+- **Eind:** het adres is bewaard, en de afvaltaken voor de komende 14 dagen staan klaar (BR-49, BR-50).
+- **Wat kan misgaan** (in al deze gevallen wordt niets bewaard, en de beheerder krijgt een duidelijke uitleg in gewone taal, BR-48):
+  - het formaat is ongeldig;
+  - het adres is onbekend, of ligt buiten Den Haag;
+  - onder dit nummer vallen meerdere adressen, en er is geen letter of toevoeging opgegeven;
+  - het adres heeft geen ophaaldagen voor rest, papier of PMD, bijvoorbeeld bij een ondergrondse container;
+  - de bron is onbereikbaar ("Probeer het later opnieuw").
+
+*UC-14 — Afvaltaken afhandelen (iedereen)*
+- **Buitenzetten:**
+  - de taak staat op de dag vóór de ophaaldag op Vandaag, gepland om 21:00, met de tekst "Mag vanaf 22:00 buiten, uiterlijk 07:45";
+  - om 21:00 komt de herinnering;
+  - wie de bak buitenzet, vinkt de taak af.
+- **Binnenzetten:**
+  - de taak staat op de ophaaldag klaar vanaf 12:00;
+  - om 18:00 komt de herinnering, als de taak nog open is;
+  - wie de bak binnenzet, vinkt de taak af.
+- Afvinken werkt zoals bij elke taak: één tik, zonder dat de app bijhoudt wie het deed (BR-12).
+- Staat de bak deze keer niet buiten, dan kan iemand buitenzetten "deze keer overslaan". Binnenzetten van dezelfde ophaaldag vervalt dan ook (BR-53).
+
+*UC-15 — Afvalkalender wijzigen of uitzetten (beheerder)*
+- Bij een verhuizing wijzigt de beheerder het adres. Hij kan de afvalkalender ook uitzetten, na een bevestiging (BR-56).
+- Daarnaast ziet de beheerder de stand van het bijwerken:
+  - wanneer de kalender voor het laatst is bijgewerkt;
+  - de eerstvolgende ophaaldag per bak;
+  - bij een storing een waarschuwing (BR-52).
+
+**Businessregels**
+
+- **BR-47 — Bron en bakken.**
+  - De enige bron is de huisvuilkalender van de gemeente Den Haag.
+  - De app maakt alleen taken voor **restafval, papier en PMD** (V-43). GFT, grofvuil, kerstbomen en andere soorten worden genegeerd, ook als de gemeente ze voor het adres noemt.
+  - Alle drie de bakken zijn containers (V-55). Elke ophaaldag geeft dus zowel buitenzetten als binnenzetten.
+  - Er is geen schakelaar per bak (zie "Bewust niet").
+
+- **BR-48 — Het adres.**
+  - Per huishouden is er hooguit **één** adres: postcode, huisnummer en een optionele huisletter of toevoeging.
+  - Alleen een **beheerder** mag het invoeren, wijzigen of verwijderen (V-53).
+  - **Invoer en controle:**
+    - De postcode wordt genormaliseerd: hoofdletters, met of zonder spatie ("2511ab" wordt "2511 AB"). Toegestaan zijn 4 cijfers (niet beginnend met 0) en 2 letters.
+    - Het huisnummer is een geheel getal van 1 t/m 99999.
+    - Een letter of toevoeging moet mogelijk zijn ("12A", "12-2", "12 bis").
+  - **Wanneer het adres wordt bewaard:** pas nadat de huisvuilkalender het adres kent, precies één adres oplevert en minstens één ophaaldag geeft voor rest, papier of PMD, én de beheerder "Klopt dit?" heeft bevestigd. — waarom: een fout adres geeft stil verkeerde of geen taken, en dan vergeet het gezin juist de bak.
+  - **Meerdere adressen onder hetzelfde nummer** (letters of toevoegingen) en geen toevoeging opgegeven: de app kiest **nooit** zelf. Hij vraagt om de letter of toevoeging.
+  - **Bron onbereikbaar tijdens het instellen:** er wordt **niets** bewaard, en de beheerder ziet "De huisvuilkalender is nu niet bereikbaar. Probeer het later opnieuw." Is er al een adres, dan blijft dat ongewijzigd.
+  - Een gezinslid (of een uitgezet lid, of iemand van buiten) kan het adres niet invoeren, wijzigen of verwijderen, ook niet met een direct verzoek.
+
+- **BR-49 — Welke taken er per ophaaldag ontstaan.** Voor elke ophaaldag D waarop minstens één van de drie bakken wordt opgehaald, maakt het systeem precies twee taken.
+  - **Buitenzetten:**
+    - gepland op D−1 om 21:00;
+    - herinnering om 21:00 (V-44);
+    - deadline: D om 07:45, de uiterste aanbiedtijd van de gemeente. Afvinken na 07:45 telt als te laat (BR-12);
+    - de taak toont "Mag vanaf 22:00 buiten, uiterlijk 07:45" (V-49). De herinnering noemt dat ook. — waarom: de herinnering komt vóór de toegestane tijd, en te vroeg buitenzetten kan een boete geven.
+  - **Binnenzetten:**
+    - gepland op D;
+    - beschikbaar vanaf D 12:00;
+    - deadline: het einde van D;
+    - herinnering om 18:00 op D (V-48);
+    - afvinken vóór 12:00 mag wel, bijvoorbeeld als de bak al vroeg geleegd en binnengezet is.
+  - **Meerdere bakken op dezelfde dag (V-51):**
+    - per richting (buiten of binnen) komt er **één** taak, met alle bakken in de naam, in de vaste volgorde restafval, papier, PMD. Bijvoorbeeld "Restafval en papier buitenzetten", of "Restafval-, papier- en PMD-bak binnenzetten" (exacte namen: UX_SPEC §13.3);
+    - er komt één herinnering, niet één per bak.
+  - **Alleen het systeem maakt afvaltaken:**
+    - de taken zijn van het hele huishouden, zonder toewijzing (V-21), en zonder maker die een lid is;
+    - de instelling "Gezinsleden mogen taken maken" (BR-20) geldt er niet voor;
+    - geen lid kan zelf een taak maken die als afvaltaak geldt. Een handmatige taak die "afval" heet, is en blijft een gewone taak (BR-57).
+  - Afvaltaken tellen mee zoals andere taken: in Vandaag, Taken, Kalender, het dag- en avondoverzicht, het Overzicht en de historie.
+
+- **BR-50 — Vooruit plannen en nooit dubbel.**
+  - Er staan altijd afvaltaken klaar voor elke ophaaldag van **vandaag t/m vandaag + 14 dagen** (V-52), net als bij BR-02. Verder vooruit worden ze niet gemaakt.
+  - Per huishouden, ophaaldag en richting (buiten of binnen) bestaat **nooit** meer dan één afvaltaak. Dat blijft zo:
+    - bij herhaald bijwerken;
+    - als twee achtergrondrondes elkaar overlappen;
+    - bij dubbel bevestigen;
+    - als twee beheerders tegelijk opslaan.
+  - Een taak waarvan het moment al voorbij is, wordt niet meer aangemaakt:
+    - buitenzetten alleen zolang het nog vóór D 07:45 is;
+    - binnenzetten alleen zolang het nog vóór het einde van D is.
+  - Een herinnering bij een laat aangemaakte taak volgt BR-31: ze komt alleen als het moment niet meer dan 90 minuten voorbij is.
+
+- **BR-51 — De gemeente-agenda is leidend.**
+  - De app controleert de agenda minstens één keer per dag. Een wijziging staat uiterlijk 24 uur later in de app.
+  - **Open** afvaltaken (niet afgevinkt en niet overgeslagen) volgen de agenda:
+    - een verschoven ophaaldag verschuift de taken mee, bijvoorbeeld bij een feestdag;
+    - verdwijnt een ophaaldag, dan vervallen de open taken. Ze tellen niet als vergeten of overgeslagen, en komen niet in de historie;
+    - bij een nieuwe ophaaldag komen er taken bij;
+    - komt er op een dag een bak bij of valt er een weg, dan past de naam van de open gecombineerde taak zich aan.
+  - Afgevinkte en overgeslagen afvaltaken worden bij het bijwerken **nooit** gewijzigd of verwijderd.
+  - Is buitenzetten al afgevinkt, en verdwijnt of verschuift de ophaaldag daarna, dan **blijft binnenzetten** voor die dag staan: de bak staat immers buiten. Bij een verschuiving komen er ook taken voor de nieuwe dag.
+
+- **BR-52 — Nooit gokken, nooit stil falen.**
+  - **De bron is onbereikbaar of geeft onbruikbare gegevens:**
+    - de afvaltaken en het adres blijven ongewijzigd;
+    - de app maakt **nooit** zelf ophaaldagen aan op basis van een vermoed patroon;
+    - de andere taken van de achtergrondtaak lopen gewoon door;
+    - later volgt een nieuwe poging.
+  - **Een volledig leeg antwoord:** geeft de bron voor alle drie de bakken samen geen enkele ophaaldag in de komende 14 dagen, terwijl er eerder wel ophaaldagen in dat bereik bekend waren, dan geldt dat als storing, en niet als "alle ophaaldagen vervallen". Bijvoorbeeld bij de jaarwisseling, als de nieuwe kalender nog niet online staat.
+    - Een enkele bak zonder ophaaldagen geldt **niet** als storing. Voorbeeld: papier wordt van 19 december tot 5 januari niet opgehaald.
+  - **Langer dan 48 uur geen geslaagde bijwerking** (V-50), of een volledig leeg antwoord zoals hierboven:
+    - de beheerders zien in Instellingen "Afvalkalender niet bijgewerkt sinds <datum>";
+    - elke actieve beheerder krijgt **één** melding: "De afvalkalender kon niet worden bijgewerkt. Kijk voor de zekerheid zelf op de site van de gemeente." De melding linkt naar Instellingen (BR-25) en wordt pas opnieuw verstuurd na een nieuwe storing.
+    - Gezinsleden krijgen geen melding en zien geen waarschuwing (V-53).
+  - **Lukt het weer,** dan verdwijnt de waarschuwing en wordt de planning aangevuld.
+  - — waarom: stil wegvallende taken zijn erger dan geen functie, omdat het gezin erop vertrouwt.
+
+- **BR-53 — Wat leden met afvaltaken mogen (V-54).**
+  - **Mag, voor iedereen in het huishouden:**
+    - afvinken;
+    - terugdraaien (BR-13);
+    - "bezig" (BR-14);
+    - een notitie plaatsen;
+    - "deze keer overslaan", en dat ongedaan maken.
+  - **Mag niet, voor niemand (ook niet voor een beheerder):**
+    - hernoemen;
+    - datum of tijd wijzigen;
+    - verplaatsen;
+    - verwijderen;
+    - andere details wijzigen (omschrijving, deadline, herinneringen, prioriteit);
+    - omzetten naar een terugkerende taak.
+  - De gemeente bepaalt de dag. Dit wijkt voor afvaltaken af van BR-23.
+  - **Overslaan werkt door:** slaat iemand buitenzetten over, dan wordt binnenzetten van dezelfde ophaaldag ook overgeslagen. Wordt dat overslaan ongedaan gemaakt, dan staan beide weer open. Dit geldt niet voor het automatisch vervallen uit BR-54.
+  - **Los afvinken:** buitenzetten en binnenzetten worden los van elkaar afgevinkt en teruggedraaid. Het ene sluit het andere niet af.
+
+- **BR-54 — Verlopen en vervallen.**
+  - **Buitenzetten:**
+    - verlopen na D 07:45 (BR-17);
+    - niet afgevinkt aan het einde van D? Dan wordt de taak vanzelf "overgeslagen", en telt als vergeten (V-54, vergelijk BR-16).
+    - Binnenzetten van die dag blijft daarbij gewoon staan.
+  - **Binnenzetten:**
+    - verlopen na het einde van D;
+    - blijft bij Verlopen staan tot iemand de taak afvinkt, of tot de dag van de volgende buitenzet-taak begint. Dan wordt hij vanzelf overgeslagen, en telt als vergeten.
+
+- **BR-55 — Meldingen (V-50).**
+  - **Herinneringen:**
+    - de herinneringen van 21:00 (buitenzetten) en 18:00 (binnenzetten) volgen ieders bestaande instelling "Herinneringen" (BR-31, V-23): standaard aan voor beheerders, standaard uit voor gezinsleden. Er is geen aparte schakelaar;
+    - een herinnering komt alleen als de taak op dat moment nog open is (niet afgevinkt en niet overgeslagen).
+  - Afvaltaken krijgen **geen** "deadline nadert" en **geen** "verlopen". — waarom: die zouden onder meer om 05:45 's nachts komen.
+  - Verder gelden de regels van BR-31:
+    - versturen binnen 90 minuten na het moment, anders vervalt de melding;
+    - nooit dubbel;
+    - "taak gedaan" volgens de eigen instelling.
+  - De storingsmelding uit BR-52 gaat naar elke actieve beheerder, ongeacht zijn meldingsvoorkeuren, en per push als die voor dat apparaat aan staat.
+  - Meldingsteksten noemen de bak en de dag, **nooit het adres** en nooit de naam van een lid.
+
+- **BR-56 — Uitzetten en adres wijzigen.**
+  - **Uitzetten** door een beheerder, na een bevestiging:
+    - het adres, de opgehaalde ophaaldagen en de stand van het bijwerken worden direct gewist;
+    - alle open afvaltaken vervallen, zonder als vergeten te tellen;
+    - afgevinkte en overgeslagen afvaltaken blijven in de historie (BR-12);
+    - weer aanzetten betekent het adres opnieuw invoeren (UC-13).
+  - **Adres wijzigen:**
+    - het nieuwe adres doorloopt dezelfde controle (BR-48);
+    - pas na de bevestiging vervallen de open afvaltaken van het oude adres, en komen de taken voor het nieuwe adres ervoor in de plaats;
+    - mislukt de controle, of annuleert de beheerder, dan blijven het oude adres en de oude taken ongewijzigd.
+
+- **BR-57 — Handmatige taken blijven ongemoeid (V-56).**
+  - De afvalkalender raakt bestaande, handmatig gemaakte taken en reeksen **nooit** aan, ook niet als ze "afval", "container" of "bak" heten. De app herkent ze niet.
+  - De bestaande reeks "Afvalcontainer buiten zetten" op live stopt Jurgen zelf zodra de afvalkalender werkt. De bouwer herinnert hem daar na de livegang één keer aan.
+  - Tot Jurgen de reeks stopt, staan er dubbele afvaltaken. Dat is bewust geaccepteerd.
+
+- **BR-58 — Privacy van het adres (V-45, V-53).**
+  - **Wat bewaard wordt:**
+    - alleen postcode, huisnummer, huisletter of toevoeging, en de adrescode die de gemeente teruggeeft (BAG-id);
+    - straat en plaats worden **niet** bewaard. Ze worden alleen getoond bij "Klopt dit?".
+  - **Wie het adres ziet:** het adres en de adrescode zijn alleen zichtbaar voor **beheerders** van het eigen huishouden (V-53).
+    - Gezinsleden zien alleen of de afvalkalender aan staat.
+    - Andere huishoudens zien **nooit** iets (BR-26).
+    - Dit wijkt af van §7 ("ieder lid ziet alles").
+  - **Wat naar buiten gaat:** alleen het adres of de adrescode, en alleen naar de huisvuilkalender van Den Haag. Nooit met een naam, e-mailadres, id van het huishouden of andere gegevens.
+  - **Waar het adres nooit komt:**
+    - in meldingen;
+    - in pushinhoud;
+    - in taaknamen of de historie;
+    - in de eigen logregels van de app (BR-12).
+  - **Wanneer het verdwijnt:** bij uitzetten (BR-56) en bij het verwijderen van het huishouden.
+
+- **BR-59 — Tijd.**
+  - Alle momenten zijn kloktijden in Europe/Amsterdam (BR-40): 21:00, 22:00, 07:45, 12:00, 18:00 en het einde van de dag.
+  - Ze blijven dezelfde kloktijd bij de overgang naar zomer- of wintertijd, ook als die overgang tussen D−1 21:00 en D 07:45 valt.
+
+### 14.1 Aanvullingen op bestaande secties (W-03)
+
+Deze aanvullingen gelden naast de tekst van §5 t/m §13 en gaan bij strijd voor.
+
+**§5, onderaan "Overig", één regel erbij:**
+> - **BR-47 t/m BR-59 — Afvalkalender:** zie §14 (W-03).
+
+**§5, notities achter bestaande regels (bewuste afwijkingen voor afvaltaken):**
+- **Achter BR-23:** *(voor afvaltaken geldt BR-53: niemand wijzigt, verplaatst of verwijdert ze)*
+- **Achter BR-30:**
+  - *(sinds W-03 doet de achtergrondtaak ook: de afvalkalender minstens één keer per dag bijwerken en de afvaltaken plannen, BR-50 t/m BR-52)*;
+  - de zin "Hij doet vier dingen" wordt "Hij doet vijf dingen".
+- **Achter BR-31:** *(afvaltaken: geen "deadline nadert" en geen "verlopen"; wel de storingsmelding voor beheerders, BR-52 en BR-55)*
+
+**§6 Randgevallen, rijen erbij:**
+
+| Geval | Bedoeld gedrag |
+| --- | --- |
+| Ophaaldag verschoven door een feestdag | Open afvaltaken schuiven mee (BR-51) |
+| Twee of drie bakken op dezelfde dag | Eén buitenzet-taak en één binnenzet-taak, met alle bakken in de naam (BR-49) |
+| Ophaaldag verdwijnt uit de agenda | Open taken vervallen, zonder als vergeten te tellen. Was buitenzetten al afgevinkt, dan blijft binnenzetten staan (BR-51) |
+| Nieuwe ophaaldag pas laat ontdekt | De taak komt er alsnog. De herinnering gaat mee als het moment niet meer dan 90 minuten voorbij is. Na D 07:45 komt er geen buitenzet-taak meer, na het einde van D geen binnenzet-taak (BR-50) |
+| Adres ongeldig, buiten Den Haag, zonder bakken, of dubbelzinnig | Niets bewaard, met uitleg; bij een dubbelzinnig adres de vraag om een letter of toevoeging (BR-48) |
+| Bron onbereikbaar bij instellen | Niets bewaard: "Probeer het later opnieuw" (BR-48) |
+| Bron onbereikbaar tijdens het bijwerken | Niets gewijzigd en niets verzonnen. Na 48 uur een waarschuwing en één melding aan de beheerders (BR-52) |
+| Jaarwisseling zonder nieuwe kalender | Hetzelfde als een onbereikbare bron (BR-52) |
+| Papier wordt rond de kerst niet opgehaald | Geen storing. Er zijn gewoon geen papiertaken (BR-52) |
+| Buitenzetten vergeten | Na D 07:45 verlopen, aan het einde van D vanzelf overgeslagen (telt als vergeten). Binnenzetten blijft staan (BR-54) |
+| Bak deze keer niet buitengezet | "Deze keer overslaan" bij buitenzetten slaat binnenzetten ook over (BR-53) |
+| Zomer- of wintertijd | Dezelfde kloktijden (BR-59) |
+| Twee beheerders slaan tegelijk een adres op | Het laatst bevestigde adres geldt. Er zijn nooit taken voor twee adressen tegelijk (BR-50) |
+| Handmatige afvalreeks bestaat ook | Blijft ongemoeid, dus dubbel tot Jurgen hem stopt (BR-57) |
+
+**§7 Rollen en rechten, rijen erbij in de tabel:**
+
+| Actie | Beheerder | Gezinslid |
+| --- | --- | --- |
+| Afvalkalender aanzetten, adres invoeren of wijzigen, uitzetten | Ja | Nee |
+| Adres zien | Ja | Nee: alleen "Afvalkalender staat aan" (V-53) |
+| Stand van het bijwerken zien (laatste keer gelukt, waarschuwing) | Ja | Nee |
+| Storingsmelding afvalkalender ontvangen | Ja | Nee |
+| Afvaltaak afvinken, terugdraaien, bezig, notitie, deze keer overslaan | Ja | Ja |
+| Afvaltaak hernoemen, wijzigen, verplaatsen, verwijderen, omzetten naar een reeks | Nee | Nee (BR-53) |
+| Zelf een afvaltaak aanmaken | Nee, alleen het systeem | Nee, alleen het systeem |
+
+**§7, bij "Mag nooit", erbij:**
+- een gezinslid ziet het adres van het huishouden;
+- iemand wijzigt, verplaatst of verwijdert een afvaltaak.
+
+**§7, bij "Isolatie", de tweede regel wordt:**
+> Binnen het huishouden ziet ieder lid alles, **behalve** de meldingen, meldingsvoorkeuren en pushapparaten van een ander, en het adres van de afvalkalender (alleen voor beheerders, V-53).
+
+**§8 Gegevens, rijen erbij in de tabel:**
+
+| Gegeven | Waarom nodig | Bron | Persoonsgegeven | Bewaren tot |
+| --- | --- | --- | --- | --- |
+| Adres afvalkalender (postcode, huisnummer, letter of toevoeging) | Ophaaldagen opvragen | Beheerder | Ja: het woonadres van een gezin met minderjarigen | Tot uitzetten of het verwijderen van het huishouden (BR-56, BR-58) |
+| Adrescode van de gemeente (BAG-id) | Ophaaldagen opvragen zonder steeds het adres te sturen | Gemeente Den Haag | Ja, want hij wijst één adres aan. Zelfde behandeling als het adres | Als het adres |
+| Opgehaalde ophaaldagen (datum, bak) | Taken maken en wijzigingen herkennen | Gemeente Den Haag | Nee (alleen via het adres herleidbaar) | Alleen komende dagen. Voorbije dagen worden opgeruimd; ze leven voort als taak of historie |
+| Stand van het bijwerken (laatste poging, laatste succes, foutcode, storingsmelding verstuurd ja/nee) | Beheerders waarschuwen (BR-52) | Systeem | Nee | Tot uitzetten |
+| Afvaltaken en hun afvinkingen | Zoals bij andere taken | Systeem | Nee | Zoals bij andere taken (BR-45) |
+
+**§8, bij "Bewust niet opgeslagen", erbij:**
+- straat en plaats van het adres;
+- coördinaten;
+- de ruwe antwoorden van de gemeentebron.
+
+**§8, bij "Externe partijen", erbij:**
+- **Gemeente Den Haag, via haar leverancier van de huisvuilkalender (Opzet):**
+  - krijgt bij elke opvraging het adres of de adrescode, vanaf de server van de app, minstens één keer per dag;
+  - krijgt geen namen, e-mailadressen of andere gegevens van het huishouden;
+  - de app gebruikt de openbare gegevens van de site. Er is geen officiële koppeling of overeenkomst.
+
+**§9 Afhankelijkheden, rijen erbij:**
+
+| Afhankelijkheid | Waarvoor | Risico |
+| --- | --- | --- |
+| Huisvuilkalender Den Haag (platform Opzet) | Ophaaldagen per adres | Onofficiële, ongedocumenteerde bron: kan zonder aankondiging veranderen of uitvallen. Opvang via BR-52. Vanuit de ontwikkelomgeving nu niet bereikbaar (V-57) |
+| Planner elke 15 minuten (WP3) | Dagelijks bijwerken, planning en herinneringen om 21:00 en 18:00 | Zonder WP3 geen tijdige herinnering. Daarom komt dit werkpakket na WP3 (V-46) |
+
+**§10 Bewust niet:**
+
+De regel over agendakoppelingen wordt:
+> - **Agenda-, smart home- en WhatsApp/e-mailkoppelingen:** "na de MVP". Elke koppeling brengt geheimen, externe verplichtingen en extra review mee. **Uitzondering:** de afvalkalender van de gemeente Den Haag (W-03, besluit van Jurgen, §14).
+
+Erbij:
+- **GFT, grofvuil, kerstbomen en de berichten van de gemeente over storingen:** Jurgen noemde alleen rest, papier en PMD (V-43).
+- **Andere gemeenten of meerdere adressen:** alleen het eigen gezin in Den Haag (V-05, V-08).
+- **Een schakelaar per bak, of eigen tijden per bak:** drie vaste bakken en vaste tijden houden het eenvoudig. Niemand heeft erom gevraagd.
+- **Afvaltaken zelf wijzigen of verplaatsen:** de gemeente bepaalt de dag, en een verplaatste taak is niet meer bij te houden (V-54).
+- **Koppeling met Google-agenda, of export als iCal:** vraagt een extra inlogkoppeling (W-03, optie verworpen).
+- **Handmatige afvaltaken automatisch herkennen en opruimen:** de app zou op titels moeten gokken, en dan kan er een verkeerde taak verdwijnen (BR-57, V-56).
+- **Een melding "bak niet opgehaald":** de app weet niet of de gemeente de bak echt geleegd heeft.
+- **Controleren of de bak op de toegestane tijd buiten staat:** de app kan dat niet weten. Hij noemt alleen de regel (BR-49).
+
+**§11 Succescriteria, erbij als "Afvalkalender (W-03)":** drie maanden na de livegang van WP3b, gecontroleerd door de bouwer op dag 30 en dag 90, met alleen-lezen queries. Het resultaat komt in `docs/PROGRESS.md`.
+1. **Compleet:** elke ophaaldag van rest, papier en PMD in de gemeente-agenda binnen de komende 14 dagen heeft precies één buitenzet-taak en één binnenzet-taak, met de juiste bakken in de naam. Dit wordt gecontroleerd door het te vergelijken met de site van de gemeente.
+2. **Op tijd buiten:** minstens 90% van de buitenzet-taken in die periode is vóór 07:45 op de ophaaldag afgevinkt. Dat is af te lezen aan "te laat" in de historie.
+3. **Betrouwbaar:**
+   - geen dubbele afvaltaken;
+   - geen ophaaldag die stil ontbrak;
+   - elke storing van meer dan 48 uur was voor de beheerders zichtbaar (BR-52).
+4. **Ervaren:** Jurgen geeft aan dat er in die drie maanden geen bak is blijven staan doordat iemand hem vergat. Dat is een gesprek, geen meting.
+
+**§12 Verwerkte antwoorden, rijen erbij:**
+
+| Vraag | Antwoord (zie `docs/PROGRESS.md`) | Verwerkt in |
+| --- | --- | --- |
+| V-41 t/m V-44 | Keuze B, bron Den Haag, rest/papier/PMD, herinnering om 21:00 | §14, BR-47, BR-49 |
+| V-45 | Het adres mag worden bewaard | BR-48, BR-58, §8 |
+| V-46 | Eigen werkpakket na WP3, in de huidige schermen | §9, AC-217 |
+| V-47 | Ook binnenzetten, vanaf de middag | BR-49 |
+| V-48 | Binnenzetten vanaf 12:00, uiterlijk het einde van de dag, herinnering 18:00 | BR-49, BR-55 |
+| V-49 | Herinnering om 21:00, met de tekst "mag vanaf 22:00 buiten, uiterlijk 07:45" | BR-49 |
+| V-50 | Volgt "Herinneringen"; geen "deadline nadert" of "verlopen"; storing > 48 uur: één melding aan de beheerders | BR-52, BR-55 |
+| V-51 | Eén gecombineerde taak per dag | BR-49 |
+| V-52 | 14 dagen vooruit | BR-50 |
+| V-53 | Adres alleen voor beheerders | BR-48, BR-58, §7 |
+| V-54 | Niet hernoemen, verplaatsen of verwijderen; wel afvinken, bezig, notitie, overslaan; vergeten buitenzetten vervalt vanzelf | BR-53, BR-54 |
+| V-55 | Alle drie containers | BR-47, BR-49 |
+| V-56 | Jurgen stopt de handmatige reeks zelf | BR-57 |
+| V-57 | Uitleg over de netwerkinstelling (technisch) | §9 |
+
+**§13 Aannames, erbij:**
+- `[AANNAME]` De taaknamen gebruiken de woorden "Restafval", "Papier" en "PMD" plus "buitenzetten" of "binnenzetten". De precieze woorden en de categorie kiest de product-designer (UX_SPEC §13.3, exacte namen). De regel "één taak met alle bakken in de naam" staat vast (BR-49).
