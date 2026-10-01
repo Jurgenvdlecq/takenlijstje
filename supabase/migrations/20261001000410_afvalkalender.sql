@@ -454,6 +454,7 @@ declare
   v_household uuid;
   v_removed integer;
 begin
+  -- Eén lidmaatschap per account (BR-44: unique (user_id)), dus hooguit één huishouden
   select m.household_id into v_household
   from public.household_members m
   where m.user_id = (select auth.uid()) and m.is_active and m.role = 'admin';

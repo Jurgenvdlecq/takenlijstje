@@ -1297,10 +1297,10 @@ Nieuwe stap in `runTick`, **tussen "overslaan" en "meldingen"**. Zo krijgt een n
    - **Toepassen:** RPC `waste_sync` alleen als er een ophaaluitkomst is of het plan niet leeg is.
    - **Verlopen (BR-54):** `findExpiredWasteTasks(tasks, today)`. Update `status = 'skipped'` met de service role, alleen waar de taak nog open is (zelfde patroon als `skipAllSuperseded`, in blokken van 200):
      - `out` open en vandaag > D → `skipped` (telt als vergeten);
-     - `in` open, vandaag > D (dus al verlopen) **en** er bestaat een `out`-taak met `waste_pickup_date > D` en `scheduled_date ≤ vandaag` → `skipped`.
+     - `in` open, vandaag > D (dus al verlopen) **en** de dag van de volgende buitenzet-taak is begonnen: er bestaat een `out`-taak met `waste_pickup_date > D` en `scheduled_date ≤ vandaag`, **of** een bekende ophaaldag D′ > D (uit `pickups`, alle bakken) met D′ − 1 ≤ vandaag → `skipped`. Het tweede deel dekt meer dan 14 dagen tussen ophaaldagen (code-review W-03).
      - "Al verlopen" is een voorwaarde: bij ophaaldagen op twee opeenvolgende dagen zou binnenzetten anders al vervallen op de ophaaldag zelf (AC-210).
    - **Storing:** `wasteSyncHealth` na de stap. Bij `failed` volgt `dispatcher.notify` met de storingsmelding (§18.9.3).
-4. Tellingen in `TickReport.waste = { calendars, fetched, fetchFailed, inserted, renamed, removed, expired, alerted }`. De log bevat alleen die tellingen en de foutcode.
+4. Tellingen in `TickReport.waste = { calendars, fetched, fetchFailed, inserted, renamed, removed, expired, alerted, failed }`. De log bevat alleen die tellingen en de foutcode. Elke kalender heeft een eigen try/catch: een fout bij één huishouden telt in `failed` en houdt de andere niet tegen (code-review W-03).
 
 - **BR-16 (`skipAllSuperseded`)** raakt afvaltaken niet: die hebben geen `recurrence_id`.
 - **Het Vercel-vangnet (1×/dag, 07:30)** draait dezelfde tick en dekt dus ook de dagelijkse ophaalstap als pg_cron stilvalt.

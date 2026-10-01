@@ -39,6 +39,8 @@ export interface WasteStepReport {
   removed: number;
   expired: number;
   alerted: number;
+  /** Huishoudens waarbij de stap een fout gaf (de andere gingen door) */
+  failed: number;
 }
 
 async function loadWasteTasks(db: DbClient, householdIds: string[], today: string): Promise<WasteTaskRow[]> {
@@ -214,7 +216,7 @@ export async function retryWasteSync(
 
 /** Tick-stap "afval" (§18.8.6), tussen "overslaan" en "meldingen" */
 export async function runWasteStep(db: DbClient, now: Date, tickStarted: number, deps?: SourceDeps): Promise<WasteStepReport> {
-  const report: WasteStepReport = { calendars: 0, fetched: 0, fetchFailed: 0, inserted: 0, renamed: 0, removed: 0, expired: 0, alerted: 0 };
+  const report: WasteStepReport = { calendars: 0, fetched: 0, fetchFailed: 0, inserted: 0, renamed: 0, removed: 0, expired: 0, alerted: 0, failed: 0 };
   const calendars = check(await db.from("waste_calendars").select("*")) as WasteCalendarRow[];
   report.calendars = calendars.length;
   if (!calendars.length) return report;
@@ -227,41 +229,63 @@ export async function runWasteStep(db: DbClient, now: Date, tickStarted: number,
   );
 
   for (const cal of calendars) {
-    const own = tasks.filter((t) => t.household_id === cal.household_id);
-    const fetch = dueForFetch(cal, now, TZ) && Date.now() - tickStarted < FETCH_START_LIMIT_MS;
-    const outcome = await syncCalendar(db, cal, own, now, { fetch, deps });
-    if (outcome.claimed) report.fetched++;
-    if (outcome.result === "failure") report.fetchFailed++;
-    report.inserted += outcome.inserted;
-    report.renamed += outcome.renamed;
-    report.removed += outcome.removed;
-
-    // Vervallen (BR-54): alleen wat nog open is; automatisch, dus zonder doorwerking (BR-53)
-    const expired = findExpiredWasteTasks(own, today);
-    for (const ids of chunks(expired)) {
-      const rows = check(
-        await db
-          .from("tasks")
-          .update({ status: "skipped" })
-          .in("id", ids)
-          .eq("household_id", cal.household_id)
-          .in("status", ["todo", "in_progress"])
-          .select("id"),
-      );
-      report.expired += rows.length;
-    }
-
-    // Storing (BR-52): één melding per storing aan de actieve beheerders (dedupe op last_success_at)
-    const current = outcome.result ? ((await loadCalendar(db, cal.household_id)) ?? cal) : cal;
-    const health = wasteSyncHealth(current, now);
-    if (health.state === "failed") {
-      const message = wasteFailureMessage(health.reason, current.last_success_at, TZ);
-      await notify({
-        householdId: cal.household_id,
-        message: { type: "waste_sync_failed", title: message.title, body: message.body, url: WASTE_SETTINGS_URL, dedupeKey: message.dedupeKey },
-      });
-      report.alerted++;
+    // Een fout bij één huishouden houdt de andere niet tegen (code-review W-03); alleen een code in de log
+    try {
+      await stepForCalendar(db, cal, tasks, now, today, tickStarted, report, deps);
+    } catch (error) {
+      report.failed++;
+      const e = error as { code?: string; name?: string };
+      console.error(`[waste] huishouden overgeslagen: ${e?.code ?? e?.name ?? "fout"}`);
     }
   }
   return report;
+}
+
+async function stepForCalendar(
+  db: DbClient,
+  cal: WasteCalendarRow,
+  tasks: WasteTaskRow[],
+  now: Date,
+  today: string,
+  tickStarted: number,
+  report: WasteStepReport,
+  deps?: SourceDeps,
+) {
+  const own = tasks.filter((t) => t.household_id === cal.household_id);
+  const fetch = dueForFetch(cal, now, TZ) && Date.now() - tickStarted < FETCH_START_LIMIT_MS;
+  const outcome = await syncCalendar(db, cal, own, now, { fetch, deps });
+  if (outcome.claimed) report.fetched++;
+  if (outcome.result === "failure") report.fetchFailed++;
+  report.inserted += outcome.inserted;
+  report.renamed += outcome.renamed;
+  report.removed += outcome.removed;
+  const current = outcome.result ? ((await loadCalendar(db, cal.household_id)) ?? cal) : cal;
+
+  // Vervallen (BR-54): alleen wat nog open is; automatisch, dus zonder doorwerking (BR-53)
+  const pickupDates = Object.values(current.pickups ?? {}).flat();
+  const expired = findExpiredWasteTasks(own, today, pickupDates);
+  for (const ids of chunks(expired)) {
+    const rows = check(
+      await db
+        .from("tasks")
+        .update({ status: "skipped" })
+        .in("id", ids)
+        .eq("household_id", cal.household_id)
+        .in("status", ["todo", "in_progress"])
+        .select("id"),
+    );
+    report.expired += rows.length;
+  }
+
+  // Storing (BR-52): één melding per storing aan de actieve beheerders. De dispatcher
+  // ontdubbelt op waste-failed:<last_success_at>; "alerted" telt dus pogingen, geen nieuwe meldingen.
+  const health = wasteSyncHealth(current, now);
+  if (health.state === "failed") {
+    const message = wasteFailureMessage(health.reason, current.last_success_at, TZ);
+    await notify({
+      householdId: cal.household_id,
+      message: { type: "waste_sync_failed", title: message.title, body: message.body, url: WASTE_SETTINGS_URL, dedupeKey: message.dedupeKey },
+    });
+    report.alerted++;
+  }
 }

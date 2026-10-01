@@ -247,6 +247,11 @@ describe("findExpiredWasteTasks (BR-54, AC-210)", () => {
   it("gedane taken vervallen nooit", () => {
     expect(findExpiredWasteTasks([t("o6", "2026-10-06", "out", "done"), t("i6", "2026-10-06", "in", "done")], "2026-10-20")).toEqual([]);
   });
+  it("meer dan 14 dagen tot de volgende ophaaldag: binnenzetten vervalt op de dag vóór die ophaaldag, ook zonder taak", () => {
+    const list = [t("o6", "2026-10-06", "out", "done"), t("i6", "2026-10-06", "in")];
+    expect(findExpiredWasteTasks(list, "2026-10-20", ["2026-10-27"])).toEqual([]);
+    expect(findExpiredWasteTasks(list, "2026-10-26", ["2026-10-27"])).toEqual(["i6"]);
+  });
   it("opeenvolgende ophaaldagen: binnenzetten vervalt niet op de ophaaldag zelf", () => {
     const list = [t("o6", "2026-10-06", "out"), t("i6", "2026-10-06", "in"), t("o7", "2026-10-07", "out"), t("i7", "2026-10-07", "in")];
     // di 6 okt: o7 staat gepland op di 6 okt, maar binnenzetten van di is nog niet verlopen

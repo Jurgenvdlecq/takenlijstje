@@ -12,7 +12,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const idLike = z.union([z.string(), z.number()]).transform((v) => String(v).trim());
 const optionalText = z
-  .union([z.string(), z.number(), z.null()])
+  .union([z.string().max(120), z.number(), z.null()])
   .optional()
   .transform((v) => (v === null || v === undefined ? null : String(v).trim() || null));
 
