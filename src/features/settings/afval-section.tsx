@@ -80,8 +80,7 @@ export function AfvalSection() {
   const [settings, setSettings] = React.useState<WasteSettings | null>(null);
   const [loadFailed, setLoadFailed] = React.useState(false);
 
-  const load = React.useCallback(async () => {
-    const result = await call(() => getWasteSettingsAction());
+  const apply = React.useCallback((result: ActionResult<WasteSettings> | null) => {
     if (result?.ok) {
       setSettings(result.data);
       setLoadFailed(false);
@@ -90,9 +89,17 @@ export function AfvalSection() {
     }
   }, []);
 
+  const load = React.useCallback(async () => apply(await call(() => getWasteSettingsAction())), [apply]);
+
   React.useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    call(() => getWasteSettingsAction()).then((result) => {
+      if (!cancelled) apply(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apply]);
 
   const title = "Afvalkalender";
   if (!settings) {
@@ -156,15 +163,12 @@ function AdminAfval({
   openWasteTasks: number;
   onChanged: () => Promise<void>;
 }) {
-  const [editing, setEditing] = React.useState(!settings.enabled);
+  // Uit = altijd het formulier; aan = status, tenzij de beheerder het adres wijzigt
+  const [changing, setChanging] = React.useState(false);
+  const editing = changing || !settings.enabled;
   const [confirmOff, setConfirmOff] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
-  const [notice, setNotice] = React.useState<Notice>(null);
   const [showTip, setShowTip] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!settings.enabled) setEditing(true);
-  }, [settings.enabled]);
 
   async function retry() {
     setBusy(true);
@@ -194,7 +198,7 @@ function AdminAfval({
           changing={settings.enabled}
           initial={settings.enabled ? { postcode: settings.postcode, houseNumber: String(settings.houseNumber), suffix: settings.suffix } : null}
           online={online}
-          onCancel={settings.enabled ? () => setEditing(false) : undefined}
+          onCancel={settings.enabled ? () => setChanging(false) : undefined}
           onSaved={async () => {
             if (!settings.enabled) {
               let hidden = false;
@@ -205,7 +209,7 @@ function AdminAfval({
               }
               setShowTip(!hidden);
             }
-            setEditing(false);
+            setChanging(false);
             await onChanged();
           }}
         />
@@ -251,7 +255,7 @@ function AdminAfval({
               {formatPostcode(settings.postcode)} {houseLabel(settings.houseNumber, settings.suffix)}
             </span>
           </div>
-          <Button variant="ghost" size="sm" disabled={!online} onClick={() => setEditing(true)}>
+          <Button variant="ghost" size="sm" disabled={!online} onClick={() => setChanging(true)}>
             Wijzigen
           </Button>
         </div>
@@ -295,7 +299,6 @@ function AdminAfval({
           Afvalkalender uitzetten…
         </Button>
         {!online && <p className="text-xs text-muted-foreground">{OFFLINE_HINT}</p>}
-        {notice && <p className="text-sm text-destructive">{notice.text}</p>}
       </div>
 
       {/* I — bevestiging uitzetten */}
@@ -313,7 +316,7 @@ function AdminAfval({
             <Button variant="ghost" disabled={busy} onClick={() => setConfirmOff(false)}>
               Annuleren
             </Button>
-            <Button variant="destructive" disabled={busy || !online} onClick={() => void disable().then(() => setNotice(null))}>
+            <Button variant="destructive" disabled={busy || !online} onClick={() => void disable()}>
               {busy ? "Bezig…" : "Uitzetten"}
             </Button>
           </DialogFooter>

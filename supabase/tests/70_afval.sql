@@ -216,10 +216,11 @@ select pg_temp.expect_sqlstate($q$select public.disable_waste_calendar()$q$, '42
 select pg_temp.als(:'u_kai');
 select pg_temp.expect_sqlstate($q$select public.disable_waste_calendar()$q$, '42501', 'AC-189: uitgezet lid zet uit');
 select pg_temp.als(:'u_bas');
-select pg_temp.expect_sqlstate($q$select public.disable_waste_calendar()$q$, '42501', 'AC-189: beheerder van ander huishouden zonder afvalkalender zet uit');
+-- Een beheerder van een ander huishouden zet alleen zijn eigen (lege) afvalkalender uit
+select pg_temp.assert(public.disable_waste_calendar() = 0, 'BR-26: uitzetten door Bas raakt alleen zijn eigen huishouden');
 reset role;
 select pg_temp.systeem();
-select pg_temp.assert(pg_temp.kalender(:'fam') is not null and pg_temp.afvaltaken(:'fam') = 6, 'AC-189: na alle weigeringen niets veranderd');
+select pg_temp.assert((pg_temp.kalender(:'fam')).household_id is not null and pg_temp.afvaltaken(:'fam') = 6, 'AC-189: na alle weigeringen niets veranderd');
 
 -- =============================================================================
 -- Alleen het systeem maakt afvaltaken (AC-219), ook met aanmaken uit
@@ -425,7 +426,7 @@ select public.delete_household('Familie Afval');
 reset role; select pg_temp.systeem();
 select pg_temp.assert(pg_temp.kalender(:'fam') is null and (select count(*) = 0 from public.tasks where household_id = :'fam'),
   'AC-216: adres en afvaltaken van het verwijderde huishouden weg');
-select pg_temp.assert(pg_temp.kalender(:'buren') is not null and pg_temp.afvaltaken(:'buren') = 1, 'AC-216: ander huishouden ongemoeid');
+select pg_temp.assert((pg_temp.kalender(:'buren')).household_id is not null and pg_temp.afvaltaken(:'buren') = 1, 'AC-216: ander huishouden ongemoeid');
 
 \o
 select 'WP3b: afvalkalender (…_400, …_410) geslaagd' as resultaat;

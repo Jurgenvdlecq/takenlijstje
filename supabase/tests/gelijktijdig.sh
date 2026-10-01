@@ -115,8 +115,8 @@ afval_save() {
     from public.households h join public.household_members m on m.household_id = h.id
     where h.name = 'Gelijk twee' and m.user_id = '60000000-0000-0000-0000-0000000000a5'"
 }
-race 60000000-0000-0000-0000-0000000000a5 60000000-0000-0000-0000-0000000000a5 \
-  "$(afval_save 2511AB 0518200000000011 rest)" "$(afval_save 2512AB 0518200000000012 pmd)" eigenaar
+# Lege sub = geen ingelogde gebruiker, zoals de service role (de guard laat alleen het systeem afvaltaken maken)
+race "" "" "$(afval_save 2511AB 0518200000000011 rest)" "$(afval_save 2512AB 0518200000000012 pmd)" eigenaar
 
 "${P[@]}" <<'SQL'
 \o /dev/null

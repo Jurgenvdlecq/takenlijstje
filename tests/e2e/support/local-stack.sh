@@ -17,14 +17,37 @@ mkdir -p "$STATE"
 
 psql_admin() { su postgres -c "psql -v ON_ERROR_STOP=1 -q -X $*"; }
 
+GOTRUE_BIN=${GOTRUE_BIN:-/opt/takenlijstje-gotrue/auth}
+GOTRUE_MIGRATIONS=${GOTRUE_MIGRATIONS:-/opt/takenlijstje-gotrue/migrations}
+
+# PostgreSQL starten als hij (bijv. na een herstart van de container) niet draait
+ensure_pg() {
+  su postgres -c "psql -Xqtc 'select 1'" > /dev/null 2>&1 && return 0
+  if command -v pg_lsclusters > /dev/null 2>&1; then
+    local cluster
+    cluster=$(pg_lsclusters -h | awk 'NR==1{print $1" "$2}')
+    [[ -n "$cluster" ]] && pg_ctlcluster $cluster start || true
+  fi
+  for _ in $(seq 1 30); do
+    su postgres -c "psql -Xqtc 'select 1'" > /dev/null 2>&1 && { echo "PostgreSQL gestart"; return 0; }
+    sleep 0.5
+  done
+  echo "PostgreSQL start niet"; exit 1
+}
+
 stop() {
-  for name in gotrue gateway; do
+  for name in gotrue gateway waste-stub; do
     if [[ -f "$STATE/$name.pid" ]]; then kill "$(cat "$STATE/$name.pid")" 2>/dev/null || true; rm -f "$STATE/$name.pid"; fi
   done
 }
 
 start() {
   stop
+  ensure_pg
+  [[ -x "$GOTRUE_BIN" && -d "$GOTRUE_MIGRATIONS" ]] || {
+    echo "Supabase Auth (GoTrue) ontbreekt in $GOTRUE_BIN; zie scripts/dev/setup-local-stack.sh"
+    exit 1
+  }
   psql_admin "-d postgres -c \"alter user postgres password '${PGPASS}'\""
   psql_admin "-d postgres -c 'drop database if exists ${DB} with (force)' -c 'create database ${DB}'"
   psql_admin "-d ${DB}" <<'SQL'
@@ -79,7 +102,10 @@ SQL
     curl -s http://127.0.0.1:54321/rest/v1/task_templates?select=id\&limit=1 > /dev/null && break
     sleep 0.25
   done
-  echo "✓ Lokale stack draait (gateway http://127.0.0.1:54321)"
+  # Nagebootste huisvuilkalender (W-03); start de app met WASTE_SOURCE_BASE_URL=http://127.0.0.1:4010
+  WASTE_STUB_PORT=4010 nohup node tests/e2e/support/waste-stub.mjs > "$STATE/waste-stub.log" 2>&1 &
+  echo $! > "$STATE/waste-stub.pid"
+  echo "✓ Lokale stack draait (gateway http://127.0.0.1:54321, afval-stub http://127.0.0.1:4010)"
 }
 
 case "${1:-start}" in
