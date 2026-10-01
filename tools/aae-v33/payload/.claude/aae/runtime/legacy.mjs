@@ -88,7 +88,8 @@ export function importLegacy(root) {
     }
     const st = newState(t.id); st.legacy = true; st.contract = c;
     const hash = envelopeHash(c);
-    const goedgekeurd = lt.approval?.digest === lt.digest;
+    // Goedgekeurd alleen met een echte digest en als TASK.json gelijk is aan het contract dat bij die goedkeuring hoort (een buiten de hook om gewijzigd bestand telt niet).
+    const goedgekeurd = typeof lt.digest === 'string' && lt.digest.length > 0 && lt.approval?.digest === lt.digest && Boolean(lt.contract) && stable(lt.contract) === stable(t);
     st.usage = {agents: lt.usage?.agents || 0, commands: lt.usage?.commands || 0, external: lt.usage?.external || 0};
     st.command_counts = {...(lt.command_counts || {})};
     st.receipts = (lt.command_receipts || []).map(r => ({...r, envelope_hash: r.route_digest === lt.digest ? hash : null}));

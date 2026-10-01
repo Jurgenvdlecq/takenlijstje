@@ -15,13 +15,16 @@ export function dirtyPaths(root, paths) {
   const r = git(root, ['status', '--porcelain', '--untracked-files=all', '--', ...paths]);
   return r.code === 0 ? r.out.split('\n').filter(Boolean).map(l => l.slice(3)) : ['(git status mislukt)'];
 }
+// Falen is hier nooit "geen bestanden": een commit zonder werkende geheimencontrole mag niet doorgaan.
 export function candidateFiles(root, paths) {
   const r = spawnSync('git', ['ls-files', '-o', '-m', '--exclude-standard', '-z', '--', ...paths], {cwd: root, encoding: 'utf8', shell: false, timeout: 30000});
-  return r.status === 0 ? (r.stdout || '').split('\0').filter(Boolean) : [];
+  if (r.status !== 0) throw new Error('Geheimencontrole niet mogelijk: git ls-files faalde (' + String(r.stderr || r.error || 'time-out').slice(0, 120) + ').');
+  return (r.stdout || '').split('\0').filter(Boolean);
 }
 export function stagedFiles(root) {
   const r = spawnSync('git', ['diff', '--cached', '--name-only', '-z'], {cwd: root, encoding: 'utf8', shell: false, timeout: 30000});
-  return r.status === 0 ? (r.stdout || '').split('\0').filter(Boolean) : [];
+  if (r.status !== 0) throw new Error('Geheimencontrole niet mogelijk: git diff --cached faalde (' + String(r.stderr || r.error || 'time-out').slice(0, 120) + ').');
+  return (r.stdout || '').split('\0').filter(Boolean);
 }
 
 // Namen en inhoud die nooit in een commit horen. De inhoud van een treffer wordt nooit getoond of bewaard.

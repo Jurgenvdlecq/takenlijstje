@@ -180,15 +180,25 @@ test('DB-klassen (review): DO-blokken, EXECUTE, CALL en E-strings kunnen een des
   assert.equal(k("CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();"), 'B', 'EXECUTE FUNCTION is een gewone trigger');
   assert.equal(k("INSERT INTO a (b) VALUES (E'it\\'s fine');"), 'A', 'een gewone E-string blijft leesbaar');
 });
+test('DB-klassen (review ronde 3): een string die op commentaar lijkt, verbergt geen destructief statement; WITH/MERGE met DELETE is C', () => {
+  const k = s => classifyDb(s).klasse;
+  for (const s of ["SELECT '--';\nDROP TABLE t;\nSELECT '--'", "SELECT '/*'; DROP TABLE t; SELECT '*/'", "SELECT '--', 1; DROP TABLE t; -- x", 'SELECT 1; /* a /* geneste */ b */ DROP TABLE t;',
+    'WITH x AS (DELETE FROM t RETURNING 1) SELECT 1', 'MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE', 'WITH x AS (UPDATE t SET a = 1 RETURNING 1) SELECT * FROM x']) assert.equal(k(s), 'C', s);
+  assert.equal(k("INSERT INTO a (b) VALUES ('--'); INSERT INTO a (b) VALUES ('/*');"), 'A', 'strings met streepjes of sterretjes blijven gewoon strings');
+  for (const s of ["SELECT '--';\nDROP TABLE t;\nSELECT '--'", "SELECT '/*'; DROP TABLE t; SELECT '*/'", "SELECT 1 /* open", "SELECT 'open"]) assert.notEqual(classifySql(s).level, 'read', s);
+  assert.equal(classifySql("SELECT 'a--b' AS x").level, 'read'); assert.equal(classifySql('SELECT $1').level, 'read');
+});
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
   executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'k0'})), /zelf heeft gemaakt/);
-  pre(root, 'mcp__github__create_pull_request', {base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'k1'});
-  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: {}, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
+  const maak = {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'};
+  pre(root, 'mcp__github__create_pull_request', maak, {tool_use_id: 'k1'});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: maak, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
   assert.deepEqual(st(root).created_prs, [12]);
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 99}, {tool_use_id: 'k2'})), /zelf heeft gemaakt/);
-  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 12}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'andere', pullNumber: 12}, {tool_use_id: 'k4'})), /dezelfde repository/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
 }));
 test('review: een bevestiging overleeft een pauze niet', met(root => {
   run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});

@@ -213,6 +213,8 @@ function preExternal(root, e, call) {
   if (call.provider === 'github' && call.level === 'merge') {
     const nr = Number(input.pullNumber ?? input.pull_number);
     requireThat(Number.isInteger(nr) && (st.created_prs || []).includes(nr), 'merge_pull_request alleen voor een pull request die dit werkpakket zelf heeft gemaakt (een nummer uit de respons van create_pull_request).');
+    const rec = st.created_pr_repo; // dezelfde repository als waar de pull request is gemaakt
+    requireThat(!rec || (input.owner === rec.owner && input.repo === rec.repo), 'merge_pull_request moet naar dezelfde repository (owner/repo) wijzen als create_pull_request.');
     assertGate(root, st, c, 'merge');
   }
   st.usage.external++;
@@ -279,7 +281,7 @@ function externalLifecycle(root, e) {
       else { st.supabase_verified = {ref, at: now()}; log(st, 'supabase_project_geverifieerd', {project_ref: ref}); }
     }
   }
-  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) st.created_prs = [...new Set([...(st.created_prs || []), nr])]; }
+  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) { st.created_prs = [...new Set([...(st.created_prs || []), nr])]; st.created_pr_repo = {owner: e.tool_input?.owner, repo: e.tool_input?.repo}; } }
   const index = st.external_receipts.length + 1;
   const receipt = {schema_version: 1, id: st.id, envelope_hash: envelopeHash(st.contract), provider: row.provider, action: row.action, level: row.level, status: row.status, summary: row.summary, result_digest: row.result_digest, observed_project_ref: row.observed_project_ref || null, finished: row.finished};
   const rp = 'docs/aae/evidence/' + st.id + '/external-' + index + '.json'; atomicJson(root, rp, receipt);

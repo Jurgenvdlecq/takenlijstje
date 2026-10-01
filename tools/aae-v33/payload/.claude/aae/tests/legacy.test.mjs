@@ -37,7 +37,7 @@ function v32Task(over = {}) {
   };
 }
 function v32State(t, over = {}) {
-  return {version: 3, integrations: {}, task: {id: t.id, digest: 'd1d1d1', approval: {digest: 'd1d1d1', at: '2026-09-30T10:00:00.000Z'}, status: 'active', result: null, usage: {agents: 1, commands: 2, external: 0}, command_counts: {t_local: 2},
+  return {version: 3, integrations: {}, task: {id: t.id, digest: 'd1d1d1', contract: structuredClone(t), approval: {digest: 'd1d1d1', at: '2026-09-30T10:00:00.000Z'}, status: 'active', result: null, usage: {agents: 1, commands: 2, external: 0}, command_counts: {t_local: 2},
     command_receipts: [{command_id: 't_local', exit_code: 0, route_digest: 'd1d1d1', evidence_path: 'docs/aae/evidence/AAE-OUD-1/run-1.json'}], approved_commands: {}, external_calls: {}, external_receipts: [],
     calls: {'tu-oud': {role: 'aae-security-reviewer', status: 'stopped', agent_id: 'oud12345', at: '2026-09-30T10:05:00.000Z', finished: '2026-09-30T10:06:00.000Z', source_digest: 's1', task_digest: 'd1d1d1', reported_status: 'READY', report_summary: 'Geen blokkerende bevindingen.'}}, ...over}};
 }
@@ -108,6 +108,14 @@ test('review: een actieve v3.2-route zonder (geldige) goedkeuring wordt NIET sti
     assert.equal(st(root2, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL', 'een goedkeuring van een oud contract geldt niet');
     assert.ok(denies(() => write(root2, 'src/x.js')), 'zonder GO geen schrijfrechten');
   } finally { cleanup(root2); }
+}));
+test('review ronde 3: een TASK.json die niet gelijk is aan het goedgekeurde contract, of een ontbrekende digest, wordt niet als goedgekeurd overgenomen', met(root => {
+  const t = v32Task(), s = v32State(t); t.goal = 'Buiten de hook om aangepast doel dat nooit is goedgekeurd door de gebruiker.';
+  zet(root, t, s); importLegacy(root);
+  assert.equal(st(root, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL');
+  const root2 = fixture();
+  try { const t2 = v32Task(), s2 = v32State(t2); delete s2.task.digest; delete s2.task.approval; zet(root2, t2, s2); importLegacy(root2); assert.equal(st(root2, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL', 'undefined === undefined is geen goedkeuring'); }
+  finally { cleanup(root2); }
 }));
 test('legacy: een v3.2-route zonder GO-eis wordt alleen LIGHT automatisch overgenomen', met(root => {
   const t = v32Task({approval_required: false, risk: 'low', mode: 'lean', risk_flags: []}); t.test_plan = t.test_plan.filter(x => ['scope', 'functional', 'regression'].includes(x.kind));

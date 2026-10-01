@@ -10,6 +10,7 @@ import {runCommand, reportTemplate, closeTask} from '../runtime/runner.mjs';
 import {validateContract, clock} from '../runtime/core.mjs';
 import {assertGate} from '../runtime/gates.mjs';
 import {plainSummary} from '../runtime/commands.mjs';
+import {candidateFiles, stagedFiles} from '../runtime/gitops.mjs';
 import {contractFile} from '../runtime/state.mjs';
 
 const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
@@ -254,6 +255,12 @@ test('review: een commit neemt geen geheimen mee (bestandsnaam of inhoud); .env.
   assert.equal((await runCommand(root, 'stage')).exit_code, 0);
   fs.writeFileSync(path.join(root, 'src/geheim.pem'), 'x'); sh(root, 'add', '-f', 'src/geheim.pem');
   assert.match(await msg(runCommand(root, 'commit')), /Mogelijk geheim.*geheim\.pem/, 'ook wat al klaarstaat wordt bij de commit gecontroleerd');
+}));
+test('review ronde 3: een mislukte git-aanroep in de geheimencontrole is nooit "geen bestanden" (faalt gesloten)', met(async root => {
+  assert.throws(() => candidateFiles(root, ['src']), /Geheimencontrole niet mogelijk/);
+  assert.throws(() => stagedFiles(root), /Geheimencontrole niet mogelijk/);
+  executing(root, metCmds([C('stage', ['git', 'add', '-A', '--', 'src'], 'commit')], [], {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}));
+  assert.match(await msg(runCommand(root, 'stage')), /Geheimencontrole niet mogelijk/);
 }));
 test('R29 een wijziging in een bewaakt script binnen het gebied laat een lokaal commando goedgekeurd', met(async root => {
   fs.writeFileSync(path.join(root, 'src/check.js'), 'console.log(1)');

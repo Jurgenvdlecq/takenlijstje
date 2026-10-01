@@ -37,7 +37,7 @@ function zetRoute(dir) {
     scope: {read: ['src'], write: ['src']}, acceptance: [{id: 'AC1', text: 'De oude route blijft werken na de overgang.'}],
     test_plan: [{kind: 'scope', method: 'inspection', description: 'Controleer de wijzigingen.'}, {kind: 'functional', method: 'command', description: 'Draai de tests.'}, {kind: 'regression', method: 'command', description: 'Draai de regressietests.'}],
     agents: [], commands: [cmd('t_local', ['node', '--test', 'src/ok.test.mjs'], 'test')], budget: {agent_calls: 2, max_parallel: 1, command_runs: 20, external_calls: 0}, approval_required: true, design_freeze: false, integrations: {}, decision_points: []};
-  const s = {version: 3, integrations: {}, task: {id: t.id, digest: 'd1d1d1', approval: {digest: 'd1d1d1', at: '2026-09-30T10:00:00.000Z'}, status: 'active', usage: {agents: 0, commands: 2, external: 0}, command_counts: {t_local: 2}, command_receipts: [], approved_commands: {}, external_calls: {}, external_receipts: [], calls: {}}};
+  const s = {version: 3, integrations: {}, task: {id: t.id, digest: 'd1d1d1', contract: structuredClone(t), approval: {digest: 'd1d1d1', at: '2026-09-30T10:00:00.000Z'}, status: 'active', usage: {agents: 0, commands: 2, external: 0}, command_counts: {t_local: 2}, command_receipts: [], approved_commands: {}, external_calls: {}, external_receipts: [], calls: {}}};
   fs.mkdirSync(path.join(dir, 'docs/aae'), {recursive: true});
   fs.writeFileSync(path.join(dir, 'docs/aae/TASK.json'), JSON.stringify(t, null, 2)); fs.writeFileSync(path.join(dir, '.claude/aae/state/local.json'), JSON.stringify(s, null, 2));
   fs.writeFileSync(path.join(dir, 'src/ok.test.mjs'), "import test from 'node:test';\ntest('ok', () => {});\n");
