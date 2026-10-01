@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BellRing,
   CalendarClock,
   CheckIcon,
   Clock,
@@ -9,6 +10,7 @@ import {
   Pause,
   Pencil,
   Play,
+  Recycle,
   Repeat,
   RotateCcw,
   SkipForward,
@@ -18,6 +20,9 @@ import * as React from "react";
 import { todayIn, zonedDate } from "@/domain/dates";
 import { describeRule } from "@/domain/recurrence/rule";
 import { deadlineText, displayStatus, PRIORITY_LABELS, relativeDayLabel, STATUS_LABELS } from "@/domain/status";
+import { eveningBefore } from "@/domain/waste/display";
+import { shortDay, WASTE_EXPLANATION } from "@/domain/waste/messages";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -51,7 +56,9 @@ export function TaskDetailSheet() {
   return (
     <Dialog open={!!openTaskId} onOpenChange={(o) => !o && closeTask()}>
       <DialogContent aria-describedby={undefined}>
-        {task ? (
+        {task?.waste_direction ? (
+          <WasteTaskDetail task={task} />
+        ) : task ? (
           <TaskDetail task={task} />
         ) : (
           <DialogHeader>
@@ -71,6 +78,126 @@ function InfoRow({ icon: Icon, label, children }: { icon: React.ComponentType<{ 
       <span className="w-28 shrink-0 text-sm text-muted-foreground">{label}</span>
       <div className="min-w-0 flex-1 text-sm font-medium">{children}</div>
     </div>
+  );
+}
+
+/**
+ * Afvaltaak (W-03, UX_SPEC §13.6): afvinken, bezig en overslaan; verplaatsen,
+ * bewerken en verwijderen bestaan hier niet (V-54). Geen ⋯-menu en geen "Vorige keren".
+ */
+function WasteTaskDetail({ task }: { task: TaskRow }) {
+  const { snapshot } = useHousehold();
+  const { closeTask } = useTaskUi();
+  const actions = useTaskActions();
+  const now = useNow();
+  const tz = snapshot.household.timezone;
+  const pickup = task.waste_pickup_date!;
+  const out = task.waste_direction === "out";
+  const status = displayStatus({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
+  const done = task.status === "done";
+  const open = task.status === "todo" || task.status === "in_progress";
+  const day = (date: string) => shortDay(`${date}T12:00:00Z`, "UTC");
+  const time = (iso: string) =>
+    new Intl.DateTimeFormat("nl-NL", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: tz }).format(new Date(iso));
+
+  return (
+    <>
+      <DialogHeader>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABELS[status]}</Badge>
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Recycle className="size-3.5" aria-hidden /> Afvalkalender · ophaaldag {day(pickup)}
+          </span>
+        </div>
+        <DialogTitle className="mt-1 text-xl">{task.title}</DialogTitle>
+      </DialogHeader>
+
+      <DialogBody className="grid gap-5">
+        <div className="grid gap-2">
+          {done ? (
+            <Button size="lg" variant="secondary" onClick={() => void actions.undo(task.id)}>
+              <RotateCcw /> Terugzetten
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="bg-done text-white hover:bg-done/90"
+              disabled={task.status === "skipped"}
+              onClick={async () => {
+                const ok = await actions.complete(task);
+                if (ok) closeTask();
+              }}
+            >
+              <CheckIcon strokeWidth={3} /> Afvinken
+            </Button>
+          )}
+          {open && (
+            <div className="grid grid-cols-2 gap-2">
+              {task.status === "todo" ? (
+                <Button variant="outline" onClick={() => void actions.start(task.id)}>
+                  <Play /> Ik ben ermee bezig
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={() => void actions.reopen(task.id)}>
+                  <RotateCcw /> Niet meer bezig
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => void actions.skip(task.id, task)}>
+                <SkipForward /> Deze keer overslaan
+              </Button>
+            </div>
+          )}
+          {task.status === "skipped" && (
+            <Button variant="outline" onClick={() => void actions.reopen(task.id)}>
+              <RotateCcw /> Toch nog doen
+            </Button>
+          )}
+        </div>
+
+        <div className="divide-y rounded-2xl border px-3.5">
+          {out ? (
+            <>
+              <InfoRow icon={CalendarClock} label="Buiten zetten">
+                {day(eveningBefore(pickup))} vanaf 22:00
+              </InfoRow>
+              {task.due_at && (
+                <InfoRow icon={Hourglass} label="Uiterlijk">
+                  <span className={cn("font-semibold", status === "overdue" && "text-overdue")}>
+                    {day(pickup)} {time(task.due_at)}
+                  </span>
+                </InfoRow>
+              )}
+              <InfoRow icon={BellRing} label="Herinnering">
+                {day(eveningBefore(pickup))} 21:00
+              </InfoRow>
+            </>
+          ) : (
+            <>
+              <InfoRow icon={CalendarClock} label="Opgehaald">
+                {day(pickup)}
+              </InfoRow>
+              <InfoRow icon={Clock} label="Binnenzetten">
+                vanaf 12:00
+              </InfoRow>
+              <InfoRow icon={Hourglass} label="Uiterlijk">
+                <span className={cn("font-semibold", status === "overdue" && "text-overdue")}>{day(pickup)}, einde van de dag</span>
+              </InfoRow>
+              <InfoRow icon={BellRing} label="Herinnering">
+                {day(pickup)} 18:00
+              </InfoRow>
+            </>
+          )}
+          {done && task.completed_at && (
+            <InfoRow icon={CheckIcon} label="Gedaan">
+              {shortDay(task.completed_at, tz)} {time(task.completed_at)}
+            </InfoRow>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">{WASTE_EXPLANATION}</p>
+
+        <TaskComments taskId={task.id} />
+      </DialogBody>
+    </>
   );
 }
 

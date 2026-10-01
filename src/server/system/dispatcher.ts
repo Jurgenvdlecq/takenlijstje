@@ -49,10 +49,11 @@ export async function notify({ householdId, memberIds, message }: NotifyOptions)
     const db = createAdminClient();
     // check(): een mislukte query komt in de catch en wordt gelogd (code-review WP3, punt 10)
     const [members, prefs] = await Promise.all([
-      db.from("household_members").select("id, user_id, is_active").eq("household_id", householdId).then(check),
+      db.from("household_members").select("id, user_id, is_active, role").eq("household_id", householdId).then(check),
       db.from("user_preferences").select("*").eq("household_id", householdId).then(check),
     ]);
-    const memberRows = members as Pick<MemberRow, "id" | "user_id" | "is_active">[];
+    // De rol is nodig voor de storingsmelding van de afvalkalender (alleen beheerders, W-03)
+    const memberRows = members as Pick<MemberRow, "id" | "user_id" | "is_active" | "role">[];
     const prefRows = prefs as PreferencesRow[];
 
     const recipients: Recipient[] = recipientsFor(message.type, memberRows, prefRows)

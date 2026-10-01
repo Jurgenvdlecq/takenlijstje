@@ -70,7 +70,25 @@ export const mutations = {
 
   setStatus: {
     offline: true,
-    optimistic: (s, p) => patchTask(s, p.taskId, { status: p.status }),
+    optimistic: (s, p) => {
+      const task = s.tasks.find((t) => t.id === p.taskId);
+      const next = patchTask(s, p.taskId, { status: p.status });
+      if (!task || task.waste_direction !== "out" || task.status === p.status) return next;
+      // Afvalkalender (BR-53): buitenzetten overslaan neemt binnenzetten van dezelfde
+      // ophaaldag mee, ongedaan maken zet het terug. De server (trigger) is leidend.
+      const open = (status: string) => status === "todo" || status === "in_progress";
+      const skipping = open(task.status) && p.status === "skipped";
+      const reopening = task.status === "skipped" && open(p.status);
+      if (!skipping && !reopening) return next;
+      return {
+        ...next,
+        tasks: next.tasks.map((t) =>
+          t.waste_direction === "in" && t.waste_pickup_date === task.waste_pickup_date && (skipping ? open(t.status) : t.status === "skipped")
+            ? { ...t, status: skipping ? "skipped" : "todo" }
+            : t,
+        ),
+      };
+    },
     send: (p) => postOutbox("setStatus", p),
   } satisfies MutationDef<{ taskId: string; status: Exclude<TaskStatus, "done"> }>,
 

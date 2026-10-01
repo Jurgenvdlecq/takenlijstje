@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Moon,
+  Recycle,
   Settings2,
   Sun,
   type LucideIcon,
@@ -34,6 +35,8 @@ const TYPE_STYLE: Record<NotificationType, TypeStyle> = {
   task_completed: { icon: CheckCircle2, className: "bg-done-bg text-done", label: "Gedaan" },
   daily_summary: { icon: Sun, className: "bg-today-bg text-today", label: "Dagoverzicht" },
   evening_summary: { icon: Moon, className: "bg-progress-bg text-progress", label: "Avondoverzicht" },
+  // Geen rood: het is geen fout van de gebruiker (UX_SPEC §13.7.5)
+  waste_sync_failed: { icon: Recycle, className: "bg-muted text-muted-foreground", label: "Afvalkalender" },
 };
 
 /** Oude meldingen van vervallen soorten (tot ze in WP2b verdwijnen) krijgen een neutrale stijl */

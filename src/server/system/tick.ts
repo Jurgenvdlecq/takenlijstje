@@ -5,6 +5,7 @@ import "server-only";
  * via Vercel; TECHNICAL_DESIGN §11.3). Set-gebaseerd over alle huishoudens:
  *  1. planning van terugkerende taken aanvullen
  *  2. verlopen reekstaken die zijn ingehaald overslaan (BR-16)
+ *  2b. afvalkalender bijwerken, afvaltaken plannen en laten vervallen (W-03, §18.8.6)
  *  3. herinneringen, deadline-waarschuwingen, verlopen-meldingen en overzichten
  *  4. bewaartermijnen (run_purge, BR-45)
  * Elke stap heeft een eigen try/catch: een fout in de ene blokkeert de andere
@@ -13,6 +14,7 @@ import "server-only";
 import { addDays, todayIn } from "@/domain/dates";
 import { recipientsFor, summaryMessages, taskMessages, type DueMessage, type ReminderPrefs } from "@/domain/reminders";
 import { isOverdue } from "@/domain/status";
+import { wasteReminder } from "@/domain/waste/messages";
 import type { NotificationMessage } from "@/server/notifications/types";
 import type { MemberRow, PreferencesRow, TaskRow } from "@/types/database";
 import { check } from "../errors";
@@ -20,6 +22,7 @@ import { chunks, HOUSEHOLD_TIMEZONE, planAllSeries, selectAll, skipAllSuperseded
 import { createAdminClient } from "./admin-client";
 import { PUSH_CONCURRENCY, PUSH_TIMEOUT_MS, runLimited, sendPush, type PushSubscriptionRow } from "./channels/web-push";
 import { toRow } from "./dispatcher";
+import { runWasteStep, type WasteStepReport } from "./waste/sync";
 
 /** Na zoveel ms geen nieuwe pushes meer starten (§11.3); de functie mag 60 s */
 const PUSH_BUDGET_MS = 45_000;
@@ -38,6 +41,8 @@ export interface TickReport {
   notified: number;
   pushed: number;
   purged: Record<string, number> | null;
+  /** Afvalkalender (W-03): alleen tellingen */
+  waste?: WasteStepReport | null;
   /** Namen van stappen die faalden (alleen codes, geen gegevens) */
   failed: string[];
 }
@@ -60,7 +65,7 @@ function errorCode(error: unknown): string {
 export async function runTick(now = new Date()): Promise<TickReport> {
   const started = Date.now();
   const db = createAdminClient();
-  const report: TickReport = { households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, failed: [] };
+  const report: TickReport = { households: 0, planned: 0, skipped: 0, notified: 0, pushed: 0, purged: null, waste: null, failed: [] };
 
   const step = async (name: string, work: () => Promise<void>) => {
     try {
@@ -76,6 +81,10 @@ export async function runTick(now = new Date()): Promise<TickReport> {
   });
   await step("overslaan", async () => {
     report.skipped = await skipAllSuperseded(db, now);
+  });
+  // Tussen overslaan en meldingen: een net aangemaakte afvaltaak krijgt in dezelfde tick zijn herinnering
+  await step("afval", async () => {
+    report.waste = await runWasteStep(db, now, started);
   });
   await step("meldingen", async () => {
     const result = await sendDueMessages(db, now, started + PUSH_BUDGET_MS);
@@ -94,14 +103,24 @@ export async function runTick(now = new Date()): Promise<TickReport> {
 
   console.info(
     `[tick] plannen=${report.planned} overslaan=${report.skipped} meldingen=${report.notified} push=${report.pushed}` +
-      ` opruimen=${JSON.stringify(report.purged)} mislukt=${report.failed.join(",") || "-"} duur=${Date.now() - started}ms`,
+      ` afval=${JSON.stringify(report.waste)} opruimen=${JSON.stringify(report.purged)} mislukt=${report.failed.join(",") || "-"} duur=${Date.now() - started}ms`,
   );
   return report;
 }
 
 type OpenTask = Pick<
   TaskRow,
-  "id" | "household_id" | "title" | "status" | "scheduled_date" | "scheduled_time" | "due_at" | "reminder_minutes_before"
+  | "id"
+  | "household_id"
+  | "title"
+  | "status"
+  | "scheduled_date"
+  | "scheduled_time"
+  | "due_at"
+  | "reminder_minutes_before"
+  | "waste_direction"
+  | "waste_pickup_date"
+  | "waste_streams"
 >;
 
 interface Pending {
@@ -120,7 +139,9 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
     selectAll<OpenTask>((from, to) =>
       db
         .from("tasks")
-        .select("id, household_id, title, status, scheduled_date, scheduled_time, due_at, reminder_minutes_before")
+        .select(
+          "id, household_id, title, status, scheduled_date, scheduled_time, due_at, reminder_minutes_before, waste_direction, waste_pickup_date, waste_streams",
+        )
         .is("deleted_at", null)
         .in("status", ["todo", "in_progress"])
         .lte("scheduled_date", addDays(latestToday, READ_AHEAD_DAYS))
@@ -159,6 +180,23 @@ async function sendDueMessages(db: ReturnType<typeof createAdminClient>, now: Da
 
     const ownTasks = tasks.filter((t) => t.household_id === household.id);
     for (const task of ownTasks) {
+      // Afvaltaken: alleen de eigen herinnering (21:00 / 18:00), nooit deadline of verlopen (V-50)
+      if (task.waste_direction && task.waste_pickup_date) {
+        const messages = wasteReminder(
+          {
+            id: task.id,
+            title: task.title,
+            status: task.status,
+            waste_direction: task.waste_direction,
+            waste_pickup_date: task.waste_pickup_date,
+            waste_streams: task.waste_streams ?? [],
+          },
+          now,
+          tz,
+        );
+        for (const member of own) for (const message of messages) add(member.id, message);
+        continue;
+      }
       for (const member of own) {
         const messages = taskMessages(
           {

@@ -101,6 +101,22 @@ race 60000000-0000-0000-0000-0000000000a3 60000000-0000-0000-0000-0000000000a3 \
 # 3. twee uitnodigingen tegelijk accepteren
 race 60000000-0000-0000-0000-0000000000a4 60000000-0000-0000-0000-0000000000a4 \
   "select public.accept_invitation('gelijk-tok-d1', 'D')" "select public.accept_invitation('gelijk-tok-d2', 'D')"
+# 6. (W-03, AC-191) twee keer tegelijk een afvaladres opslaan (systeem, zoals na requireAdmin):
+#    het slot op het huishouden serialiseert; precies één adres en alleen taken van dat adres
+afval_save() {
+  local postcode="$1" bag="$2" bak="$3"
+  echo "select public.waste_save(h.id, m.id, '$postcode', 1, '', '$bag', jsonb_build_object('$bak', jsonb_build_array()),
+    jsonb_build_array(
+      jsonb_build_object('title', 'Afval buitenzetten', 'description', 'x', 'scheduled_date', current_date + 1, 'scheduled_time', '21:00',
+        'due_at', now() + interval '2 days', 'waste_pickup_date', current_date + 2, 'waste_direction', 'out', 'waste_streams', jsonb_build_array('$bak')),
+      jsonb_build_object('title', 'Afvalbak binnenzetten', 'description', 'x', 'scheduled_date', current_date + 2,
+        'due_at', now() + interval '3 days', 'waste_pickup_date', current_date + 2, 'waste_direction', 'in', 'waste_streams', jsonb_build_array('$bak'))),
+    now())
+    from public.households h join public.household_members m on m.household_id = h.id
+    where h.name = 'Gelijk twee' and m.user_id = '60000000-0000-0000-0000-0000000000a5'"
+}
+race 60000000-0000-0000-0000-0000000000a5 60000000-0000-0000-0000-0000000000a5 \
+  "$(afval_save 2511AB 0518200000000011 rest)" "$(afval_save 2512AB 0518200000000012 pmd)" eigenaar
 
 "${P[@]}" <<'SQL'
 \o /dev/null
@@ -131,6 +147,23 @@ begin
   select count(*) into v_d from public.household_members where user_id = '60000000-0000-0000-0000-0000000000a4';
   if v_d <> 1 then
     raise exception 'ASSERT MISLUKT: BR-44 gelijktijdig: % lidmaatschappen na twee uitnodigingen tegelijk', v_d;
+  end if;
+  -- 6. afvaladres tegelijk opslaan (AC-191)
+  select count(*) into v_t from public.waste_calendars w join public.households h on h.id = w.household_id where h.name = 'Gelijk twee';
+  if v_t <> 1 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % adressen na twee keer tegelijk opslaan', v_t;
+  end if;
+  select count(*) into v_t
+  from public.tasks t join public.households h on h.id = t.household_id join public.waste_calendars w on w.household_id = h.id
+  where h.name = 'Gelijk twee' and t.waste_direction is not null
+    and t.waste_streams <> case when w.postcode = '2511AB' then array['rest'] else array['pmd'] end;
+  if v_t <> 0 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % afvaltaken van het andere adres', v_t;
+  end if;
+  select count(*) into v_t from public.tasks t join public.households h on h.id = t.household_id
+  where h.name = 'Gelijk twee' and t.waste_direction is not null;
+  if v_t <> 2 then
+    raise exception 'ASSERT MISLUKT: AC-191 gelijktijdig: % afvaltaken (verwacht 2: één buiten, één binnen)', v_t;
   end if;
 end;
 $$;

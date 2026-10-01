@@ -146,30 +146,39 @@ export function summaryMessages(
   return messages;
 }
 
-/** Welke voorkeur bepaalt of iemand een soort melding wil ontvangen */
-export const PREFERENCE_FOR_TYPE: Record<NotificationType, keyof PreferencesRow> = {
+/**
+ * Welke voorkeur bepaalt of iemand een soort melding wil ontvangen. De
+ * storingsmelding van de afvalkalender heeft bewust geen voorkeur: die gaat
+ * altijd naar de beheerders (W-03, BR-52) en staat daarom niet in deze lijst;
+ * recipientsFor behandelt hem apart.
+ */
+export const PREFERENCE_FOR_TYPE = ({
   reminder: "notify_reminders",
   deadline_soon: "notify_deadline_soon",
   overdue: "notify_overdue",
   task_completed: "notify_task_completed",
   daily_summary: "daily_summary_enabled",
   evening_summary: "evening_summary_enabled",
-};
+} satisfies Record<Exclude<NotificationType, "waste_sync_failed">, keyof PreferencesRow>) as Record<NotificationType, keyof PreferencesRow>;
 
 /**
  * Wie krijgt deze soort melding: ieder actief lid met een account dat de
  * voorkeur aan heeft staan (V-23). Er is bewust geen parameter voor wie iets
  * deed: "taak gedaan" gaat ook naar wie afvinkte, zodat uit de ontvangers niet
  * is af te leiden wie het was (V-38a).
+ *
+ * Uitzondering: de storingsmelding van de afvalkalender gaat naar ieder actief
+ * lid met account en de rol beheerder, los van de voorkeuren (W-03, BR-52).
  */
 export function recipientsFor(
   type: NotificationType,
-  members: Pick<MemberRow, "id" | "user_id" | "is_active">[],
+  members: (Pick<MemberRow, "id" | "user_id" | "is_active"> & Partial<Pick<MemberRow, "role">>)[],
   prefs: (Partial<PreferencesRow> & { member_id: string })[],
 ): string[] {
+  const active = members.filter((m) => m.is_active && m.user_id);
+  if (type === "waste_sync_failed") return active.filter((m) => m.role === "admin").map((m) => m.id);
   const key = PREFERENCE_FOR_TYPE[type];
-  return members
-    .filter((m) => m.is_active && m.user_id)
+  return active
     .filter((m) => Boolean(prefs.find((p) => p.member_id === m.id)?.[key]))
     .map((m) => m.id);
 }

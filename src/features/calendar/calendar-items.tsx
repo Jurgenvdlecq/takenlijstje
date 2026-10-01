@@ -19,7 +19,8 @@ export interface DragData {
 
 /** Sleepbaar omhulsel: alleen open taken; tikken blijft gewoon werken. */
 function Draggable({ task, children, className }: { task: TaskView; children: React.ReactNode; className?: string }) {
-  const enabled = isOpen(task);
+  // Afvaltaken volgen de gemeente en zijn niet te verplaatsen (W-03, V-54)
+  const enabled = isOpen(task) && !task.waste_direction;
   const { setNodeRef, listeners, isDragging } = useDraggable({
     id: `task:${task.id}`,
     data: { task } satisfies DragData,

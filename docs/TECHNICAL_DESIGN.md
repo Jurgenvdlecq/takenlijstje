@@ -1001,7 +1001,7 @@ src/server/waste/                 server-only, GEEN service role
 src/server/system/waste/          service role (TD §5.3)
   sync.ts       saveWasteCalendar, syncHousehold, runWasteStep (tick)
 src/server/actions/waste.ts       lookupWasteAddressAction, confirmWasteAddressAction, retryWasteSyncAction, disableWasteCalendarAction
-src/server/services/waste-read.ts getWasteSettings(db, ctx) (user-client, RLS) voor de instellingenpagina
+src/server/waste/read.ts          getWasteSettings(db, ctx) (user-client, RLS) voor de instellingenpagina
 ```
 
 - **Browser:** alleen het formulier, de resultaten van de actions en het tonen van afvaltaken. Geen enkel verzoek naar de gemeente vanaf de telefoon.
@@ -1021,8 +1021,9 @@ src/server/services/waste-read.ts getWasteSettings(db, ctx) (user-client, RLS) v
 | `house_suffix` | `text not null default '' check (house_suffix ~ '^[A-Z0-9]{0,4}$')` |
 | `bag_id` | `text not null check (bag_id ~ '^[0-9]{16}$')` |
 | `pickups` | `jsonb not null` — `{"rest":[ISODate…],"papier":[…],"pmd":[…]}`, alleen datums ≥ vandaag op het moment van schrijven; `check (jsonb_typeof(pickups) = 'object')` |
-| `version` | `bigint not null default 1` — +1 bij elk nieuw adres (optimistische controle voor de tick) |
+| `version` | `bigint not null default nextval('public.waste_calendar_version_seq')` — nieuwe waarde uit de sequence bij elk nieuw adres, ook na uitzetten en opnieuw aanzetten; wordt nooit hergebruikt (optimistische controle voor de tick; plan-critic r3) |
 | `last_attempt_at` | `timestamptz` (claim en rate limit) |
+| `first_failure_at` | `timestamptz` — begin van de huidige reeks mislukte pogingen; `null` na een geslaagde bijwerking (§18.8.5) |
 | `last_success_at` | `timestamptz not null` (gezet bij opslaan; opslaan kan alleen na een geslaagde opvraging, BR-48) |
 | `last_error_code` | `text check (last_error_code in ('UNREACHABLE','FORMAT','SUSPECT_EMPTY','ADDRESS_GONE'))` |
 | `failure_count` | `integer not null default 0` (opeenvolgende mislukte pogingen) |
@@ -1116,8 +1117,15 @@ Tijden via `zonedInstant` in `Europe/Amsterdam` (BR-59; ook correct als de klok 
 
 #### 18.5.2 `private.guard_task_changes` (vervangen; de bestaande regels uit `…_210` blijven letterlijk, dit komt erbij)
 
+`…_410` bevat de **volledige** functie (`create or replace`, de bestaande regels uit `…_210` letterlijk plus het blok hieronder). De bestaande trigger `tasks_guard` is al `before insert or update` (`…_0927000200`) en blijft staan.
+
 ```sql
--- vóór de bestaande controles, ná "systeem en FK-acties mogen door"
+-- vóór de bestaande controles. Alleen het systeem (auth.uid() is null) mag
+-- afvaltaken maken en wijzigen. Geneste updates (pg_trigger_depth() > 1) zijn
+-- voor afvaltaken NIET algemeen vrijgesteld: alleen de overslaan-trigger
+-- (§18.5.5) zet de transactielokale vlag takenlijstje.waste_cascade (plan-critic r3).
+if (select auth.uid()) is not null
+   and coalesce(current_setting('takenlijstje.waste_cascade', true), '') <> 'on' then
 if tg_op = 'INSERT' then
   if new.waste_direction is not null or new.waste_pickup_date is not null or new.waste_streams is not null then
     raise exception 'Afvaltaken maakt alleen de afvalkalender' using errcode = '42501';   -- AC-219
@@ -1133,9 +1141,11 @@ else
     end if;
   end if;
 end if;
+end if;
+-- daarna, ongewijzigd: systeem en FK-acties mogen door, dan de bestaande controles
 ```
 
-- Het systeem (`auth.uid() is null`) en FK-acties (`pg_trigger_depth() > 1`) gaan zoals nu eerst door.
+- Het systeem (`auth.uid() is null`) gaat door. FK-acties (`pg_trigger_depth() > 1`) gaan voor gewone taken zoals nu door; voor afvaltaken geldt het blok hierboven ook genest, behalve met de vlag van de overslaan-trigger. Afvaltaken hebben geen reeks en geen maker, dus de bestaande "on delete set null"-acties raken ze niet.
 - De jsonb-vergelijking bevriest ook kolommen die later bijkomen.
 - Hij weigert, ook voor beheerders:
   - hernoemen, datum, tijd, `available_from`, `due_at`, omschrijving, herinneringen, prioriteit en categorie;
@@ -1169,12 +1179,12 @@ create trigger tasks_waste_skip_cascade
 - **Alleen als `auth.uid() is not null` en `pg_trigger_depth() = 1`:** dus alleen handmatig overslaan. Het automatisch vervallen door de tick (service role) werkt bewust **niet** door (BR-53, BR-54).
 - **`old.status in (todo, in_progress)` en `new.status = 'skipped'`:** binnenzetten van dezelfde `(household_id, waste_pickup_date)` wordt `skipped`, als die nog open is.
 - **`old.status = 'skipped'` en `new.status in (todo, in_progress)`:** binnenzetten wordt `todo`, als die `skipped` is. Dit volgt de spec letterlijk: "dan staan beide weer open".
-- De geneste update loopt op diepte 2 door de guard (toegestaan) en start deze trigger niet opnieuw (`waste_direction = 'in'`).
+- De geneste update zet eerst `set_config('takenlijstje.waste_cascade', 'on', true)` en daarna weer `'off'`; alleen daardoor laat de guard hem door. Hij wijzigt uitsluitend `status` en start deze trigger niet opnieuw (`waste_direction = 'in'`).
 - **Versimpeltoets:** in de service zou het goedkoper zijn, maar dan omzeilt een directe REST-update of de wachtrij de regel. De trigger dekt elk pad met één object.
 
 #### 18.5.6 Server-side vroeg weigeren (vriendelijke fout, geen weesreeks)
 
-- `assertNotWasteTask(task)` in `src/server/services/tasks.ts` geeft een `UserError` met code `FORBIDDEN` en de tekst "Een afvaltaak kun je niet wijzigen, verplaatsen of verwijderen."
+- `assertNotWasteTask(task)` (in `src/server/waste/guard.ts`, aangeroepen vanuit `src/server/actions/tasks.ts`) geeft een `UserError` met code `FORBIDDEN` en de tekst "Een afvaltaak kun je niet wijzigen, verplaatsen of verwijderen."
 - Hij wordt aangeroepen in `moveTask`, `updateTask` (alle scopes, **vóór** het aanmaken van een reeks), `deleteTask` en de wachtrij-soort `move`.
 - De database blijft de echte grens.
 
@@ -1190,7 +1200,7 @@ Alle vier volgen TD §5.1: `runAction` → `requireAdmin()` → zod → pas daar
 | Actie | Invoer (zod, `wasteAddressInput` in `src/lib/validation.ts`) | Wat hij doet | Resultaat (`ActionResult.data`) |
 | --- | --- | --- | --- |
 | `lookupWasteAddressAction` | `{ postcode, houseNumber, suffix: string\|null }` → `normalizeWasteAddress` | `lookupWasteCalendar` (§18.8.1): A → kandidaat kiezen → B + C. **Schrijft niets** (BR-48: "Klopt dit?" vóór bewaren) | `{ kind: 'found', address, display, next: { rest, papier, pmd } }` of `{ kind: 'choose', options }` / `'not_found'` / `'no_streams'` / `'no_upcoming'` / `'unreachable'` |
-| `confirmWasteAddressAction` | idem | **Opnieuw** opvragen (de client levert nooit `bag_id` of datums aan). Bij `found`: is het adres gelijk aan het bewaarde (`bag_id`, postcode, nummer, toevoeging), dan `syncHousehold` (zelfde adres = gewone bijwerking; open taken, notities en "bezig" blijven). Anders `saveWasteCalendar` → RPC `waste_save` | `{ kind: 'saved', inserted, removed }` of dezelfde uitkomsten als lookup (niets bewaard) |
+| `confirmWasteAddressAction` | idem | **Opnieuw** opvragen (de client levert nooit `bag_id` of datums aan). Bij `found`: is het adres gelijk aan het bewaarde (`bag_id`, postcode, nummer, toevoeging), dan worden de zojuist opgehaalde datums direct toegepast via `waste_sync` met `p_result = 'success'` en de bewaarde `version`, **zonder claim** (zelfde adres = gewone bijwerking; open taken, notities en "bezig" blijven; plan-critic r3). Anders `saveWasteCalendar` → RPC `waste_save` | `{ kind: 'saved', inserted, removed }` of dezelfde uitkomsten als lookup (niets bewaard) |
 | `retryWasteSyncAction` | `{}` | `syncHousehold(household, { manual: true })`: claim met ten minste 60 s tussen twee pogingen (§18.8.3) | `{ kind: 'done', health, lastSuccessAt }` of `{ kind: 'too_soon' }` |
 | `disableWasteCalendarAction` | `{}` | RPC `disable_waste_calendar()` (user-client, eigen rechtencheck) | `{ removed }` (aantal vervallen open taken) |
 
@@ -1206,8 +1216,8 @@ Alle vier volgen TD §5.1: `runAction` → `requireAdmin()` → zod → pas daar
 | RPC | Wie | Wat (één transactie) | Idempotentie |
 | --- | --- | --- | --- |
 | `public.waste_save(p_household_id, p_member_id, p_postcode, p_house_number, p_house_suffix, p_bag_id, p_pickups jsonb, p_insert jsonb, p_now)` → `jsonb {version, removed, inserted}` | **alleen `service_role`** (`revoke … from public, anon, authenticated`) | 1. `perform 1 from households where id = p_household_id for no key update` (serialiseert alle afval-schrijfacties per huishouden; `no key` blokkeert gewone taakinserts niet). 2. Hercontrole: `p_member_id` is een **actieve beheerder** van dit huishouden, anders 42501 (sluit TOCTOU na `requireAdmin`). 3. Upsert `waste_calendars` (`version = version + 1` bij conflict, `last_success_at = last_attempt_at = p_now`, fout leeg, `failure_count = 0`, `pickups`). 4. `delete from tasks where household_id = p and waste_direction is not null and status in ('todo','in_progress')` (BR-56: **alle** open afvaltaken). 5. Insert van `p_insert` via `jsonb_to_recordset`, met `household_id = p_household_id` (nooit uit de payload), `category 'outdoor'`, maker `null`, `on conflict (household_id, waste_pickup_date, waste_direction) do nothing` | dubbel bevestigen: het tweede verzoek wacht op het slot en levert dezelfde eindstand op. Twee beheerders: wie het laatst commit, geldt (AC-191). Er bestaan nooit taken voor twee adressen tegelijk |
-| `public.waste_sync(p_household_id, p_version, p_result text, p_error_code text, p_pickups jsonb, p_insert jsonb, p_rename jsonb, p_remove uuid[], p_now)` → `jsonb {stale, inserted, renamed, removed}` | **alleen `service_role`** | 1. Slot op het households-rij (idem). 2. `select … from waste_calendars … for update`; ontbreekt hij of is `version ≠ p_version`, dan `{stale:true}` en **niets** doen (adres intussen gewijzigd of uitgezet). 3. Bij `p_result = 'success'`: `pickups`, `last_success_at = p_now`, `last_error_code = null`, `failure_count = 0`. Bij `'failure'`: `last_error_code`, `failure_count + 1` (pickups blijven). Bij `null`: alleen plannen. 4. `delete … where id = any(p_remove) and household_id = p and waste_direction is not null and status in ('todo','in_progress')`. 5. `update … set title, waste_streams … where id = x.id and household_id = p and waste_direction is not null and status in ('todo','in_progress')`. 6. Insert zoals bij `waste_save` | alle stappen controleren de status opnieuw: wat intussen is afgevinkt of overgeslagen, blijft ongemoeid (AC-202). Twee ticks: inserts botsen op de sleutel, verwijderen is idempotent |
-| `public.disable_waste_calendar()` → `integer` | `authenticated` | Huishouden uit het **eigen actieve beheerderslidmaatschap** (`user_id = auth.uid() and is_active and role = 'admin'`), anders 42501. Dan het slot, `delete` van de open afvaltaken, en `delete from waste_calendars` (adres, datums en stand in één keer, AC-213) | tweede aanroep → 0 |
+| `public.waste_sync(p_household_id, p_version, p_result text, p_error_code text, p_pickups jsonb, p_insert jsonb, p_rename jsonb, p_remove uuid[], p_now)` → `jsonb {stale, inserted, renamed, removed}` | **alleen `service_role`** | 1. Slot op het households-rij (idem). 2. `select … from waste_calendars … for update`; ontbreekt hij of is `version ≠ p_version`, dan `{stale:true}` en **niets** doen (adres intussen gewijzigd of uitgezet). 3. Bij `p_result = 'success'`: `pickups`, `last_success_at = p_now`, `last_error_code = null`, `failure_count = 0`. Bij `'failure'`: `last_error_code`, `failure_count + 1`, `first_failure_at = coalesce(first_failure_at, p_now)` (pickups blijven). Bij `'success'` ook `first_failure_at = null`. Bij `null`: alleen plannen. 4. `delete … where id = any(p_remove) and household_id = p and waste_direction is not null and status in ('todo','in_progress')`. 5. `update … set title, waste_streams … where id = x.id and household_id = p and waste_direction is not null and status in ('todo','in_progress')`. 6. Insert zoals bij `waste_save` | alle stappen controleren de status opnieuw: wat intussen is afgevinkt of overgeslagen, blijft ongemoeid (AC-202). Twee ticks: inserts botsen op de sleutel, verwijderen is idempotent |
+| `public.disable_waste_calendar()` → `integer` | `authenticated` | Huishouden uit het **eigen actieve beheerderslidmaatschap** (`user_id = auth.uid() and is_active and role = 'admin'`), anders 42501. Dan het slot, `delete` van de open afvaltaken, en `delete from waste_calendars` (adres, datums en stand in één keer, AC-213). Afgevinkte en overgeslagen afvaltaken blijven bewust staan als historie (AC-213, V-54); ze bevatten geen adres en zijn, net als gewone gedane taken, niet onderworpen aan opruimen; ze verdwijnen met het huishouden (plan-critic r3) | tweede aanroep → 0 |
 | `public.waste_calendar_enabled()` → `boolean` | `authenticated` | zie §18.5.1 | — |
 
 **Versimpeltoets (plannen):** alles in plpgsql zou de datum- en naamlogica dubbel maken, buiten de geteste TS-domeinlaag. Daarom plant TS (puur) en past de RPC toe. Een versieveld voorkomt dat een verouderd plan van de tick een net gewijzigd adres overschrijft. Het is één bigint, geen lease.
@@ -1268,7 +1278,7 @@ planWasteTasks({ pickups, existing, now, timeZone }): { insert: NewWasteTask[]; 
 
 | Toestand | Regel | UI (beheerder) |
 | --- | --- | --- |
-| `failed` (reden `empty`) | `last_error_code = 'SUSPECT_EMPTY'` en `failure_count ≥ 2` (twee pogingen, minstens een uur uit elkaar: het lege antwoord "duurt voort", AC-205; één enkele hapering geeft geen alarm) | toestand H + melding |
+| `failed` (reden `empty`) | `last_error_code = 'SUSPECT_EMPTY'`, `failure_count ≥ 2` **en** `now − first_failure_at ≥ 60 min` (het lege antwoord "duurt voort", AC-205; één hapering of snel achter elkaar "Opnieuw proberen" geeft geen alarm; plan-critic r3) | toestand H + melding |
 | `failed` (reden `stale`) | `now − last_success_at > 48 h` (V-50) | toestand H + melding |
 | `retrying` | `last_error_code` gezet, verder niet `failed` | stille regel (UX §13.7.5) |
 | `ok` | anders | toestand G |
@@ -1311,7 +1321,7 @@ Nieuwe stap in `runTick`, **tussen "overslaan" en "meldingen"**. Zo krijgt een n
 - **Inhoud:**
   - type `reminder` (voorkeur `notify_reminders`, V-23);
   - titel `Herinnering: <taaknaam>`;
-  - dedupe-sleutel `waste:<taskId>:<anker-ISO>`.
+  - dedupe-sleutel `waste:<richting>:<D>:<anker-ISO>` (niet op taak-id: een taak die na een adreswijziging opnieuw wordt aangemaakt, geeft zo geen tweede herinnering; plan-critic r2).
 - **Tweede regel (UX §13.10):**
   - `out`: "Morgen ophaaldag. Mag vanaf 22:00 buiten, uiterlijk morgen 07:45."
   - `in`: "Vandaag was de ophaaldag. Zet de bak vandaag nog binnen." Bij meer dan één bak (`cardinality(waste_streams) > 1`): "Zet de bakken vandaag nog binnen."
@@ -1481,7 +1491,10 @@ Lagen zoals TD §13. Bron altijd nagebootst:
 
 Daarnaast:
 - regressie op bestaande suites (`30_wp2a`, privacy-schema: geen nieuwe persoonskolommen buiten `waste_calendars`);
-- `route.test.ts` van de tick: nieuwe stap in het rapport.
+- `route.test.ts` van de tick: nieuwe stap in het rapport;
+- (plan-critic r2/r3) in `70_afval.sql` per legitiem statuspad een test als lid: `complete_task`, `undo_complete_task`, bezig, overslaan, terugzetten naar todo; plus een insert met afvalvelden via REST én via een security-definer-pad; plus een geneste update zonder de cascade-vlag (geweigerd);
+- (plan-critic r2) een tickstap-test die bevestigt dat de tick-select de `out` (gepland D−1 21:00) en de `in` (zonder tijd, anker 18:00) meeneemt voor `wasteReminder`;
+- (plan-critic r3) `disable` → opnieuw aanzetten: een tick met de oude `version` doet niets (sequence, geen hergebruik); twee keer snel "Opnieuw proberen" met een leeg antwoord geeft geen storingsmelding.
 
 ### 18.16 Uitrol (live op `main`, oude UI)
 
@@ -1496,7 +1509,19 @@ Daarnaast:
 | U6 | `main` → `v2-ui` mergen; de UI-onderdelen uit §18.14 komen in WP5–WP8 | — |
 | U7 | Succescriteria (PRODUCT_SPEC §11): alleen-lezen-query's op dag 30 en 90 (dubbele sleutels = 0 door de constraint; aantal "te laat" bij `out`; storingen = meldingen `waste_sync_failed`) | resultaat in PROGRESS |
 
-**Terugrollen:** Vercel Instant Rollback. De database is compatibel: de oude code negeert de kolommen, de guard blijft afvaltaken beschermen en open afvaltaken blijven staan zonder bijwerking. Volledig uitzetten kan met `disable_waste_calendar` via de UI of een eenmalige aanroep.
+**Volgorde:** eerst de migraties (U2), dan de code (U3). Omgekeerd faalt alleen de afvalstap van de tick, binnen zijn eigen try/catch.
+
+**Terugrollen:** Vercel Instant Rollback. De database is compatibel: de oude code negeert de kolommen en de guard blijft afvaltaken beschermen. Omdat de oude code afvaltaken niet kent (deadline- en verlopen-meldingen, bewerkknoppen die op 42501 stuklopen, geen vervallen), hoort bij terugrollen ook deze vastgelegde operator-SQL, uit te voeren met de service role via de Supabase-koppeling (plan-critic r2):
+
+```sql
+begin;
+delete from public.tasks where waste_direction is not null and status in ('todo', 'in_progress');
+delete from public.waste_calendars;
+delete from public.notifications where type = 'waste_sync_failed';
+commit;
+```
+
+Dit wist geen historie (afgevinkte en overgeslagen afvaltaken blijven). Het is een productiewijziging en gebeurt alleen bij een echte terugrol, na overleg met Jurgen.
 
 ### 18.17 Afwijkingen van r1, rechtgetrokken
 
@@ -1534,6 +1559,8 @@ Daarnaast:
 - In de laatste dagen van december, als de kalender van het volgende jaar nog niet online staat, ontbreken de eerste januaritaken totdat het venster helemaal leeg is. Dan volgt de storingsmelding, meestal 1–2 dagen van tevoren. Een zeldzame ophaalpauze van meer dan 15 dagen voor alle drie de bakken zou een onterechte storingsmelding kunnen geven. De spec-regel is "alle drie samen leeg".
 - Verhuizen naar een adres met dezelfde ophaaldag, terwijl buitenzetten voor die dag al was afgevinkt: dan komt er voor die dag geen nieuwe buitenzet-taak (de sleutel bestaat al en "afgevinkt blijft onaangetast").
 - Een aanhoudend leeg antwoord = twee pogingen, minstens een uur uit elkaar (AC-205 "duurt voort"). Binnenzetten vervalt pas als het al verlopen is én de dag van de volgende buitenzet-taak begonnen is.
+- Ongedaan maken van een buitenzet-taak die door de tick vervallen is, zet een apart overgeslagen binnenzet-taak van dezelfde dag weer open (de trigger volgt de spec letterlijk: "dan staan beide weer open").
+- Na een adreswijziging blijven afgevinkte en overgeslagen afvaltaken van het oude adres staan; heeft het nieuwe adres op die dag ook een ophaling, dan komt er voor die dag en richting geen nieuwe taak (de sleutel bestaat al).
 
 ### 18.19 Aanvullingen op bestaande secties (W-03)
 

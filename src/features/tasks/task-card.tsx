@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertTriangle, CheckIcon, Clock, Loader2, Repeat, SkipForward } from "lucide-react";
+import { AlertTriangle, CheckIcon, Clock, Loader2, Recycle, Repeat, SkipForward } from "lucide-react";
 import * as React from "react";
 import { shortTime, todayIn, zonedDate } from "@/domain/dates";
 import { deadlineText, relativeDayLabel } from "@/domain/status";
+import { wasteTimeLabel } from "@/domain/waste/display";
 import { Badge } from "@/components/ui/badge";
 import { useSnapshot } from "@/features/household/store";
 import { useNow } from "@/hooks/use-now";
@@ -70,12 +71,15 @@ export function TaskCard({
   const done = task.status === "done";
   const skipped = task.status === "skipped";
   const rawDeadline = deadlineText({ status: task.status, scheduledDate: task.scheduled_date, dueAt: task.due_at }, now, tz);
+  // Afvaltaak (W-03, UX §13.4–13.5): eigen tijdregel, kenmerk in plaats van categorie, deadline alleen als verlopen
+  const waste = !!task.waste_direction;
+  const wasteTime = waste ? wasteTimeLabel(task, now, tz) : null;
   // Rustig houden: alleen tonen als het iets toevoegt (bijna/te laat, of deadline op een andere dag)
   const deadline =
     rawDeadline &&
     (task.display === "overdue" ||
-      rawDeadline.startsWith("verloopt") ||
-      (task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))
+      (!waste && rawDeadline.startsWith("verloopt")) ||
+      (!waste && task.due_at && zonedDate(task.due_at, tz) !== task.scheduled_date))
       ? rawDeadline
       : null;
 
@@ -106,10 +110,25 @@ export function TaskCard({
         </p>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {showDate && <span>{relativeDayLabel(task.scheduled_date, todayIn(tz, now))}</span>}
-          {task.scheduled_time && (
+          {waste ? (
+            wasteTime && (
+              <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                <Clock className="size-3" />
+                {wasteTime}
+              </span>
+            )
+          ) : (
+            task.scheduled_time && (
+              <span className="inline-flex items-center gap-1">
+                <Clock className="size-3" />
+                {shortTime(task.scheduled_time)}
+              </span>
+            )
+          )}
+          {waste && (
             <span className="inline-flex items-center gap-1">
-              <Clock className="size-3" />
-              {shortTime(task.scheduled_time)}
+              <Recycle className="size-3.5" aria-hidden />
+              Afvalkalender
             </span>
           )}
           {task.recurring && <Repeat className="size-3" aria-label="Terugkerend" />}
@@ -120,7 +139,7 @@ export function TaskCard({
               Overgeslagen
             </span>
           )}
-          {!compact && !done && !skipped && <span>{CATEGORY_LABELS[task.category]}</span>}
+          {!compact && !done && !skipped && !waste && <span>{CATEGORY_LABELS[task.category]}</span>}
           {task.status === "in_progress" && (
             <Badge variant="progress">
               <Loader2 className="animate-spin" />

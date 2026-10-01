@@ -3,6 +3,7 @@
  */
 import { addDays, todayIn, type ISODate } from "@/domain/dates";
 import { displayStatus, isOpen, PRIORITY_ORDER, type DisplayStatus } from "@/domain/status";
+import { wasteOnToday, wasteWaitingToday } from "@/domain/waste/display";
 import type { Snapshot } from "@/lib/data/snapshot";
 import type { MemberRow, TaskRow } from "@/types/database";
 
@@ -54,9 +55,16 @@ export function dashboardData(snapshot: Snapshot, now: Date): DashboardData {
   const weekEnd = addDays(today, 7);
   const views = toViews(snapshot.tasks, now, tz).sort(compareTasks);
 
-  const todayTasks = views.filter((t) => t.scheduled_date === today && t.display !== "overdue");
+  // Afvaltaken (W-03, UX §13.4): buitenzetten blijft op de ophaaldag tot 07:45 onder
+  // Vandaag; binnenzetten staat vóór 12:00 bovenaan Binnenkort. Gewone taken ongewijzigd.
+  const todayTasks = views.filter(
+    (t) => t.display !== "overdue" && (t.waste_direction ? wasteOnToday(t, now, tz) : t.scheduled_date === today),
+  );
   const overdue = views.filter((t) => t.display === "overdue");
-  const upcoming = views.filter((t) => t.scheduled_date > today && t.scheduled_date <= weekEnd && isOpen(t));
+  const upcoming = [
+    ...views.filter((t) => wasteWaitingToday(t, now, tz)),
+    ...views.filter((t) => t.scheduled_date > today && t.scheduled_date <= weekEnd && isOpen(t)),
+  ];
 
   const openWithDeadline = views
     .filter((t) => isOpen(t) && t.due_at && t.display !== "overdue")

@@ -35,10 +35,18 @@ if [[ -x "$GOTRUE_DIR/auth" && -d "$GOTRUE_DIR/migrations" ]]; then
   echo "al aanwezig: $GOTRUE_DIR"
 else
   mkdir -p "$GOTRUE_DIR"
-  API=$(curl -fsSL https://api.github.com/repos/supabase/auth/releases/latest)
-  URL=$(printf '%s' "$API" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);const a=(r.assets||[]).find(a=>/x86|amd64/i.test(a.name)&&/\.tar\.gz$/.test(a.name)&&!/arm/i.test(a.name));if(!a){console.error("geen x86-asset in "+r.tag_name);process.exit(1)}console.log(a.browser_download_url)})')
-  echo "download: $URL"
-  curl -fsSL "$URL" -o "$GOTRUE_DIR/auth.tar.gz"
+  # De GitHub-API is via de proxy van de ontwikkelomgeving niet bereikbaar (403);
+  # de tag komt daarom uit de redirect van de gewone releasepagina.
+  LATEST=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/supabase/auth/releases/latest)
+  TAG=${LATEST##*/}
+  [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "onverwachte tag: $TAG"; exit 1; }
+  echo "release: $TAG"
+  for NAME in "auth-$TAG-x86.tar.gz" "auth-$TAG-amd64.tar.gz" "gotrue-$TAG-x86.tar.gz"; do
+    URL="https://github.com/supabase/auth/releases/download/$TAG/$NAME"
+    if curl -fsSL "$URL" -o "$GOTRUE_DIR/auth.tar.gz"; then echo "download: $NAME"; break; fi
+    rm -f "$GOTRUE_DIR/auth.tar.gz"
+  done
+  [[ -s "$GOTRUE_DIR/auth.tar.gz" ]] || { echo "geen x86-asset gevonden voor $TAG"; exit 1; }
   tar -xzf "$GOTRUE_DIR/auth.tar.gz" -C "$GOTRUE_DIR"
   BIN=$(find "$GOTRUE_DIR" -maxdepth 3 -type f \( -name auth -o -name gotrue \) | head -1)
   [[ -n "$BIN" ]] || { echo "binary niet gevonden"; ls -R "$GOTRUE_DIR" | head -50; exit 1; }
@@ -46,7 +54,6 @@ else
   chmod +x "$GOTRUE_DIR/auth"
   MIG=$(find "$GOTRUE_DIR" -maxdepth 3 -type d -name migrations | head -1)
   if [[ -z "$MIG" ]]; then
-    TAG=$(printf '%s' "$API" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).tag_name))')
     echo "migraties niet in de release; ophalen uit bron $TAG"
     curl -fsSL "https://codeload.github.com/supabase/auth/tar.gz/refs/tags/$TAG" -o "$GOTRUE_DIR/src.tar.gz"
     mkdir -p "$GOTRUE_DIR/src" && tar -xzf "$GOTRUE_DIR/src.tar.gz" -C "$GOTRUE_DIR/src" --strip-components=1

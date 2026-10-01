@@ -4,6 +4,7 @@ import * as React from "react";
 import { PageHeader } from "@/components/page-header";
 import { useSnapshot } from "@/features/household/store";
 import { AccountSection } from "./account-section";
+import { AfvalSection } from "./afval-section";
 import { HouseholdSection } from "./household-section";
 import { MembersSection } from "./members-section";
 import { NotificationsSection } from "./notifications-section";
@@ -15,6 +16,7 @@ const JUMP_LINKS = [
   { href: "#profiel", label: "Profiel" },
   { href: "#meldingen", label: "Meldingen" },
   { href: "#huishouden", label: "Huishouden" },
+  { href: "#afvalkalender", label: "Afval" },
   { href: "#gezinsleden", label: "Gezinsleden" },
   { href: "#terugkerend", label: "Terugkerend" },
   { href: "#standaardtaken", label: "Standaardtaken" },
@@ -48,6 +50,7 @@ export function SettingsPage() {
           <ProfileSection />
           <NotificationsSection />
           <HouseholdSection />
+          <AfvalSection />
           <MembersSection />
           <RecurrencesSection />
           <TemplatesSection />

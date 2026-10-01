@@ -13,7 +13,10 @@ export type TaskCategory = "cleaning" | "laundry" | "groceries" | "kitchen" | "o
 export type ShoppingCategory =
   | "produce" | "meat" | "dairy" | "bread" | "drinks" | "frozen" | "drugstore" | "household" | "other";
 export type NotificationType =
-  | "reminder" | "deadline_soon" | "overdue" | "task_completed" | "daily_summary" | "evening_summary";
+  | "reminder" | "deadline_soon" | "overdue" | "task_completed" | "daily_summary" | "evening_summary"
+  | "waste_sync_failed";
+export type WasteDirection = "out" | "in";
+export type WasteErrorCode = "UNREACHABLE" | "FORMAT" | "SUSPECT_EMPTY" | "ADDRESS_GONE";
 
 export type UserRow = {
   id: string;
@@ -122,6 +125,28 @@ export type TaskRow = {
   completed_at: string | null;
   created_by_member_id: string | null;
   deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Afvalkalender (W-03): alleen gezet bij afvaltaken, door het systeem */
+  waste_pickup_date: string | null;
+  waste_direction: WasteDirection | null;
+  waste_streams: string[] | null;
+};
+
+/** Adres en opgehaalde ophaaldagen; alleen leesbaar voor beheerders (W-03, V-53) */
+export type WasteCalendarRow = {
+  household_id: string;
+  postcode: string;
+  house_number: number;
+  house_suffix: string;
+  bag_id: string;
+  pickups: Record<string, string[]>;
+  version: number;
+  last_attempt_at: string | null;
+  last_success_at: string;
+  last_error_code: WasteErrorCode | null;
+  failure_count: number;
+  first_failure_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -245,6 +270,7 @@ export type Database = {
       user_preferences: Table<PreferencesRow>;
       shopping_lists: Table<ShoppingListRow>;
       shopping_items: Table<ShoppingItemRow>;
+      waste_calendars: Table<WasteCalendarRow>;
     };
     Views: Record<never, never>;
     Functions: {
@@ -285,6 +311,38 @@ export type Database = {
       delete_my_account: { Args: Record<string, never>; Returns: boolean };
       /** Alleen service_role (WP3, BR-45); tellingen per tabel */
       run_purge: { Args: Record<string, never>; Returns: Record<string, number> };
+      /** Alleen service_role (W-03, §18.7) */
+      waste_save: {
+        Args: {
+          p_household_id: string;
+          p_member_id: string;
+          p_postcode: string;
+          p_house_number: number;
+          p_house_suffix: string;
+          p_bag_id: string;
+          p_pickups: Record<string, string[]>;
+          p_insert: unknown[];
+          p_now: string;
+        };
+        Returns: { version: number; removed: number; inserted: number };
+      };
+      /** Alleen service_role (W-03, §18.7) */
+      waste_sync: {
+        Args: {
+          p_household_id: string;
+          p_version: number;
+          p_result: "success" | "failure" | null;
+          p_error_code: WasteErrorCode | null;
+          p_pickups: Record<string, string[]> | null;
+          p_insert: unknown[];
+          p_rename: unknown[];
+          p_remove: string[];
+          p_now: string;
+        };
+        Returns: { stale: boolean; inserted?: number; renamed?: number; removed?: number };
+      };
+      disable_waste_calendar: { Args: Record<string, never>; Returns: number };
+      waste_calendar_enabled: { Args: Record<string, never>; Returns: boolean };
     };
     Enums: {
       member_role: MemberRole;
