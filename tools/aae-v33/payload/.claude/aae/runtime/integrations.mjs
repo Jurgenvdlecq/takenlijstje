@@ -28,7 +28,8 @@ export function identifyExternalTool(name) {
  */
 export function scanSql(sql) {
   const s = String(sql || ''), n = s.length; let uit = '', i = 0, ok = true;
-  const ident = ch => /[A-Za-z0-9_$]/.test(ch || '');
+  // Postgres staat in identifiers en $-tags ook letters buiten ASCII toe; elk niet-ASCII teken telt hier als identifierteken.
+  const ident = ch => /[A-Za-z0-9_$]/.test(ch || '') || /[^\x00-\x7F]/.test(ch || '');
   const tekst = (sluit, esc) => { // i staat net na het openingsteken
     while (i < n) {
       if (esc && s[i] === '\\') { i += 2; continue; }
@@ -46,8 +47,9 @@ export function scanSql(sql) {
       if (diepte) ok = false; uit += ' '; continue;
     }
     if (c === '$' && !ident(vorige)) {
-      const m = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(s.slice(i, i + 80));
+      const m = /^\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/u.exec(s.slice(i, i + 80));
       if (m) { const eind = s.indexOf(m[0], i + m[0].length); if (eind < 0) { ok = false; i = n; } else i = eind + m[0].length; uit += ' '; continue; }
+      if (!/\d/.test(d || '')) { ok = false; } // een losse $ die geen parameter ($1) of geldige tag is: niet betrouwbaar te lezen
     }
     if ((c === 'E' || c === 'e') && d === "'" && !ident(vorige)) { i += 2; if (!tekst("'", true)) ok = false; uit += ' '; continue; }
     if (c === "'") { i++; if (!tekst("'", false)) ok = false; uit += ' '; continue; }
@@ -94,7 +96,13 @@ export function classifyDb(sql) {
     const U = s.replace(/\s+/g, ' ').toUpperCase();
     // Statements die willekeurige code uitvoeren, tellen als destructief: hun inhoud is niet vooraf te classificeren.
     if (/^(DO|CALL)\b/.test(U) || /\bEXECUTE\b(?!\s+(FUNCTION|PROCEDURE)\b)/.test(U) || /\bCOPY\b.*\bPROGRAM\b/.test(U) || /^ALTER SYSTEM\b/.test(U)) { zet('C', 'voert willekeurige code uit (DO/CALL/EXECUTE/COPY PROGRAM/ALTER SYSTEM)'); continue; }
-    if (/^(WITH|MERGE)\b/.test(U) && /\b(DELETE|UPDATE|MERGE|TRUNCATE)\b/.test(U)) { zet('C', 'WITH/MERGE met DELETE/UPDATE/MERGE'); continue; }
+    // Destructieve woorden tellen waar ze ook staan (EXPLAIN ANALYZE DELETE, WITH x AS (DELETE ...), MERGE ...), behalve waar ze alleen een regel beschrijven (beleid, trigger, GRANT) of een verwijzingsactie zijn (ON DELETE CASCADE).
+    const U2 = U.replace(/\bON (DELETE|UPDATE)\b/g, ' ');
+    const beschrijft = /^(CREATE|ALTER)\s+(OR REPLACE\s+)?(POLICY|TRIGGER|RULE)\b|^(GRANT|REVOKE|COMMENT|SECURITY LABEL)\b/.test(U);
+    if (!beschrijft && /\b(DELETE|TRUNCATE|MERGE)\b/.test(U2)) { zet('C', 'bevat DELETE/TRUNCATE/MERGE'); continue; }
+    if (!beschrijft && !/^(UPDATE|INSERT)\b/.test(U) && /\bUPDATE\b/.test(U2)) { zet('C', 'UPDATE binnen een ander statement (EXPLAIN/WITH)'); continue; }
+    if (/\b(DBLINK\w*|LO_UNLINK|PG_READ_FILE|PG_LS_DIR|PG_RELOAD_CONF|PG_TERMINATE_BACKEND)\b/.test(U)) { zet('C', 'functie met bijwerkingen buiten de database'); continue; }
+    if (/^INSERT\b/.test(U) && /\bDO UPDATE\b/.test(U)) { zet('B', 'upsert (ON CONFLICT DO UPDATE)'); continue; }
     if (/\bDROP\b/.test(U)) { zet('C', 'DROP'); continue; }
     if (/\bTRUNCATE\b/.test(U)) { zet('C', 'TRUNCATE'); continue; }
     if (/^DELETE\b/.test(U)) { zet('C', 'DELETE'); continue; }
@@ -142,7 +150,8 @@ export function projectRefFromResponse(response) { const m = collectText(respons
 /** Het nummer van een zojuist gemaakte pull request uit de toolrespons (null als het niet te vinden is: dan kan er niets worden samengevoegd). */
 export function prNumberFromResponse(response) {
   if (Number.isInteger(response?.number) && response.number > 0) return response.number;
-  const m = collectText(response).match(/(?:"number"\s*:\s*|\/pull\/)(\d{1,9})\b/); // alleen een gestructureerd veld of een pull-URL, geen vrije tekst
+  const t = collectText(response);
+  const m = t.match(/"number"\s*:\s*(\d{1,9})\b/) || (/"number"/.test(t) ? null : t.match(/\/pull\/(\d{1,9})\b/)); // een gestructureerd veld gaat voor; een pull-URL alleen als er geen "number" is
   return m ? Number(m[1]) : null;
 }
 export const responseDigest = response => crypto.createHash('sha256').update(collectText(response)).digest('hex');

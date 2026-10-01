@@ -209,12 +209,15 @@ function preExternal(root, e, call) {
     requireThat(typeof input.head === 'string' && input.head.length > 0, 'PR-aanmaak vereist expliciete head.');
     if (cfg.base) requireThat(input.base === cfg.base, 'PR-base wijkt af van de envelop.');
     if (cfg.head) requireThat(input.head === cfg.head, 'PR-head wijkt af van de envelop.');
+    // Wordt samenvoegen via een PR toegestaan, dan moet de PR naar precies het afgesproken merge-doel wijzen (anders valt de deploy-check op het verkeerde doel).
+    if (cfg.tools.includes('merge_pull_request') && c.envelope.git.merge) requireThat(input.base === c.envelope.git.merge.to, 'PR-base moet het merge-doel uit de envelop zijn (' + c.envelope.git.merge.to + ').');
   }
   if (call.provider === 'github' && call.level === 'merge') {
     const nr = Number(input.pullNumber ?? input.pull_number);
-    requireThat(Number.isInteger(nr) && (st.created_prs || []).includes(nr), 'merge_pull_request alleen voor een pull request die dit werkpakket zelf heeft gemaakt (een nummer uit de respons van create_pull_request).');
-    const rec = st.created_pr_repo; // dezelfde repository als waar de pull request is gemaakt
-    requireThat(!rec || (input.owner === rec.owner && input.repo === rec.repo), 'merge_pull_request moet naar dezelfde repository (owner/repo) wijzen als create_pull_request.');
+    // Per zelf gemaakte pull request worden nummer, repository en doelbranch onthouden; alleen exact die combinatie mag worden samengevoegd.
+    const rec = (st.created_prs || []).find(p => p.number === nr && p.owner === input.owner && p.repo === input.repo);
+    requireThat(Number.isInteger(nr) && rec, 'merge_pull_request alleen voor een pull request die dit werkpakket zelf heeft gemaakt, met dezelfde owner/repo als bij create_pull_request.');
+    requireThat(rec.base === c.envelope.git.merge?.to, 'De pull request wijst niet naar het merge-doel uit de envelop.');
     assertGate(root, st, c, 'merge');
   }
   st.usage.external++;
@@ -281,7 +284,7 @@ function externalLifecycle(root, e) {
       else { st.supabase_verified = {ref, at: now()}; log(st, 'supabase_project_geverifieerd', {project_ref: ref}); }
     }
   }
-  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) { st.created_prs = [...new Set([...(st.created_prs || []), nr])]; st.created_pr_repo = {owner: e.tool_input?.owner, repo: e.tool_input?.repo}; } }
+  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) st.created_prs = [...(st.created_prs || []).filter(p => !(p.number === nr && p.owner === e.tool_input?.owner && p.repo === e.tool_input?.repo)), {number: nr, owner: e.tool_input?.owner, repo: e.tool_input?.repo, base: e.tool_input?.base}]; }
   const index = st.external_receipts.length + 1;
   const receipt = {schema_version: 1, id: st.id, envelope_hash: envelopeHash(st.contract), provider: row.provider, action: row.action, level: row.level, status: row.status, summary: row.summary, result_digest: row.result_digest, observed_project_ref: row.observed_project_ref || null, finished: row.finished};
   const rp = 'docs/aae/evidence/' + st.id + '/external-' + index + '.json'; atomicJson(root, rp, receipt);

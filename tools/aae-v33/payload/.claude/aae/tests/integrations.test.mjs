@@ -188,6 +188,17 @@ test('DB-klassen (review ronde 3): een string die op commentaar lijkt, verbergt 
   for (const s of ["SELECT '--';\nDROP TABLE t;\nSELECT '--'", "SELECT '/*'; DROP TABLE t; SELECT '*/'", "SELECT 1 /* open", "SELECT 'open"]) assert.notEqual(classifySql(s).level, 'read', s);
   assert.equal(classifySql("SELECT 'a--b' AS x").level, 'read'); assert.equal(classifySql('SELECT $1').level, 'read');
 });
+test('DB-klassen (review ronde 4): niet-ASCII $-tags en identifiers, EXPLAIN ANALYZE, upserts en functies met bijwerkingen', () => {
+  const k = s => classifyDb(s).klasse;
+  for (const s of ["SELECT $é$ ' $é$; DROP TABLE x; SELECT $é$ ' $é$", 'SELECT é$a$; DROP TABLE x; SELECT é$a$', 'SELECT $ ; DROP TABLE x', 'EXPLAIN ANALYZE DELETE FROM t', 'EXPLAIN ANALYZE UPDATE t SET a = 1', "SELECT dblink_exec('x', 'drop table t')", 'TRUNCATE t, u;'])
+    assert.equal(k(s), 'C', s);
+  for (const s of ["SELECT $é$ ' $é$; DROP TABLE x; SELECT $é$ ' $é$", 'SELECT é$a$; DROP TABLE x; SELECT é$a$', 'SELECT $ ; DROP TABLE x']) assert.notEqual(classifySql(s).level, 'read', s);
+  assert.equal(k('CREATE TABLE b (a int REFERENCES t (id) ON DELETE CASCADE);'), 'A', 'ON DELETE CASCADE is een verwijzingsactie');
+  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (true);'), 'B', 'een beleid beschrijft alleen een regel');
+  assert.equal(k('INSERT INTO a (b) VALUES (1) ON CONFLICT (b) DO UPDATE SET b = 2;'), 'B');
+  assert.equal(k('GRANT DELETE ON a TO x;'), 'B');
+  assert.equal(k('SELECT $1'), 'B', 'een gewone parameter blijft leesbaar');
+});
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
   executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
@@ -195,10 +206,16 @@ test('review: een pull request kan alleen worden samengevoegd als dit werkpakket
   const maak = {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'};
   pre(root, 'mcp__github__create_pull_request', maak, {tool_use_id: 'k1'});
   hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: maak, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
-  assert.deepEqual(st(root).created_prs, [12]);
+  assert.deepEqual(st(root).created_prs, [{number: 12, owner: 'o', repo: 'r', base: 'main'}]);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'develop', head: 'claude/w', title: 'x'}, {tool_use_id: 'k5'})), /PR-base wijkt af|merge-doel/);
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 99}, {tool_use_id: 'k2'})), /zelf heeft gemaakt/);
-  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'andere', pullNumber: 12}, {tool_use_id: 'k4'})), /dezelfde repository/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'andere', pullNumber: 12}, {tool_use_id: 'k4'})), /dezelfde owner\/repo/);
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
+}));
+test('review ronde 4: een PR die samengevoegd mag worden, moet naar het merge-doel wijzen (anders valt de deploy-check op het verkeerde doel)', met(root => {
+  executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'staging'}, deploy: 'verify'}, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4}}, budgets: BUDGET(4)}});
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'm1'})), /merge-doel/);
+  assert.equal(pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'staging', head: 'claude/w', title: 'x'}, {tool_use_id: 'm2'}), null);
 }));
 test('review: een bevestiging overleeft een pauze niet', met(root => {
   run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
