@@ -22,4 +22,12 @@ Aandachtspunten:
 - Bewust zo gelaten (gedocumenteerd): leesscope mag ruimer bij een amendement; alleen-lezende git-operanden niet tegen leesscope; een amendement laat een aparte GEVOELIG GO vervallen; `close` geeft het verzoek niet vrij (geen budgetreset).
 - Leerpunten: een GO telt alleen als los bericht `AAE GO`; onder v3.1 liet elk vervolgbericht de GO vervallen (nu opgelost); het rapport van een subagent komt soms alleen als laatste ~2500 tekens in de AAE-state binnen; vraag reviewers om een compacte eindlijst.
 
-Eerstvolgende stap: W-03 afvalkalender als eerste werkpakket onder v3.2-local (één contract, één GO). M8 ≈ 2026-10-29. Optioneel: vierde review van B5/B6 als kleine vervolgtaak.
+## Taak W03-AFVAL-001 (2026-10-01): W-03 afvalkalender (WP3b) — loopt, PARTIAL
+- Ontwerp bevroren in PRODUCT_SPEC §14, AC WP3b, UX §13, TD §18, DS §7.10; plan-critic ronde 3 verwerkt (D-047).
+- Gebouwd en gepusht (f71cc0f): migraties `_400`/`_410`, domein, bron, tickstap, actions, huidige schermen.
+- Groen: typecheck, lint, unit (437), volledige DB-suite incl. `70_afval.sql`, gelijktijdigheid en upgrade, productiebuild. Security-review READY; code-review: twee BELANGRIJK hersteld (D-049).
+- Niet uitgevoerd: integratie- en E2E-tests (Supabase Auth niet te downloaden: GitHub 403 via de proxy), probe van de bron (huisvuilkalender 403), rook-screenshots, UX-review, code-review ronde 2, live migraties, merge.
+- Blocker: netwerk van de ontwikkelomgeving. Beslisvraag aan Jurgen staat open.
+- Leerpunten AAE: een subagent die zijn stappenlimiet haalt, blijft als "running" staan (alleen AAE HERSTEL helpt; Jurgen wil technisch herstel zonder menselijke stap: apart werkpakket na W-03); reviewers een rapport van ≤ 2000 tekens laten geven; schrijfscope max 30 paden.
+
+Eerstvolgende stap: antwoord van Jurgen op de netwerkvraag; daarna probe, integratie/E2E, screenshots, UX- en code-review, live migraties, merge. M8 ≈ 2026-10-29. Daarna: AAE-werkpakket "technisch herstel van vastgelopen agentregistraties".
