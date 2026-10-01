@@ -58,12 +58,26 @@ export function scanSql(sql) {
     if ((c === 'E' || c === 'e') && d === "'" && !ident(vorige)) { i += 2; if (!tekst("'", true)) ok = false; uit += ' '; continue; }
     // Een gewone string kent geen backslash-escape, behalve als standard_conforming_strings uit staat; een backslash erin maakt de SQL daarom niet betrouwbaar te lezen.
     if (c === "'") { const start = i; i++; if (!tekst("'", false)) ok = false; if (s.slice(start, i).includes('\\')) ok = false; uit += ' '; continue; }
-    if (c === '"') { i++; if (!tekst('"', false)) ok = false; uit += ' '; continue; }
+    if (c === '"') { // een geciteerde identifier blijft zichtbaar (anders verbergt "dblink_exec"(...) of "auth"."users" zich voor de regels); met bijzondere tekens wordt het een placeholder
+      const start = i; i++; if (!tekst('"', false)) ok = false;
+      const inhoud = s.slice(start + 1, i - 1);
+      uit += /^[A-Za-z_][A-Za-z0-9_$]*$/.test(inhoud) ? ' ' + inhoud + ' ' : ' _Q_ '; continue;
+    }
     uit += c; i++;
   }
   return {text: uit, ok};
 }
 export const stripSql = sql => scanSql(sql).text;
+/** Staat er een WHERE op haakjesdiepte 0? Een WHERE in een subquery beperkt de UPDATE zelf niet. */
+export function topWhere(t) {
+  let d = 0;
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (ch === '(') d++; else if (ch === ')') d = Math.max(0, d - 1);
+    else if (d === 0 && t.slice(i, i + 5).toUpperCase() === 'WHERE' && !/\w/.test(t[i - 1] || ' ') && !/\w/.test(t[i + 5] || ' ')) return true;
+  }
+  return false;
+}
 /** Niet-afgesloten tekst, commentaar of $-blok: de SQL is niet betrouwbaar te lezen en wordt als destructief (migratie) of muterend (execute_sql) behandeld. */
 export const unparsable = sql => !scanSql(sql).ok;
 const statements = sql => stripSql(sql).split(';').map(x => x.trim()).filter(Boolean);
@@ -114,7 +128,7 @@ export function classifyDb(sql) {
     if (/\b(AUTH|VAULT)\s*\./.test(U)) { zet('C', 'auth/vault direct'); continue; }
     if (/ALTER COLUMN .* (SET DATA )?TYPE\b/.test(U)) { zet('C', 'onomkeerbare typewijziging'); continue; }
     if (/^INSERT\b/.test(U) && /\bDO UPDATE\b/.test(U)) { zet('B', 'upsert (ON CONFLICT DO UPDATE)'); continue; }
-    if (/^UPDATE\b/.test(U)) { /\bWHERE\b/.test(U) ? zet('B', 'backfill/UPDATE met WHERE') : zet('C', 'UPDATE zonder WHERE'); continue; }
+    if (/^UPDATE\b/.test(U)) { topWhere(U) && !/\bWHERE\s+(TRUE|1\s*=\s*1)\b/.test(U) ? zet('B', 'backfill/UPDATE met WHERE') : zet('C', 'UPDATE zonder (echte) WHERE op het hoogste niveau'); continue; }
     if (/\bCRON\.(SCHEDULE|UNSCHEDULE|ALTER_JOB)\b/.test(U)) { zet('B', 'cron-job'); continue; }
     if (/\bCRON\s*\./.test(U)) { zet('C', 'cron direct'); continue; }
     if (/SECURITY DEFINER/.test(U)) { zet('B', 'SECURITY DEFINER'); continue; }

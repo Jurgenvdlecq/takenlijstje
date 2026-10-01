@@ -207,6 +207,14 @@ test('DB-klassen (review ronde 5): bijwerkingenfuncties zijn nooit "read", backs
   assert.equal(k("ALTER TABLE t ALTER COLUMN id SET DEFAULT nextval('s');"), 'B', 'een gewone volgnummer-default is geen C');
   assert.equal(classifySql("SELECT 'gewone tekst' AS x").level, 'read');
 });
+test('DB-klassen (review ronde 6): geciteerde functienamen/schema\'s verbergen niets; een WHERE in een subquery beperkt een UPDATE niet', () => {
+  for (const s of ['SELECT "dblink_exec"(\'c\', \'DROP TABLE x\')', 'SELECT pg_catalog."pg_read_file"(\'f\')', 'SELECT "lo_unlink"(1)', 'SELECT "pg_sleep"(1)', 'SELECT "nextval"(\'s\')']) assert.notEqual(classifySql(s).level, 'read', s);
+  const k = s => classifyDb(s).klasse;
+  for (const s of ['SELECT "dblink_exec"(\'c\', \'x\')', 'INSERT INTO "auth"."users" (id) VALUES (1)', 'DELETE FROM "t"', 'DROP TABLE "t"', 'UPDATE t SET a = (SELECT 1 WHERE true)', 'UPDATE t SET a = 1 WHERE true', 'UPDATE t SET a = 1 WHERE 1 = 1', 'UPDATE t SET a = (SELECT b FROM u WHERE u.id = 1)']) assert.equal(k(s), 'C', s);
+  assert.equal(k('UPDATE t SET a = 1 WHERE id = 2'), 'B'); assert.equal(k('UPDATE t SET a = (SELECT b FROM u WHERE u.id = t.id) WHERE t.id = 3'), 'B');
+  assert.equal(k('CREATE TABLE "notities" (id int);'), 'A', 'een gewone geciteerde tabelnaam blijft additief'); assert.equal(k('CREATE TABLE "mijn tabel" (id int);'), 'A');
+  assert.equal(classifySql('SELECT "a" FROM "t"').level, 'read');
+});
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
   executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
