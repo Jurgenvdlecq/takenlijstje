@@ -117,11 +117,12 @@ test('review ronde 3: een TASK.json die niet gelijk is aan het goedgekeurde cont
   try { const t2 = v32Task(), s2 = v32State(t2); delete s2.task.digest; delete s2.task.approval; zet(root2, t2, s2); importLegacy(root2); assert.equal(st(root2, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL', 'undefined === undefined is geen goedkeuring'); }
   finally { cleanup(root2); }
 }));
-test('legacy: een v3.2-route zonder GO-eis wordt alleen LIGHT automatisch overgenomen', met(root => {
+test('legacy: een v3.2-route zonder GO-eis (ook LIGHT) die iets wil wijzigen wacht op precies één GO', met(root => {
   const t = v32Task({approval_required: false, risk: 'low', mode: 'lean', risk_flags: []}); t.test_plan = t.test_plan.filter(x => ['scope', 'functional', 'regression'].includes(x.kind));
   t.commands = [cmd('t_local', ['node', '--test', 'src/ok.test.mjs'], 'test')];
   zet(root, t, v32State(t, {approval: null})); importLegacy(root);
-  assert.equal(st(root, 'AAE-OUD-1').status, 'EXECUTING');
+  assert.equal(st(root, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL');
+  assert.equal(st(root, 'AAE-OUD-1').approved, null);
 }));
 test('review: een v3.2-gate op een commando dat geen merge is, laat de overname zichtbaar blokkeren (de gate vervalt niet stil)', met(root => {
   const t = v32Task(); t.commands.push(cmd('gate_lokaal', ['node', '--test', 'src/ok.test.mjs'], 'test', {gate: 'ready'}));

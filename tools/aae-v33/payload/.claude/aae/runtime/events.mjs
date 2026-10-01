@@ -5,11 +5,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  ROLES, FOCI, GuardError, requireThat, safePath, relativeInput, relName, protectedPath, controlDocument, workIdFromPath, scopeContains, areaAllows,
+  ROLES, FOCI, GuardError, requireThat, safePath, relativeInput, relName, protectedPath, controlKind, isTracked, workIdFromPath, scopeContains, areaAllows,
   validateContract, envelopeHash, digest, now, sourceDigest, bashArgv, safeLocalArgv, dbLevel, atomicJson, VERSION, WORK, text as _text, choice
 } from './core.mjs';
 import {
-  withLock, listWork, loadWork, saveWork, activeWork, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
+  withLock, listWork, loadWork, saveWork, activeWork, assertApproval, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
 import {liveRows, LIVE, reconcile, finalizeRun, safeFinalize, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
 import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
@@ -24,8 +24,8 @@ const SYSTEM_READ = ['.claude/aae/ENTRY.md', '.claude/aae/docs', '.claude/aae/ro
 const WHY = /^\s*WAAROM-AGENT:\s*(.+)$/m;
 const FOCUS_LINE = /^\s*FOCUS:\s*([a-z]+)\s*$/m;
 const GENERIC = /^(standaard|voor de zekerheid|best practice|zoals altijd|omdat het kan|iedere|elke|altijd)\b/i;
-const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template)(?: ([A-Za-z0-9_-]+))?$/;
-const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight']);
+const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template|present)(?: ([A-Za-z0-9_-]+))?$/;
+const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight', 'present']);
 const isSubagent = e => Boolean(e.agent_id || e.agent_type);
 const toolPath = (root, e) => relativeInput(root, e.tool_input.file_path || e.tool_input.notebook_path, e.cwd || root);
 
@@ -75,6 +75,7 @@ function delegation(root, st, e) {
   requireThat(!input.isolation, 'Subagent-worktrees vallen buiten deze registratie.');
   requireThat(!input.resume, 'Hervatten wordt niet ondersteund: start een nieuwe, kleinere opdracht met nieuwe context.');
   requireThat(st && st.status === 'EXECUTING', 'Geen werkpakket in uitvoering. Zonder goedgekeurd werkpakket start ik geen agents.');
+  assertApproval(st);
   const c = st.contract;
   requireThat(typeof input.prompt === 'string' && input.prompt.length <= 16000, 'Agentoverdracht ontbreekt of is te lang. Geef alleen relevante feiten en bronverwijzingen.');
   const existing = st.agents[e.tool_use_id], signature = digest(input);
@@ -118,7 +119,14 @@ function writePermission(root, st, e) {
   requireThat(paths.length > 0, 'Geen herkenbaar schrijfdoel.');
   for (const p of paths) {
     safePath(root, p);
-    if (controlDocument(p)) {
+    const kind = controlKind(p);
+    if (kind) {
+      // Eén regel: gevolgde bestanden wijzigen kan alleen onder een GO; lokale genegeerde administratie en het eigen voorstel zijn vrij.
+      if (kind === 'tracked' || (kind === 'technical' && isTracked(root, p))) {
+        requireThat(st && st.status === 'EXECUTING', 'Zonder AAE GO verander ik geen gevolgde repositorybestanden (' + p + '). Sparren, onderzoeken en lezen mag wel; vraag een werkpakket met GO voor deze wijziging.');
+        assertApproval(st);
+        requireThat(st.contract.envelope.phase === 'implementation', 'Een analyse-werkpakket wijzigt geen gevolgde bestanden (' + p + ').');
+      }
       const wk = workIdFromPath(p);
       if (wk) {
         requireThat(name === 'Write', 'Contract en resultaat altijd als volledig JSON-bestand met Write vervangen.');
@@ -131,6 +139,7 @@ function writePermission(root, st, e) {
     }
     requireThat(!protectedPath(p), 'AAE/projectinstructies, state, credentials en instellingen zijn beschermd. Gebruik de installer voor systeemupdates.');
     requireThat(st && st.status === 'EXECUTING', 'Geen werkpakket in uitvoering (EXECUTING). Zonder goedgekeurd werkpakket verander ik geen applicatiecode.');
+    assertApproval(st);
     const c = st.contract;
     requireThat(c.envelope.phase === 'implementation', 'Analyse-only: geen applicatiecode wijzigen.');
     requireThat(!hasLive(st) && !st.command_running && !liveExternal(st).length, 'Geen bronwijzigingen tijdens agent-, externe tool- of testuitvoering.');
@@ -150,6 +159,11 @@ function bashPermission(root, st, e) {
   if (m) {
     requireThat(NEEDS_ARG.has(m[1]) ? Boolean(m[2]) : !m[2], 'Onjuiste runnerargumenten.');
     if (m[1] === 'run' || m[1] === 'close') requireThat(st, 'Geen actief werkpakket voor ' + m[1] + '.');
+    if (m[1] === 'run') assertApproval(st);
+    if (m[1] === 'project') {
+      requireThat(st && st.status === 'EXECUTING' && st.contract.envelope.phase === 'implementation', 'cli project schrijft docs/aae/PROGRESS.md (gevolgd bestand): alleen onder een werkpakket in uitvoering met GO.');
+      assertApproval(st);
+    }
     return null;
   }
   const argv = bashArgv(command);
@@ -193,6 +207,7 @@ function preExternal(root, e, call) {
   requireThat(!liveExternal(st).length, 'Er loopt al een externe toolactie. Wacht op afronding.');
   const change = call.level !== 'read';
   requireThat(!change || st.status === 'EXECUTING', 'Externe wijziging vereist een werkpakket in uitvoering met goedkeuring.');
+  if (change) { assertApproval(st); requireThat(c.envelope.phase === 'implementation', 'Een analyse-werkpakket doet geen externe wijzigingen.'); }
   requireThat(change || ['PLANNING', 'WAITING_FOR_APPROVAL', 'EXECUTING', 'NEEDS_HUMAN'].includes(st.status), 'Werkpakket is niet beschikbaar voor externe leesacties.');
   if (call.provider === 'supabase') {
     const inRef = projectRefFromInput(input);

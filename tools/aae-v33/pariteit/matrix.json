@@ -39,7 +39,7 @@
     {"v32": "resume of stale source context is rejected", "status": "behouden", "v33": ["G29"]},
     {"v32": "A11/A12: old GO cannot approve changed route", "status": "aangepast", "v33": ["T8"], "toelichting": "De GO is gebonden aan de envelop van het werkpakket; een wezenlijke wijziging vraagt een nieuwe GO."},
     {"v32": "turning approval_required off does not silently downgrade prior GO", "status": "aangepast", "v33": ["materialChanges: binnen de envelop"], "toelichting": "Een lichtere risicoklasse of bewijsvloer is een wezenlijke wijziging."},
-    {"v32": "A13/A14: explicit pause overrides Lean route", "status": "behouden", "v33": ["G32"]},
+    {"v32": "A13/A14: explicit pause overrides Lean route", "status": "aangepast", "v33": ["G32"], "toelichting": "Besluit 2026-10-01: ook een LIGHT-pakket start niet meer automatisch en vraagt precies één AAE GO. De pauze-regel blijft: een pauze wint van de goedkeuring."},
     {"v32": "A15/A16: absent prompt_id does not lose GO or revocation", "status": "vervallen", "v33": ["T7", "G53"], "toelichting": "v3.3 gebruikt geen prompt_id; alleen exacte AAE-commando's veranderen de status, en pauze blijft staan."},
     {"v32": "known duplicate prompt_id is idempotent", "status": "aangepast", "v33": ["G34"], "toelichting": "Een dubbele GO is idempotent."},
     {"v32": "quoted GO is not approval", "status": "behouden", "v33": ["T7", "T13"]},
@@ -151,5 +151,20 @@
     "B4": {"omschrijving": "Een wijziging aan een bewaakt bestand binnen het gebied vraagt voor publicatie een nieuwe GO.", "v33": ["R30", "R31", "R04"]},
     "B5": {"omschrijving": "Een READY-gate (nu: de merge-gate) verdwijnt niet stil.", "v33": ["B5 behouden", "R27", "R28", "T11"]},
     "B6": {"omschrijving": "node --test accepteert alleen concrete testbestanden, nooit mappen of scripts.", "v33": ["B6 behouden"]}
+  },
+  "wijzigingen_001b": {
+    "bron": "Besluiten van Jurgen 2026-10-01 (AAE-V33-001B): één GO ook voor LIGHT, GO gebonden aan werkpakket-ID + volledige envelop-hash, één simpele regel voor gevolgde bestanden.",
+    "regels": {
+      "GO alleen voor het getoonde voorstel (ID + korte hash)": ["GB01", "GB02", "GB11"],
+      "doel in de hash, titel niet": ["GB02", "GB03", "GB05"],
+      "materiële envelopwijziging maakt een oude GO ongeldig": ["GB04", "GB08"],
+      "alleen plan of technische aanpak: GO blijft": ["GB06", "GB05"],
+      "JSON-volgorde en opmaak: dezelfde hash": ["GB07"],
+      "zacht budget: geen nieuwe GO; hard budget hoger: wel": ["GB08"],
+      "de hash bindt de materiële onderdelen": ["GB09"],
+      "elke bewakingshandeling controleert de goedgekeurde hash": ["GB10"],
+      "LIGHT vraagt één GO; pure analyse start zonder GO": ["G32", "GB12", "GB13"],
+      "gevolgde bestanden alleen onder GO, lokale administratie vrij": ["GB14", "GB15", "GB16", "GB17"]
+    }
   }
 }

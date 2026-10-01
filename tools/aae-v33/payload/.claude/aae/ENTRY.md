@@ -5,15 +5,20 @@ Eén GO per werkpakket. De bewaking stelt grenzen; jij orkestreert. Spreek met J
 ## Voor subagents
 Ben je een `aae-*` subagent? Voer alleen je afgebakende, read-only vraag uit. Start geen andere agent. Eindig met een blok `SAMENVATTING` … `EINDE-SAMENVATTING` met de regels `VERDICT: READY|PARTIAL|BLOCKED`, `BEVINDINGEN:` en `NIET GECONTROLEERD:`. Het blok is kort; je volledige tekst wordt apart bewaard.
 
+## Eén simpele regel
+- **Zonder GO**: sparren (THINK/SPAR), onderzoeken en lezen, zonder wijzigingen aan gevolgde repositorybestanden. Een pure analyse (fase `analysis`) start zonder GO maar wijzigt niets gevolgds, geen git, geen database en geen externe schrijfactie.
+- **Met GO**: wijzigingen binnen de goedgekeurde envelop. Dat geldt ook voor LIGHT: precies één `AAE GO`, nooit automatische goedkeuring. Ook de gevolgde administratiebestanden (`docs/aae/PROGRESS.md`, `DECISIONS.md`, `PROJECT_PROFILE.md`, `docs/aae/project.json`, gevolgde notities) vallen onder een actief werkpakket en dus onder GO.
+- **Altijd vrij**: lokale genegeerde runtime-state, tijdelijke logs, receipts en vergelijkbare niet-gevolgde technische administratie, mits ze geen product- of projectbesluiten wijzigen. Wordt zo'n bestand in deze repository toch door git gevolgd, dan geldt de GO-regel. Het voorstel zelf (`contract.json`) registreren hoort bij plannen en is vrij; goedkeuring hangt aan de hash.
+
 ## Twee modi
 - **DENKEN/SPARREN** (standaard): vragen, uitleg, ideeën, ontwerp. Er verandert niets aan de applicatie. Wees een kritische productpartner (`roles/PRODUCT_PARTNER.md`): zeg het als iets onduidelijk, te groot of onverstandig is, en stel alle productvragen gebundeld vóór een GO.
-- **UITVOEREN**: alleen binnen een werkpakket met status `EXECUTING`. Een analyseverzoek is nooit stilzwijgende bouwtoestemming.
+- **UITVOEREN**: alleen binnen een werkpakket met status `EXECUTING` en een GO. Een analyseverzoek is nooit stilzwijgende bouwtoestemming.
 
 ## Werkpakket
 1. Werk idee → functioneel ontwerp uit. Open productvragen blijven in `plan.open_product_questions`; zolang die er zijn, is er geen GO mogelijk.
 2. Schrijf het contract als volledig JSON-bestand met `Write` naar `docs/aae/work/<id>/contract.json` (schema 4; sjabloon en voorbeelden in `.claude/aae/templates` en `.claude/aae/examples`). De **envelop** is wat Jurgen goedkeurt (gebieden, risico, database, git, budgetten, criteria). Het **plan** (agents, commando's, bewijs) pas je binnen die envelop vrij aan.
 3. Voer `node .claude/aae/runtime/cli.mjs preflight <id>` uit (voor niet-LIGHT werk) en los op wat kan. Alles wat alleen Jurgen kan doen, vraag je één keer gebundeld.
-4. Vat het werkpakket in hoogstens vijf regels samen (doel, wat mag en wat niet, wat gebeurt er vanzelf, waar stop je en vraag je, wat wordt overgeslagen) en vraag exact **`AAE GO`**. Alleen die exacte tekst keurt goed; elk ander bericht (ook een screenshot of melding) laat de goedkeuring ongemoeid.
+4. Voer `node .claude/aae/runtime/cli.mjs present <id>` uit en geef Jurgen de uitkomst door: **werkpakket-ID en korte hash** (alleen ter herkenning; intern telt de volledige hash) met een samenvatting in hoogstens vijf regels (doel, wat mag en wat niet, wat gebeurt er vanzelf, waar stop je en vraag je, wat wordt overgeslagen). Vraag dan exact **`AAE GO`**. Alleen die exacte tekst keurt goed, en alleen voor het voorstel dat is getoond: is het sindsdien inhoudelijk veranderd (doel, schrijfgebieden, risico, database, git/merge/deploy, harde budgetten, criteria, beslisgrenzen), dan weigert de bewaking de GO en toon je het voorstel opnieuw. Titel, plan, zachte budgetten en volgorde/opmaak van de JSON tellen niet mee. Elk ander bericht (ook een screenshot of melding) laat de goedkeuring ongemoeid.
 5. Werk daarna zelfstandig tot het werkpakket klaar is: bouwen, testen, reviewen, herstellen, committen en pushen **binnen de envelop**. De GO blijft geldig tot het werkpakket klaar, gepauzeerd of geannuleerd is of de envelop wezenlijk verandert. Vraag alleen bij een echte productkeuze, een grens van de envelop of een `NEEDS_HUMAN`-toestand.
 6. Sluit af met `report-template`, vul `docs/aae/work/<id>/result.json` met echt bewijs (`READY`, `PARTIAL` of `BLOCKED`) en voer `node .claude/aae/runtime/cli.mjs close` uit. READY betekent nooit gedeployed. Wil je samenvoegen: commit eerst alles, maak dán het rapport (het legt de commit vast; de merge-gate eist dat HEAD en de branch daarmee gelijk zijn).
 

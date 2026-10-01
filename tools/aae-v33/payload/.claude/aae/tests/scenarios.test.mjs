@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put} from './helpers.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put} from './helpers.mjs';
 import {loadWork, saveWork, withLock, activeWork, contractFile, TERMINAL} from '../runtime/state.mjs';
 import {reconcile, liveRows, finalizeRun, DIGEST_MAX, KEEP_RAW_FILE, KEEP_RAW_TOTAL} from '../runtime/reports.mjs';
 import {classifyDb} from '../runtime/integrations.mjs';
@@ -124,7 +124,7 @@ test('T8 scopewijziging: buiten het gebied schrijven wordt geweigerd; een materi
   assert.equal(st(root).status, 'NEEDS_HUMAN');
   assert.equal(st(root).needs_human.kind, 'material_change');
   assert.ok(denies(() => write(root, 'app/page.tsx')), 'nog niet toegestaan zolang de GO ontbreekt');
-  prompt(root, GO);
+  go(root);
   assert.equal(st(root).status, 'EXECUTING');
   assert.equal(write(root, 'app/page.tsx'), null);
 }));
@@ -150,7 +150,7 @@ test('T10 meerdere commits en pushes binnen één GO: de classificatie staat ze 
   const v = validateContract(structuredClone(c));
   assert.equal(v.plan.commands.length, 3);
   plan(root, {envelope: {git}, plan: {...contract().plan, commands}});
-  prompt(root, GO);
+  go(root);
   assert.equal(st(root).status, 'EXECUTING');
   assert.ok(denies(() => bash(root, 'git push origin main')), 'vrije Bash-push blijft geblokkeerd');
   const sh = (...a) => spawnSync('git', a, {cwd: root, encoding: 'utf8'});
@@ -202,7 +202,7 @@ test('T13 interne hook-melding: tekst die op een AAE-melding lijkt, verandert de
     prompt(root, t);
     assert.equal(st(root).status, 'WAITING_FOR_APPROVAL', t);
   }
-  prompt(root, 'AAE GO');
+  go(root);
   assert.equal(st(root).status, 'EXECUTING');
 }));
 
@@ -317,7 +317,7 @@ test('T22 een open productvraag blokkeert WAITING_FOR_APPROVAL; zonder vraag sta
   const s = plan(root, {plan: {...contract().plan, open_product_questions: ['Moet de lijst op de startpagina komen?']}});
   assert.equal(s.status, 'PLANNING');
   assert.match(s.blockers.join(' '), /productvragen open/);
-  prompt(root, GO);
+  go(root);
   assert.equal(st(root).status, 'PLANNING', 'een GO op een plan met open vragen doet niets');
   const s2 = plan(root, {id: 'W-U'});
   assert.equal(s2.status, 'WAITING_FOR_APPROVAL');

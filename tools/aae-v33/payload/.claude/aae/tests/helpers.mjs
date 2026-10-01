@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process';
 import {handleEvent} from '../runtime/events.mjs';
 import {validateContract, now, envelopeHash} from '../runtime/core.mjs';
 import {registerContract, loadWork, saveWork, contractFile, withLock} from '../runtime/state.mjs';
+import {presentProposal} from '../runtime/commands.mjs';
 
 export const SID = 'sessie-1';
 export function fixture() {
@@ -60,8 +61,14 @@ export const hook = (root, e) => handleEvent(root, {session_id: SID, cwd: root, 
 export const prompt = (root, text) => hook(root, {hook_event_name: 'UserPromptSubmit', prompt: text});
 /** Plan + exacte GO: het werkpakket staat in EXECUTING. */
 export function executing(root, over = {}) {
-  plan(root, over); prompt(root, 'AAE GO');
+  plan(root, over); go(root, over.id || 'W-T');
   return loadWork(root, (over.id || 'W-T'));
+}
+/** Toont het voorstel (zoals de Lead met cli present doet) en geeft daarna de exacte GO: een GO telt alleen voor het getoonde voorstel. */
+export function go(root, id = 'W-T') {
+  if (loadWork(root, id)?.status === 'EXECUTING') return null; // bijvoorbeeld een pure analyse: start zonder GO
+  presentProposal(root, id);
+  return prompt(root, 'AAE GO');
 }
 export const st = (root, id = 'W-T') => loadWork(root, id);
 export const pre = (root, tool_name, tool_input, extra = {}) => hook(root, {hook_event_name: 'PreToolUse', tool_name, tool_input, tool_use_id: 'tu-' + Math.random().toString(36).slice(2, 8), ...extra});

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {spawnSync} from 'node:child_process';
 
 export const VERSION = '3.3.0';
 export const WORK = 'docs/aae/work';
@@ -71,6 +72,24 @@ export function protectedPath(p) {
 }
 export function controlDocument(p) {
   return DOCS.has(p) || /^docs\/aae\/notes\/[A-Za-z0-9_-]+\.md$/.test(p) || /^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/(contract|result)\.json$/.test(p);
+}
+/**
+ * Eén simpele regel. 'tracked': projectbesluiten in gevolgde bestanden (PROGRESS, DECISIONS, PROJECT_PROFILE): alleen onder een GO.
+ * 'contract': het voorstel van een werkpakket zelf (plan registreren is technische administratie; goedkeuring blijft aan de hash gebonden).
+ * 'technical': lokale genegeerde administratie (notities, resultaat): vrij, tenzij het bestand in deze repository toch gevolgd wordt (dan GO).
+ */
+export function controlKind(p) {
+  if (DOCS.has(p)) return 'tracked';
+  if (/^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/contract\.json$/.test(p)) return 'contract';
+  if (controlDocument(p)) return 'technical';
+  return null;
+}
+/** Wordt dit bestand door git gevolgd? Geen git-map: nee. Git-map maar git faalt: ja (veilig kant). */
+export function isTracked(root, p) {
+  if (!fs.existsSync(path.join(fs.realpathSync(root), '.git'))) return false;
+  const r = spawnSync('git', ['ls-files', '--error-unmatch', '--', p], {cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true});
+  // Status 1 = "pathspec did not match": niet gevolgd (taalonafhankelijk). Elke andere uitkomst (0 = gevolgd, 128/fout/timeout) geldt als gevolgd.
+  return r.error || r.status === null ? true : r.status !== 1;
 }
 export function workIdFromPath(p) { const m = /^docs\/aae\/work\/([A-Za-z0-9][A-Za-z0-9_-]{0,63})\/(contract|result)\.json$/.exec(p); return m ? {id: m[1], kind: m[2]} : null; }
 /** Reject symlinks in every existing path component, including symlinked parents. */
@@ -354,8 +373,30 @@ export function validateContract(c) {
   requireThat(Buffer.byteLength(JSON.stringify(c)) < 64000, 'Contract is te groot; splits het werkpakket.');
   return c;
 }
-export const envelopeOf = c => ({risk_class: c.risk_class, risk_flags: [...c.risk_flags].sort(), envelope: c.envelope});
+const norm = s => String(s).normalize('NFC').replace(/\s+/g, ' ').trim();
+const uniqSorted = a => [...new Set(a)].sort();
+/**
+ * Canonieke envelop: alleen wat de gebruiker goedkeurt. Zet verzamelingen op volgorde, normaliseert witruimte en laat weg wat geen
+ * goedkeuring is: titel, gebiedsnamen, zachte budgetten, plan (agents, commando's, leesscope, testbeschrijvingen) en aannames.
+ * Doel, ID, fase, acceptatie, schrijfgebieden, risico, DB-maximum, providers, git/merge/deploy, harde budgetten en beslisgrenzen tellen wel mee.
+ */
+export function envelopeOf(c) {
+  const e = c.envelope, pv = {};
+  for (const k of ['supabase', 'github']) if (e.providers?.[k]) pv[k] = {...e.providers[k], tools: uniqSorted(e.providers[k].tools)};
+  return {
+    id: c.id, goal: norm(c.goal), phase: e.phase, risk_class: c.risk_class, risk_flags: uniqSorted(c.risk_flags),
+    acceptance: e.acceptance.map(a => ({id: a.id, text: norm(a.text)})).sort((x, y) => x.id < y.id ? -1 : x.id > y.id ? 1 : 0),
+    write: uniqSorted(e.areas.flatMap(a => a.write)), support: uniqSorted(e.areas.flatMap(a => a.support || [])),
+    db_max: e.db_max ?? 'none', providers: pv,
+    git: {commit: e.git.commit, push: uniqSorted(e.git.push), merge: e.git.merge ? {to: e.git.merge.to} : null, deploy: e.git.deploy},
+    budgets: {agent_calls_hard: e.budgets.agent_calls.hard, command_runs: e.budgets.command_runs, external_calls: e.budgets.external_calls ?? 0, max_parallel: e.budgets.max_parallel ?? 2},
+    decision_points: uniqSorted((e.decision_points || []).map(norm)), decision_defaults: uniqSorted((e.decision_defaults || []).map(norm)),
+    extra_commands: (e.extra_commands || []).map(x => stable({argv: x.argv, purpose: x.purpose})).sort()
+  };
+}
 export const envelopeHash = c => digest(envelopeOf(c));
+/** Korte herkenning voor de gebruiker; intern telt alleen de volledige hash. */
+export const shortHash = h => String(h).slice(0, 8);
 const sub = (a, b) => a.every(x => b.includes(x));
 const sameSet = (a, b) => sub(a, b) && sub(b, a);
 /**
@@ -366,6 +407,7 @@ const sameSet = (a, b) => sub(a, b) && sub(b, a);
 export function materialChanges(a, n) {
   const why = [], ea = a.envelope, en = n.envelope;
   if (n.id !== a.id) why.push('werkpakket-ID');
+  if (norm(n.goal) !== norm(a.goal)) why.push('doel');
   if (en.phase !== ea.phase) why.push('fase');
   if (level(n.risk_class) < level(a.risk_class)) why.push('risicoklasse lager (bewijs lichter)');
   if (level(n.risk_class) > level(a.risk_class)) why.push('risicoklasse hoger');
@@ -391,6 +433,7 @@ export function materialChanges(a, n) {
   if (!sub(en.assumptions, ea.assumptions)) why.push('nieuwe aannames');
   if (!sub(en.decision_defaults, ea.decision_defaults)) why.push('nieuwe beslisstandaarden');
   if (!sub(ea.decision_points || [], en.decision_points || [])) why.push('beslisgrenzen');
+  // Bewijsvloer (B2): soort, methode én omschrijving van de goedgekeurde controles blijven minstens gelijk; bewijs wordt nooit stil lichter.
   if (!a.plan.test_plan.every(x => n.plan.test_plan.some(y => y.kind === x.kind && y.method === x.method && y.description === x.description))) why.push('bewijsplan');
   return [...new Set(why)];
 }

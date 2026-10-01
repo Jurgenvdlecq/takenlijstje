@@ -45,6 +45,12 @@ test('pariteit: de bevindingen B1 t/m B6 hebben elk minstens één bestaande tes
     for (const p of x.v33) assert.ok(bestaat(p), b + ': test bestaat niet: ' + p);
   }
 });
+test('pariteit: elke 001B-regel (GO-binding en administratieregel) heeft bestaande tests', () => {
+  const regels = Object.entries(matrix.wijzigingen_001b.regels);
+  assert.ok(regels.length >= 10);
+  for (const [naam, codes] of regels) { assert.ok(codes.length > 0, naam); for (const c of codes) assert.ok(alle.some(t => t.startsWith(c + ' ')), '001B-test bestaat niet: ' + c + ' (bij: ' + naam + ')'); }
+  for (let i = 1; i <= 17; i++) assert.ok(alle.some(t => t.startsWith('GB' + String(i).padStart(2, '0') + ' ')), 'GB' + i + ' ontbreekt');
+});
 test('pariteit: scenario\'s T1 t/m T22 bestaan alle als test', () => {
   for (let i = 1; i <= 22; i++) assert.ok(alle.some(t => new RegExp('^T' + i + '[ b]').test(t)), 'T' + i + ' ontbreekt');
 });

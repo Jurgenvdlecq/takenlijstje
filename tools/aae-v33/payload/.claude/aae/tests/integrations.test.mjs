@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, denies, agentCall, put} from './helpers.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, denies, agentCall, put} from './helpers.mjs';
 import {validateContract, materialChanges} from '../runtime/core.mjs';
 import {classifyDb, classifySql, classifyExternalCall, identifyExternalTool, projectRefFromResponse} from '../runtime/integrations.mjs';
 
@@ -60,7 +60,7 @@ test('I06 apply_migration is geblokkeerd vóór de GO en toegestaan daarna', met
   plan(root, {envelope: {providers: prov(), db_max: 'A', budgets: BUDGET(10)}});
   const call = {name: 'nieuwe_tabel', query: 'CREATE TABLE notities (id int);', project_id: REF};
   assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'm1'})), /vereist een werkpakket in uitvoering/);
-  prompt(root, 'AAE GO');
+  go(root);
   assert.equal(ext(root, 'apply_migration', call), null);
 }));
 test('I07 het externe toolbudget staat los van het agentbudget', met(root => {

@@ -8,7 +8,7 @@ Alleen lezen als je iets precies moet weten. De korte werkwijze staat in `ENTRY.
 Statussen: `PLANNING` (plan wordt klaargemaakt of heeft blokkades) → `WAITING_FOR_APPROVAL` → `EXECUTING` (activiteit: BUILDING, TESTING, WAITING_FOR_AGENT, REVIEWING, MERGING, DEPLOYING) → `READY`. Daarnaast `NEEDS_HUMAN` (wacht op een beslissing), `PAUSED`, `BLOCKED` (ook een gedeeltelijk afgerond pakket), `CANCELLED`. Er is één actief pakket per werkmap.
 
 ## Commando's van de gebruiker
-Alleen de exacte tekst (hoofdletters) telt: `AAE GO`, `AAE PAUZE`, `AAE VERDER`, `AAE STATUS`, `AAE ANNULEER`, `AAE BEVESTIG`, optioneel gevolgd door een werkpakket-ID. Een GO is gebonden aan het werkpakket en zijn envelop, niet aan het laatste bericht. `AAE BEVESTIG` geldt eenmalig voor de ene beschreven destructieve database-actie en vervalt bij het volgende gewone bericht.
+Alleen de exacte tekst (hoofdletters) telt: `AAE GO`, `AAE PAUZE`, `AAE VERDER`, `AAE STATUS`, `AAE ANNULEER`, `AAE BEVESTIG`, optioneel gevolgd door een werkpakket-ID. Een GO is gebonden aan `werkpakket-ID + volledige envelop-hash`, niet aan het laatste bericht. De hash (`envelopeOf` in `core.mjs`, sha-256 over een canonieke vorm) bindt: ID, doel, fase, acceptatiecriteria, schrijfgebieden en ondersteunende categorieën (niet de gebiedsnaam), risicoklasse en -vlaggen, DB-maximum, providers, git (commit/push/merge/deploy), harde budgetten (agent hard, commando's, extern, parallel), beslisgrenzen, beslisstandaarden en extra commando's. Niet in de hash: titel, gebiedsnamen, zachte budgetten, plan (agents, commando's, leesscope, bewijsbeschrijving, productvragen) en aannames. Verzamelingen staan op volgorde en witruimte in tekst is genormaliseerd, dus JSON-volgorde of opmaak verandert de hash niet. `cli present <id>` toont ID + korte hash (eerste 8 tekens, alleen ter herkenning) en legt de volledige hash vast als getoond; `AAE GO` keurt alleen goed als het huidige voorstel precies die hash heeft. Bij elke bewakingshandeling (schrijven, agent, runner, gates, externe wijziging, `cli project`) controleert `assertApproval` dat de goedgekeurde hash bij het goedgekeurde contract hoort én dat het huidige contract binnen die envelop valt (`materialChanges`). `AAE BEVESTIG` geldt eenmalig voor de ene beschreven destructieve database-actie en vervalt bij het volgende gewone bericht.
 
 ## Contract (schema 4)
 `envelope` (de gebruiker keurt dit goed):
@@ -21,7 +21,7 @@ Alleen de exacte tekst (hoofdletters) telt: `AAE GO`, `AAE PAUZE`, `AAE VERDER`,
 
 Een wijziging van het contract tijdens uitvoering is vrij zolang `materialChanges` niets meldt (breder gebied, hoger risico of lichter bewijs, meer database, git, budget, providers, criteria of beslisgrenzen). Anders wordt het een voorstel (`NEEDS_HUMAN`) dat een nieuwe `AAE GO` vraagt.
 
-Risicoklasse: `LIGHT` (klein, lokaal, geen externe effecten: geen apart GO-moment), `STANDARD`, `HIGH` (onafhankelijk READY-oordeel van een reviewer op de actuele bron verplicht). Autorisatie, financieel en gevoelige gegevens zijn altijd `HIGH`.
+Risicoklasse: `LIGHT` (klein, lokaal, geen externe effecten: minder bewijs, maar wel precies één GO), `STANDARD`, `HIGH` (onafhankelijk READY-oordeel van een reviewer op de actuele bron verplicht). Autorisatie, financieel en gevoelige gegevens zijn altijd `HIGH`.
 
 ## Commando's en git
 Elk commando staat in `plan.commands` (`argv`, `purpose`, `why`, `watch`, `timeout_ms`, `max_runs`) en wordt alleen via `cli run <id>` zonder shell uitgevoerd.

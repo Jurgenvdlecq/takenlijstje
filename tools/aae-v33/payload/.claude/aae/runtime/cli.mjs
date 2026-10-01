@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {requireThat, readJson, validateContract, now, atomicText, safePath, STATE_DIR, WORK} from './core.mjs';
-import {withLock, activeWork, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
+import {withLock, activeWork, assertApproval, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
 import {liveRows, reconcile, finalizeRun, findTranscript, transcriptFinalText} from './reports.mjs';
 import {runCommand, closeTask, reportTemplate, doctor} from './runner.mjs';
-import {runPreflight, bundleActions, recordDeploy} from './preflight.mjs';
-import {plainSummary, bindProbe} from './commands.mjs';
+import {runPreflight, bundleActions, deployInfo} from './preflight.mjs';
+import {plainSummary, bindProbe, presentProposal} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -51,14 +51,16 @@ try {
       requireThat(c.id === arg, 'ID in het contract wijkt af van de mapnaam.');
       result = registerContract(root, c); break;
     }
+    case 'present': requireThat(arg, 'Werkpakket-ID ontbreekt.'); result = presentProposal(root, arg); break;
     case 'preflight': {
       requireThat(arg, 'Werkpakket-ID ontbreekt.');
       const st0 = loadWork(root, arg); requireThat(st0 && st0.contract, 'Onbekend werkpakket of nog geen contract.');
       const checks = await runPreflight(root, st0.contract);
       let deploy = null;
-      if (st0.contract.envelope.git.merge || st0.contract.envelope.git.deploy !== 'none') deploy = recordDeploy(root, st0.contract.envelope.git.merge?.to || 'main');
+      // Alleen bepalen en in de lokale state bewaren: docs/aae/project.json is een gevolgd bestand en wordt niet vóór een GO geschreven.
+      if (st0.contract.envelope.git.merge || st0.contract.envelope.git.deploy !== 'none') deploy = deployInfo(root, st0.contract.envelope.git.merge?.to || 'main');
       result = withLock(root, () => {
-        const st = loadWork(root, arg); st.preflight = {at: now(), checks};
+        const st = loadWork(root, arg); st.preflight = {at: now(), checks, deploy};
         const acties = bundleActions(checks);
         if (acties.length && ['PLANNING', 'WAITING_FOR_APPROVAL', 'EXECUTING'].includes(st.status)) needsHuman(st, 'extern', 'Voordat ik verder bouw is er één handeling van jou nodig: ' + acties.join(' '), {acties});
         else log(st, 'preflight', {fouten: checks.filter(x => x.status === 'fail').length});
@@ -99,10 +101,16 @@ try {
     case 'close': result = closeTask(root); break;
     case 'run': requireThat(arg, 'Commando-ID ontbreekt.'); result = await runCommand(root, arg); if (result.exit_code !== 0) process.exitCode = 1; break;
     case 'doctor': result = doctor(root); break;
-    case 'project': result = projectie(root); break;
+    case 'project': result = withLock(root, () => {
+      // docs/aae/PROGRESS.md is gevolgd: ook de opdrachtregel schrijft het alleen onder een werkpakket in uitvoering met een geldige GO.
+      const st = activeWork(root);
+      requireThat(st && st.status === 'EXECUTING' && st.contract.envelope.phase === 'implementation', 'cli project schrijft een gevolgd bestand: alleen onder een werkpakket in uitvoering met GO.');
+      assertApproval(st);
+      return projectie(root);
+    }); break;
     case 'prune': result = prune(root); break;
     case 'report-template': result = reportTemplate(root); break;
-    default: throw new Error('Gebruik status | plan <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template.');
+    default: throw new Error('Gebruik status | plan <id> | present <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template.');
   }
   console.log(JSON.stringify(result, null, 2));
 } catch (e) { console.error('AAE: ' + e.message); process.exitCode = 2; }

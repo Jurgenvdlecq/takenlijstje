@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, denies, agentCall, runAgent, REPORT, put} from './helpers.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, denies, agentCall, runAgent, REPORT, put} from './helpers.mjs';
 import {runCommand, reportTemplate, closeTask} from '../runtime/runner.mjs';
 import {validateContract, clock} from '../runtime/core.mjs';
 import {assertGate} from '../runtime/gates.mjs';
@@ -30,7 +30,7 @@ const makeResult = (root, receipt, mutate) => {
 test('R01 een commando draait pas na de GO van het werkpakket', met(async root => {
   plan(root);
   assert.match(await msg(runCommand(root, 't_ok')), /Geen actief werkpakket/);
-  prompt(root, 'AAE GO');
+  go(root);
   assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
 }));
 test('R02 de receipt bevat echte exitcode, bronvingerafdrukken, begrensde uitvoer en looptijd', met(async root => {

@@ -4,7 +4,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {
   STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, VERSION
 } from './core.mjs';
-import {withLock, activeWork, loadWork, saveWork, log, transition, resultFile, listWork, TERMINAL} from './state.mjs';
+import {withLock, activeWork, assertApproval, loadWork, saveWork, log, transition, resultFile, listWork, TERMINAL} from './state.mjs';
 import {liveRows} from './reports.mjs';
 import {assertReady, assertGate} from './gates.mjs';
 import {extraKey} from './commands.mjs';
@@ -19,6 +19,7 @@ export async function runCommand(root, cmdId) {
     const st = activeWork(root);
     requireThat(st, 'Geen actief werkpakket.');
     requireThat(st.status === 'EXECUTING', 'Werkpakket is niet in uitvoering (' + st.status + '). Een commando draait alleen binnen een goedgekeurd werkpakket.');
+    assertApproval(st);
     const c = st.contract, m = c.plan.commands.find(x => x.id === cmdId);
     requireThat(m, 'Commando niet in het plan: ' + cmdId);
     const k = classifyCommand(c, m);

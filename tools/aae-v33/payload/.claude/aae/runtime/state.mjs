@@ -49,7 +49,7 @@ export function saveWork(root, st) { st.updated = now(); atomicJson(root, stateF
 export function newState(id) {
   return {
     version: 4, id, status: 'PLANNING', activity: null, created: now(), updated: now(),
-    contract: null, proposed: null, approved: null, needs_human: null, pending_decision: null, confirmed: null, blockers: [],
+    contract: null, proposed: null, approved: null, presented: null, needs_human: null, pending_decision: null, confirmed: null, blockers: [],
     usage: {agents: 0, commands: 0, external: 0}, agents: {}, command_counts: {}, receipts: [], command_running: null,
     external_calls: {}, external_receipts: [], extra_fp: {}, supabase_verified: null, preflight: null, files_touched: [], soft_exceeded: false,
     legacy: false, history: []
@@ -77,9 +77,26 @@ export function activeWork(root) {
   requireThat(ids.length <= 1, 'Meer dan één actief werkpakket (' + ids.map(s => s.id).join(', ') + '). Pauzeer of annuleer er een.');
   return ids[0] || null;
 }
-export function lightEligible(c) {
+/**
+ * Alleen een pure analyse start zonder GO: sparren, onderzoeken en lezen. Geen gevolgde bestanden, geen git-, database- of externe wijziging,
+ * geen niet-lokale commando's. Elke andere route, ook LIGHT, vraagt precies één AAE GO.
+ */
+export function analysisFree(c) {
   const e = c.envelope;
-  return c.risk_class === 'LIGHT' && !Object.keys(e.providers).length && e.db_max === 'none' && e.git.merge === null && e.git.deploy === 'none' && e.git.push.length === 0 && e.extra_commands.length === 0;
+  return e.phase === 'analysis' && e.areas.length === 0 && e.db_max === 'none' && e.git.deploy === 'none' && !e.git.commit && e.git.push.length === 0 && e.git.merge === null &&
+    e.extra_commands.length === 0 && !e.providers.github && !(e.providers.supabase?.tools || []).some(t => ['apply_migration', 'execute_sql'].includes(t));
+}
+/**
+ * Invariant bij elke bewakingshandeling: de opgeslagen goedgekeurde hash hoort bij het opgeslagen goedgekeurde contract en het huidige
+ * contract valt daarbinnen. Zo kan een gewijzigde state of een ongemerkt gewijzigd contract nooit stilzwijgend meelopen op een oude GO.
+ */
+export function assertApproval(st) {
+  const a = st && st.approved;
+  requireThat(a && a.contract && a.envelope_hash, 'Geen goedgekeurde envelop voor ' + (st?.id || 'dit werkpakket') + '. Vraag AAE GO.');
+  requireThat(a.contract.id === st.id, 'De goedkeuring hoort niet bij dit werkpakket. Vraag opnieuw AAE GO.');
+  requireThat(envelopeHash(a.contract) === a.envelope_hash, 'De goedgekeurde envelop-hash klopt niet met het goedgekeurde contract (state aangepast?). Vraag opnieuw AAE GO.');
+  const w = materialChanges(a.contract, st.contract);
+  requireThat(!w.length, 'Het huidige contract valt buiten de goedgekeurde envelop (' + w.join(', ') + '). Vraag AAE GO voor de wijziging.');
 }
 const fresh = (iso, hours = 24) => iso && Date.now() - Date.parse(iso) <= hours * 3600 * 1000;
 /** Bepaalt de volgende status voor een voorgesteld contract dat nog geen goedkeuring heeft. */
@@ -111,7 +128,7 @@ export function registerContractUnlocked(root, c) {
       st.proposed = c; st.contract = c;
       st.blockers = planningOutcome(st, c);
       if (st.status === 'PLANNING' || st.status === 'WAITING_FOR_APPROVAL') {
-        if (!st.blockers.length && lightEligible(c)) { approve(st, c, 'LIGHT'); }
+        if (!st.blockers.length && analysisFree(c)) { approve(st, c, 'ANALYSE (zonder GO: alleen lezen en onderzoeken)'); }
         else if (!st.blockers.length && st.status === 'PLANNING') transition(st, 'WAITING_FOR_APPROVAL', 'plan klaar');
         else if (st.blockers.length && st.status === 'WAITING_FOR_APPROVAL') transition(st, 'PLANNING', 'blokkades');
       }
@@ -124,7 +141,7 @@ export function registerContractUnlocked(root, c) {
 /** Zet goedkeuring: bewaart het goedgekeurde contract als vloer voor latere wijzigingen. */
 export function approve(st, c, source) {
   st.approved = {envelope_hash: envelopeHash(c), contract: c, at: now(), source};
-  st.contract = c; st.proposed = null; st.blockers = [];
+  st.contract = c; st.proposed = null; st.blockers = []; st.presented = null;
   st.extra_fp = {};
   if (st.status !== 'EXECUTING') transition(st, 'EXECUTING', 'goedgekeurd (' + source + ')');
   st.activity = 'BUILDING';

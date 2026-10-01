@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {fixture, cleanup, contract, put, st, prompt, runAgent, installRuntime, executing} from './helpers.mjs';
+import {fixture, cleanup, contract, put, st, prompt, go, runAgent, installRuntime, executing} from './helpers.mjs';
 import {validateContract, clock} from '../runtime/core.mjs';
 import {contractFile} from '../runtime/state.mjs';
 
@@ -19,7 +19,7 @@ test('CLI: plan, preflight, GO, run, report-template, project, prune en reconcil
   assert.equal(plan.code, 0, plan.err); assert.equal(plan.json.status, 'PLANNING'); assert.match(plan.json.blockers.join(' '), /Preflight/);
   const pre = cli(root, 'preflight', 'W-T');
   assert.equal(pre.code, 0, pre.err); assert.equal(pre.json.status, 'WAITING_FOR_APPROVAL'); assert.ok(pre.json.checks.some(c => c.name === 'node' && c.status === 'pass'));
-  prompt(root, 'AAE GO');
+  go(root);
   assert.equal(st(root).status, 'EXECUTING');
   const run = cli(root, 'run', 't_ok');
   assert.equal(run.code, 0, run.out + run.err); assert.equal(run.json.exit_code, 0);

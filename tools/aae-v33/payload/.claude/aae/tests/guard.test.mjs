@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put, installRuntime, spawnHook} from './helpers.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put, installRuntime, spawnHook} from './helpers.mjs';
 import {validateContract, sourceDigest, classifyCommand, clock} from '../runtime/core.mjs';
 import {loadWork, saveWork, withLock, contractFile, newState} from '../runtime/state.mjs';
 import {liveRows, reconcile} from '../runtime/reports.mjs';
@@ -156,9 +156,13 @@ test('G29 hervatten van een oude agentcontext wordt geweigerd', met(root => {
   executing(root);
   assert.match(msg(() => pre(root, 'Agent', {subagent_type: 'aae-reviewer', prompt: WHY + 'x', run_in_background: false, resume: 'abc'}, {tool_use_id: 'tu-r'})), /Hervatten wordt niet ondersteund/);
 }));
-test('G32 een expliciete pauze wint van een automatisch goedgekeurd LIGHT-pakket', met(root => {
+test('G32 ook een LIGHT-pakket start niet zonder GO; een expliciete pauze wint daarna van de goedkeuring', met(root => {
   const s = plan(root, {risk_class: 'LIGHT'});
-  assert.equal(s.status, 'EXECUTING');
+  assert.equal(s.status, 'WAITING_FOR_APPROVAL', 'LIGHT keurt zichzelf niet meer goed');
+  assert.equal(s.approved, null);
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
+  go(root);
+  assert.equal(st(root).status, 'EXECUTING');
   prompt(root, 'AAE PAUZE');
   assert.equal(st(root).status, 'PAUSED');
   assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);

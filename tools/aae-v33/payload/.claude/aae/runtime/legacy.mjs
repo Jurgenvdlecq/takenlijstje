@@ -8,7 +8,7 @@ import path from 'node:path';
 import {
   requireThat, safePath, readJson, atomicJson, digest, stable, now, validateContract, envelopeHash, classifyCommand, commandFingerprint, safeLocalArgv, LOCAL, STATE_DIR, WORK, relName, protectedPath
 } from './core.mjs';
-import {listWork, loadWork, saveWork, newState, log, approve, contractFile, withLock, eventLog} from './state.mjs';
+import {listWork, loadWork, saveWork, newState, log, approve, analysisFree, contractFile, withLock, eventLog} from './state.mjs';
 
 const TASK = 'docs/aae/TASK.json';
 const FOCUS = {
@@ -108,7 +108,8 @@ export function importLegacy(root) {
     else if (lt.status === 'paused') { st.proposed = c; st.status = 'PAUSED'; st.paused_from = 'EXECUTING'; }
     else {
       if (goedgekeurd) { st.approved = {envelope_hash: hash, contract: c, at: lt.approval.at || now(), source: 'v3.2 GO (overgenomen)'}; st.status = 'EXECUTING'; st.activity = 'BUILDING'; }
-      else if (t.approval_required === false && c.risk_class === 'LIGHT') { st.proposed = c; approve(st, c, 'v3.2 LIGHT-route zonder GO-eis (overgenomen)'); }
+      // Alleen een pure analyse start zonder GO; een v3.2-route zonder GO-eis (ook LIGHT) die iets wil wijzigen wacht op precies één AAE GO.
+      else if (t.approval_required === false && analysisFree(c)) { st.proposed = c; approve(st, c, 'ANALYSE (v3.2-route zonder GO-eis, alleen lezen)'); }
       else { st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; log(st, 'legacy_zonder_geldige_go', {reden: 'geen of verouderde v3.2-goedkeuring; een nieuwe AAE GO is nodig'}); }
     }
     // Niet-lokale commando's blijven alleen goedgekeurd als hun bronnen sinds de v3.2-GO niet zijn veranderd.
