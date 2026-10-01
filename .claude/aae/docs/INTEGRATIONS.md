@@ -28,7 +28,7 @@ Muterende SQL hoort normaal **niet** via `execute_sql`, maar als benoemde `apply
 2. exact `project_ref` en tool in `integrations.supabase`;
 3. extern toolbudget;
 4. actuele projectverificatie;
-5. de actuele route is met `AAE GO` goedgekeurd.
+5. de actuele route is met `AAE GO` goedgekeurd. Een vooraf in het contract beschreven niet-destructieve migratie valt daarmee onder die ene GO, ook bij herhalen of corrigeren binnen hetzelfde doel (v3.2-local).
 
 Een bekende niet-destructieve migratie is niet automatisch High Assurance. De migratiebewijssoorten blijven wel verplicht: migration, rollback en data-preservation. Autorisatie, gevoelige data of werkelijk destructieve wijzigingen kunnen alsnog High Assurance maken.
 
@@ -61,3 +61,10 @@ Zie `.claude/aae/examples/04-supabase-migration.json`. De normale flow is:
 7. klaar.
 
 Geen solution-architect, security-reviewer of test-writer alleen omdat Supabase wordt gebruikt. Kies specialistische expertise uitsluitend bij een concrete onbeantwoorde risicovraag.
+
+## v3.2-local
+- **Projectverificatie per taak.** Eén `get_project_url` per taak volstaat; de binding blijft geldig bij vervolgberichten van de gebruiker en vervalt bij een nieuw taak-ID.
+- **Migraties binnen de ene GO.** Beschrijf elke geplande migratie in het contract (naam, doel, herstelpad, gegevensbehoud). Niet-destructieve migraties uit dat plan, en het corrigeren of herhalen ervan binnen hetzelfde doel, vragen geen tweede GO.
+- **Tweede toestemming alleen bij meer risico.** Een databasehandeling die niet vooraf was goedgekeurd én materieel meer risico geeft, of een destructieve of moeilijk omkeerbare handeling (verwijderen of onherstelbaar wijzigen van productiegegevens, DROP van tabellen of kolommen met gegevens, RLS uitschakelen), gaat terug naar de gebruiker. Destructieve acties blijven lopen via `sensitive_migrations`/`dangerous_sql`, High Assurance en `AAE GEVOELIG GO <taak-id>`; die aparte gevoelige GO vervalt bij een vervolgbericht of routewijziging.
+- **Integratie verbreden is materieel.** Een ander project, extra tools of calls, nieuwe gevoelige migraties/SQL of een andere PR-base/head zet de route op `pending`.
+- **PR binnen het plan.** `create_pull_request` met vaste base en head in het contract valt onder de ene GO.

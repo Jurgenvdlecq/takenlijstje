@@ -1,0 +1,1 @@
+requireThat(t.approved_commands[cmd.id]===fp,'Commandobronnen gewijzigd. Nieuwe GO nodig.');

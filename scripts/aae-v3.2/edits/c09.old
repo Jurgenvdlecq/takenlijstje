@@ -1,0 +1,2 @@
+function assertCommandsApproved(root,s,t) {
+  for(const c of t.contract.commands) requireThat(t.approved_commands[c.id]===commandFingerprint(root,c)||s.trusted_commands[commandFingerprint(root,c)],'Commando '+c.id+' of diens bronnen zijn gewijzigd. Vraag een nieuwe gerichte GO.');

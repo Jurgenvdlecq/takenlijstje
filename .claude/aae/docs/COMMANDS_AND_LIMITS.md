@@ -5,7 +5,7 @@ De gebruiker geeft normaal een gewone opdracht. De hoofdsessie maakt de route. A
 
 | Tekst | Effect |
 |---|---|
-| `AAE GO` | Keurt alleen de gepresenteerde actuele route, commands en normale externe wijzigingen goed. |
+| `AAE GO` | Keurt de gepresenteerde route als geheel goed: het volledige werkpakket binnen de envelop (scope, agents, commands, geplande migraties, integraties en een eventuele gate-merge). Blijft geldig bij vervolgberichten en bij amendementen binnen de envelop (v3.2-local). |
 | `AAE GEVOELIG GO <taak-id>` | Tweede, routegebonden toestemming voor exact geplande gevoelige/destructieve Supabase-acties. |
 | `AAE PAUZE` | Trekt de vrijgave in. Annuleert geen reeds gestarte OS-processen. |
 | `AAE VERDER` | Hervat dezelfde ongewijzigde taak, ook na sessiewissel; budget blijft bestaan. Na expliciete pauze blijft een nieuwe GO nodig. |
@@ -41,3 +41,15 @@ Het hoofdsessiemodel wordt niet heimelijk gewijzigd. Agentfrontmatter heeft mode
 
 ## Lokale opslag
 State, commandologs, receipts en backups zijn lokaal en in .gitignore gezet. Commandologs kunnen gevoelige uitvoer bevatten: gebruik fixtures, log geen secrets en deel de lokale state/backups niet publiek. Logoutput is begrensd; de hoofdsessie ontvangt alleen een korte staart. Er is geen cloudtelemetrie of netwerkverbinding in de runtime zelf.
+
+## v3.2-local: runs, gate en git
+- Maximum runs per commando: read/test/build/preview 20, publish 10, install en destructive 1. Totaal commandobudget per route maximaal 80, maximaal 20 commando's.
+- Binnen een amendement mag een nieuw of gewijzigd lokaal commando alleen een bekend testprogramma zijn (zie `docs/WORKFLOW.md`, GO-envelop); een ander doel of andere argv vraagt een nieuwe GO. Zet eigen scripts dus vooraf in het contract.
+- Een goedgekeurd commando blijft goedgekeurd zolang argv, doel, timeout, gate en watchlijst gelijk zijn. Voor lokale commando's zonder gate geldt: verandert een bewaakt bestand binnen de schrijfscope van de taak (eigen werk), dan blijft de goedkeuring staan; buiten de schrijfscope (bijvoorbeeld `package.json` als die niet in het pakket hoort) is een nieuwe GO nodig. Voor publish/install/destructive en gate-commando's moeten alle bewaakte bestanden (inclusief de automatisch bewaakte `package.json` en lockbestanden) ongewijzigd blijven; anders een nieuwe GO.
+- `"gate": "ready"` (optioneel, standaard `"none"`): het commando draait pas als `docs/aae/RESULT.json` READY is op de actuele route en bron. Bedoeld voor vooraf goedgekeurde merge/deploy.
+- Git met vaste argv zodat herhalen kan zonder contractwijziging:
+  - `["git","add","--","<pad-1>","<pad-2>"]` met precies de paden uit de schrijfscope en de voortgangsdocumenten;
+  - `["git","commit","-m","<vaste boodschap met werkpakket-ID>"]` of `["git","commit","-F","docs/aae/notes/COMMIT_MSG.md"]` (een controledocument dat je per commit bijwerkt);
+  - `["git","push","origin","<werkbranch>"]`;
+  - merge: `["git","push","origin","<werkbranch>:main"]` met `"gate":"ready"`; alleen fast-forward, nooit `--force`.
+- Publish-commando's worden nooit via `AAE VERTROUW` over routes heen herbruikbaar.

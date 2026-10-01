@@ -1,0 +1,67 @@
+{
+  "schema_version": 3,
+  "id": "WP-VOORBEELD-001",
+  "title": "Voorbeeld: volledig werkpakket met migratie, review, PR en vooraf goedgekeurde merge",
+  "goal": "Een nieuwe functie bouwen en live zetten in één goedgekeurde route: code, niet-destructieve migratie, gerichte tests, onafhankelijke review, commit/push naar de werkbranch, PR, en merge naar main zodra RESULT.json READY is.",
+  "phase": "implementation",
+  "mode": "standard",
+  "risk": "normal",
+  "uncertainty": "low",
+  "risk_flags": ["migration", "external_effects"],
+  "scope": {
+    "read": ["src", "supabase/migrations", "tests"],
+    "write": ["src/features/voorbeeld", "supabase/migrations/20261001000100_voorbeeld.sql", "tests/voorbeeld.test.ts", "docs/PROGRESS.md"]
+  },
+  "acceptance": [
+    {"id": "AC1", "text": "De nieuwe functie werkt volgens de beschreven regels en de gerichte tests zijn groen."},
+    {"id": "AC2", "text": "De migratie voegt alleen toe (tabel/kolom/index), staat live geregistreerd en bestaande gegevens blijven gelijk."},
+    {"id": "AC3", "text": "De onafhankelijke review heeft geen openstaand blokkerend punt."},
+    {"id": "AC4", "text": "De wijziging staat op de werkbranch en in een PR naar main."}
+  ],
+  "test_plan": [
+    {"kind": "scope", "method": "command", "description": "git status toont alleen bestanden binnen de schrijfscope."},
+    {"kind": "functional", "method": "command", "description": "Gerichte unit- en integratietests voor de nieuwe regels."},
+    {"kind": "regression", "method": "command", "description": "Bestaande snelle testsuite en typecheck groen."},
+    {"kind": "migration", "method": "inspection", "description": "list_migrations en apply_migration-receipt; migratie gelijk aan het bestand."},
+    {"kind": "rollback", "method": "inspection", "description": "Herstelpad in de migratie vastgelegd (drop van de nieuwe objecten)."},
+    {"kind": "data-preservation", "method": "inspection", "description": "Tellingen van de geraakte tabellen voor en na gelijk."},
+    {"kind": "failure-handling", "method": "inspection", "description": "Bij een geweigerde push of mislukte merge geen force en geen blinde herhaling; rapporteren."}
+  ],
+  "agents": [
+    {
+      "name": "aae-code-reviewer",
+      "question": "Bevat de wijziging in src/features/voorbeeld en de migratie een aantoonbare fout of regressie?",
+      "files": ["src/features/voorbeeld", "supabase/migrations/20261001000100_voorbeeld.sql", "tests/voorbeeld.test.ts"],
+      "deliverable": "Blokkerende en niet-blokkerende bevindingen met bestand/regel en concreet herstel.",
+      "stop_when": "Alle gewijzigde bestanden zijn beoordeeld.",
+      "model": "sonnet",
+      "max_calls": 2
+    }
+  ],
+  "commands": [
+    {"id": "unit", "argv": ["npx", "vitest", "run", "tests/voorbeeld.test.ts"], "purpose": "test", "why": "Gerichte tests van de nieuwe regels.", "watch": ["vitest.config.mts"], "timeout_ms": 120000, "max_runs": 10},
+    {"id": "typecheck", "argv": ["npx", "tsc", "--noEmit"], "purpose": "test", "why": "Typecontrole van het hele project.", "watch": ["tsconfig.json"], "timeout_ms": 180000, "max_runs": 6},
+    {"id": "git-status", "argv": ["git", "status", "--porcelain"], "purpose": "read", "why": "Scopecontrole voor de commit.", "watch": [], "timeout_ms": 30000, "max_runs": 6},
+    {"id": "git-add", "argv": ["git", "add", "--", "src/features/voorbeeld", "supabase/migrations/20261001000100_voorbeeld.sql", "tests/voorbeeld.test.ts", "docs/PROGRESS.md"], "purpose": "publish", "why": "Alleen bestanden uit de schrijfscope klaarzetten.", "watch": [], "timeout_ms": 30000, "max_runs": 5},
+    {"id": "git-commit", "argv": ["git", "commit", "-F", "docs/aae/notes/COMMIT_MSG.md"], "purpose": "publish", "why": "Commitbericht per ronde in een controledocument.", "watch": [], "timeout_ms": 30000, "max_runs": 5},
+    {"id": "git-push", "argv": ["git", "push", "origin", "claude/voorbeeld"], "purpose": "publish", "why": "Naar de werkbranch.", "watch": [], "timeout_ms": 120000, "max_runs": 5},
+    {"id": "merge-main", "argv": ["git", "push", "origin", "claude/voorbeeld:main"], "purpose": "publish", "why": "Vooraf goedgekeurde fast-forward merge naar main; draait alleen bij een READY-resultaat.", "watch": [], "timeout_ms": 120000, "max_runs": 1, "gate": "ready"}
+  ],
+  "integrations": {
+    "supabase": {
+      "project_ref": "abcde-project-ref",
+      "tools": ["get_project_url", "list_migrations", "execute_sql", "apply_migration"],
+      "max_calls": 12,
+      "sensitive_migrations": [],
+      "dangerous_sql": []
+    },
+    "github": {"tools": ["create_pull_request"], "max_calls": 1, "base": "main", "head": "claude/voorbeeld"}
+  },
+  "budget": {"agent_calls": 2, "max_parallel": 1, "command_runs": 38, "external_calls": 13},
+  "approval_required": true,
+  "design_freeze": false,
+  "decision_points": [
+    "Stop en vraag Jurgen als de migratie bestaande gegevens zou moeten wijzigen of verwijderen.",
+    "Stop en vraag Jurgen als de rooktest na de merge een afwijking laat zien."
+  ]
+}

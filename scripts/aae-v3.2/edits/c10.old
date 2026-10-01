@@ -1,0 +1,9 @@
+    const approved=same&&old.digest===d&&old.approval?.digest===d&&old.approval.request_key===s.request.key;
+    const required=needsApproval(root,s,c,same?old:null);
+    const approved_commands=approved?old.approved_commands:{};
+    if(!required)for(const cmd of c.commands)approved_commands[cmd.id]=commandFingerprint(root,cmd);
+    s.task={id:c.id,digest:d,contract:c,status:required&&!approved?'pending':'active',owner:s.request.session,request_key:s.request.key,approval:approved?old.approval:null,approved_commands,
+      usage,calls:same?old.calls:{},command_counts:same?old.command_counts:{},command_receipts:same?old.command_receipts:[],command_running:null,
+      external_calls:same?(old.external_calls||{}):{},external_receipts:same?(old.external_receipts||[]):[],sensitive_approval:approved?(old.sensitive_approval||null):null,denials:0};
+    s.request.task_id=c.id;
+    log(s,'route',{task:c.id,digest:d,status:s.task.status});

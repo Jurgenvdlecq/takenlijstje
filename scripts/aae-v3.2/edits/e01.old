@@ -1,0 +1,1 @@
+    else requireThat(s.integrations.supabase.verified_ref===cfg.project_ref&&s.integrations.supabase.verified_request_key===s.request.key,'Supabase-project is niet voor deze gebruikersvraag live geverifieerd. Roep eerst get_project_url aan en bind de route aan die ref.');

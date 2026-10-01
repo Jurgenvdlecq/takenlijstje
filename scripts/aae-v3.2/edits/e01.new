@@ -1,0 +1,2 @@
+    // v3.2-local (R10): de projectverificatie geldt voor de hele taak, niet per gebruikersbericht.
+    else {const sv=s.integrations.supabase;requireThat(sv.verified_ref===cfg.project_ref&&(sv.verified_task===t.id||sv.verified_request_key===s.request.key),'Supabase-project is niet voor deze taak live geverifieerd. Roep eerst get_project_url aan en bind de route aan die ref.');sv.verified_task=t.id;}

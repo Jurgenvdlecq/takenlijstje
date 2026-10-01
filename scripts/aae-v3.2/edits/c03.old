@@ -1,0 +1,1 @@
+  keys(t,[...req,'parallel_reason','integrations'],req,'Taakcontract');

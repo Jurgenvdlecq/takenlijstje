@@ -1,0 +1,2 @@
+    number(c.timeout_ms,1000,300000,'Timeout');number(c.max_runs,1,6,'Aantal uitvoeringen');
+    if(['install','publish','destructive'].includes(c.purpose))requireThat(c.max_runs===1,'Installeren/publiceren/destructief: een uitvoering per expliciete routegoedkeuring.');

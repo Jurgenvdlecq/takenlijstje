@@ -1,0 +1,3 @@
+    requireThat(commandApproved(root,t,c)||['read','test','build','preview'].includes(c.purpose)&&s.trusted_commands[fingerprint], 'Commando/bronnen niet goedgekeurd. Presenteer het commando en vraag AAE GO.');
+    // v3.2-local (R6): een vooraf goedgekeurde merge/deploy draait pas als het resultaat aantoonbaar READY is.
+    if(c.gate==='ready')assertReady(root,s,t,'Gate '+id+': ');

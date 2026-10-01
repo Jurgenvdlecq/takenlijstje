@@ -1,0 +1,21 @@
+/**
+ * v3.2-local (R6): dezelfde READY-bewijsregels als close, zonder de taak te sluiten. Een commando met
+ * gate "ready" draait alleen als RESULT.json bij de actuele route en bron hoort en alles aantoonbaar geslaagd is.
+ */
+function assertReady(root,s,t,prefix) {
+  requireThat(fs.existsSync(safePath(root,RESULT)),prefix+'RESULT.json ontbreekt; eerst alle criteria en controles aantoonbaar READY maken.');
+  const r=readJson(root,RESULT),src=sourceDigest(root,t.contract);
+  requireThat(r.schema_version===3&&r.task_id===t.id&&r.route_digest===t.digest,prefix+'Resultaat hoort niet bij de actieve route.');
+  requireThat(r.source_digest===src,prefix+'Broncode veranderd sinds bewijsrapport. Maak relevante controles opnieuw.');
+  requireThat(r.status==='READY',prefix+'Resultaat is niet READY.');
+  requireThat(Array.isArray(r.criteria)&&Array.isArray(r.checks),prefix+'Resultaat mist criteria of controles.');
+  for(const a of t.contract.acceptance){const x=r.criteria.find(y=>y.id===a.id);requireThat(x?.status==='passed',prefix+'Criterium niet bewezen: '+a.id);checkedEvidence(root,s,x.evidence,'inspection',src);}
+  for(const kind of [...new Set([...requiredChecks(t.contract),...t.contract.test_plan.map(c=>c.kind)])]){
+    const x=r.checks.find(y=>y.kind===kind),planned=t.contract.test_plan.find(y=>y.kind===kind);
+    requireThat(x?.status==='passed',prefix+'Verplichte controle niet geslaagd: '+kind);
+    requireThat(x.method===planned.method,prefix+'Bewijsmethode wijkt af van plan: '+kind);
+    checkedEvidence(root,s,x.evidence,x.method,src);
+  }
+  if(t.contract.phase==='implementation'&&t.contract.mode==='high-assurance')requireThat(Object.values(t.calls).some(c=>['aae-security-reviewer','aae-code-reviewer','aae-test-writer'].includes(c.role)&&c.status==='stopped'&&c.reported_status==='READY'&&c.source_digest===src&&c.task_digest===t.digest),prefix+'High Assurance mist actueel onafhankelijk READY-oordeel.');
+}
+export function reportTemplate(root) {

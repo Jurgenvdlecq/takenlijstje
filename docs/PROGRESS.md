@@ -3,7 +3,8 @@
 Kwaliteitsniveau: 2
 Reden niveau: Door Jurgen bewust vastgezet op 2026-09-27 met `/niveau 2` ("bestaand project, meerdere gebruikers"). Eerder voorstel was niveau 3 (live, publiek bereikbaar, persoonsgegevens); Jurgen koos niveau 2. Security-review blijft verplicht vanwege login, meerdere gebruikers en persoonsgegevens.
 Fase: Bouwen — WP1 t/m WP3 live en rooktest OK (2026-09-30); volgende: W-03 afvalkalender (ontwerp) als WP3b, daarna WP4 op `v2-ui`
-Volgende stap: W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b. M8 (back-up weg) ≈ 2026-10-29 na melding aan Jurgen. Bij WP9: V-58 hercontroleren.
+Volgende stap: W-03: technisch ontwerp r2 → visual (licht) → plan-critic → totaalvoorstel → `/design-go`; bouwen als WP3b, volgens AAE v3.2-local (één contract, één `AAE GO`). M8 (back-up weg) ≈ 2026-10-29 na melding aan Jurgen. Bij WP9: V-58 hercontroleren.
+Werkwijze: AAE v3.2-local sinds 2026-10-01 (één GO per werkpakket); zie `.claude/aae/docs/LOCAL_CHANGES.md`.
 
 ## Capabilities
 - Poort: `node .claude/gate/test-gate.mjs` → 97 geslaagd, 0 mislukt (2026-09-27). `gate.mjs status`: productiecode geblokkeerd (nog geen Design Freeze), niveau-2-signalen gevonden: `supabase/**`, pakket `@supabase/`, pakket `pg`, `.env.example: SUPABASE_`.
@@ -12,6 +13,7 @@ Volgende stap: W-03: technisch ontwerp r2 → visual (licht) → plan-critic →
 - Apparaten en viewports (uit discovery, V-07): telefoon, 390x844. Computer is geen doelapparaat.
 
 ## Besluiten van Jurgen
+- 2026-09-30/2026-10-01 — AAE-werkwijze: één `AAE GO` per logisch werkpakket. Plan (volledig contract) → één GO → zelfstandig uitvoeren, testen, reviewen en herstellen → commit/push/PR → eventueel vooraf goedgekeurde merge/deploy (gate op READY) → eindrapport. Vervolgberichten laten de GO staan; contractwijzigingen binnen dezelfde scope en hetzelfde risicoprofiel houden de GO; mislukte tests of reviews vragen geen nieuwe GO. Een vooraf beschreven niet-destructieve migratie valt onder de ene GO; een nieuwe GO alleen bij een niet vooraf goedgekeurde databasehandeling met materieel meer risico, een destructieve/moeilijk omkeerbare handeling (`AAE GEVOELIG GO`), onverwachte wijziging van auth/security/secrets, werk buiten het pakket, duidelijk hoger risico of een beslisgrens in het contract. Ingevoerd als AAE v3.2-local (regels R1–R12).
 - 2026-09-30 — V-58: Jurgen accepteert bewust als platformbeperking dat de clientrollen de standaard Supabase-rechten op schema `net` houden, onder de voorwaarden (a) `net` niet blootgesteld via de API en (b) geen eigen functie in `public` die `net.*` aanroept. Opnieuw controleren bij WP9.
 - 2026-09-29T20:42 — onderhoud aan het agentensysteem vrijgegeven tot 21:12 UTC
 - 2026-09-29T07:49 — onderhoud aan het agentensysteem vrijgegeven tot 08:19 UTC

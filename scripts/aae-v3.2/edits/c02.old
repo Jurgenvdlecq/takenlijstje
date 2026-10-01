@@ -1,0 +1,1 @@
+export const HIGH_FLAGS = ['authorization','financial','sensitive_data'];

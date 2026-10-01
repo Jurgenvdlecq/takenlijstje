@@ -1,0 +1,9 @@
+export function commandFingerprint(root,c) {
+  const automatic=['package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lock','bun.lockb','pyproject.toml','requirements.txt','Cargo.toml','Cargo.lock','Makefile','justfile'];
+  const refs=[...new Set([...automatic,...c.watch])].sort().map(p=>{
+    const f=safePath(root,p);if(!fs.existsSync(f))return [p,'absent'];
+    const st=fs.statSync(f);requireThat(st.isFile()&&st.size<20*1024*1024,'Commando-watch moet een normaal, klein bestand zijn: '+p);
+    return [p,sha(fs.readFileSync(f))];
+  });
+  return digest({argv:c.argv,purpose:c.purpose,timeout_ms:c.timeout_ms,refs});
+}

@@ -1,0 +1,30 @@
+export function commandRefs(root,c) {
+  const automatic=['package.json','package-lock.json','pnpm-lock.yaml','yarn.lock','bun.lock','bun.lockb','pyproject.toml','requirements.txt','Cargo.toml','Cargo.lock','Makefile','justfile'];
+  return [...new Set([...automatic,...c.watch])].sort().map(p=>{
+    const f=safePath(root,p);if(!fs.existsSync(f))return [p,'absent'];
+    const st=fs.statSync(f);requireThat(st.isFile()&&st.size<20*1024*1024,'Commando-watch moet een normaal, klein bestand zijn: '+p);
+    return [p,sha(fs.readFileSync(f))];
+  });
+}
+export function commandFingerprint(root,c) {
+  return digest({argv:c.argv,purpose:c.purpose,timeout_ms:c.timeout_ms,refs:commandRefs(root,c)});
+}
+/** v3.2-local: wat de gebruiker goedkeurt = argv, doel, timeout, gate en de bewaakte paden (niet hun inhoud). */
+export function commandShape(c){return digest({argv:c.argv,purpose:c.purpose,timeout_ms:c.timeout_ms,gate:c.gate||'none',watch:[...c.watch].sort()});}
+export function approveCommand(root,c){return {fingerprint:commandFingerprint(root,c),shape:commandShape(c),refs:Object.fromEntries(commandRefs(root,c))};}
+/**
+ * v3.2-local (R12): een goedgekeurd commando blijft goedgekeurd zolang de vorm gelijk is. Alleen voor lokale commando's
+ * (read/test/build/preview) zonder gate mag een sinds GO gewijzigd bewaakt bestand binnen de goedgekeurde schrijfscope
+ * liggen (eigen werk binnen het pakket). Publish/install/destructive en gate-commando's vragen een nieuwe GO zodra een
+ * bewaakt bestand verandert (review B4); een bewaakt bestand buiten de scope vraagt altijd een nieuwe GO.
+ */
+export function commandApproved(root,t,c){
+  const rec=t.approved_commands?.[c.id];
+  if(!rec)return false;
+  if(typeof rec==='string')return rec===commandFingerprint(root,c);
+  if(rec.shape!==commandShape(c))return false;
+  const tolerant=LOCAL_PURPOSES.includes(c.purpose)&&(c.gate||'none')==='none';
+  const current=Object.fromEntries(commandRefs(root,c));
+  for(const [p,h] of Object.entries(current))if(rec.refs[p]!==h&&!(tolerant&&scopeContains(t.contract.scope.write,p)))return false;
+  return true;
+}

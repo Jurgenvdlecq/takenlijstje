@@ -1,0 +1,1 @@
+      else {s.integrations??={};s.integrations.supabase={verified_ref:ref,verified_at:now(),verified_request_key:s.request?.key||null};log(s,'supabase_project_verified',{project_ref:ref});}

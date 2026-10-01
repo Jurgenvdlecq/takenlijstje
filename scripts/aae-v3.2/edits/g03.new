@@ -1,0 +1,1 @@
+assert.match(out.stdout,/AAE v3\.2-local geladen/);

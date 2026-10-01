@@ -1,0 +1,2 @@
+  keys(t,[...req,'parallel_reason','integrations','decision_points'],req,'Taakcontract');
+  if(Object.hasOwn(t,'decision_points')){array(t.decision_points,0,8,'Beslisgrenzen');for(const d of t.decision_points)text(d,'Beslisgrens',300);requireThat(new Set(t.decision_points).size===t.decision_points.length,'Dubbele beslisgrens');}

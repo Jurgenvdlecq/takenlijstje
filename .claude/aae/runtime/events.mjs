@@ -52,7 +52,8 @@ function preExternal(root,s,e,call){
   if(call.provider==='supabase'){
     if(inRef)requireThat(inRef===cfg.project_ref,'Supabase-tool wijst naar een ander project dan de taakroute.');
     if(call.action==='get_project_url')s.integrations.supabase={verified_ref:null,verified_at:null,verified_request_key:null};
-    else requireThat(s.integrations.supabase.verified_ref===cfg.project_ref&&s.integrations.supabase.verified_request_key===s.request.key,'Supabase-project is niet voor deze gebruikersvraag live geverifieerd. Roep eerst get_project_url aan en bind de route aan die ref.');
+    // v3.2-local (R10): de projectverificatie geldt voor de hele taak, niet per gebruikersbericht.
+    else {const sv=s.integrations.supabase;requireThat(sv.verified_ref===cfg.project_ref&&(sv.verified_task===t.id||sv.verified_request_key===s.request.key),'Supabase-project is niet voor deze taak live geverifieerd. Roep eerst get_project_url aan en bind de route aan die ref.');sv.verified_task=t.id;}
     if(call.action==='apply_migration'){requireThat(Boolean(migrationName(input)),'apply_migration vereist een expliciete migratienaam.');requireThat(Boolean(migrationSql(input).trim()),'apply_migration vereist expliciete migratie-SQL.');}
     if(call.action==='execute_sql'&&call.level==='change')throw new Error('Muterende execute_sql is niet toegestaan in AAE v3.1. Gebruik apply_migration met een benoemde migratie.');
   }
@@ -89,7 +90,7 @@ function externalLifecycle(root,s,e){
     if(ref){
       const cfg=s.task?.contract.integrations?.supabase;
       if(cfg&&cfg.project_ref!==ref){row.status='mismatch';log(s,'supabase_project_mismatch',{expected:cfg.project_ref,observed:ref});}
-      else {s.integrations??={};s.integrations.supabase={verified_ref:ref,verified_at:now(),verified_request_key:s.request?.key||null};log(s,'supabase_project_verified',{project_ref:ref});}
+      else {s.integrations??={};const bound=Boolean(s.task&&s.request&&s.task.request_key===s.request.key&&['pending','active'].includes(s.task.status));s.integrations.supabase={verified_ref:ref,verified_at:now(),verified_request_key:s.request?.key||null,verified_task:bound?s.task.id:null};log(s,'supabase_project_verified',{project_ref:ref});}
     }
   }
   if(s.task&&row.task_digest===s.task.digest){
@@ -252,7 +253,7 @@ export function lifecycle(root,e) {
 export function handleEvent(root,e) {
   requireThat(e&&typeof e==='object','Hookinvoer ontbreekt.');
   switch(e.hook_event_name) {
-    case 'SessionStart': return withState(root,s=>{s.sessions[e.session_id]??={seen:[]};if(e.model)s.sessions[e.session_id].observed_main_model=e.model;log(s,'session_start',{session:e.session_id});return context('SessionStart','AAE v3.1 geladen. Lees .claude/aae/ENTRY.md. Geen automatische projectaudit. Status: '+JSON.stringify(summary(s)));});
+    case 'SessionStart': return withState(root,s=>{s.sessions[e.session_id]??={seen:[]};if(e.model)s.sessions[e.session_id].observed_main_model=e.model;log(s,'session_start',{session:e.session_id});return context('SessionStart','AAE v3.2-local geladen. Lees .claude/aae/ENTRY.md. Geen automatische projectaudit. Status: '+JSON.stringify(summary(s)));});
     case 'UserPromptSubmit': return userPrompt(root,e);
     case 'PreToolUse': return preTool(root,e);
     case 'SubagentStart': case 'SubagentStop': case 'PostToolUse': case 'PostToolUseFailure': return lifecycle(root,e);

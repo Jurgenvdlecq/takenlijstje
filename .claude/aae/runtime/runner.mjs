@@ -3,7 +3,7 @@ import path from 'node:path';
 import {spawn,spawnSync} from 'node:child_process';
 import {
   STATE,RESULT,TASK,withState,assertBound,safePath,readJson,atomicJson,requireThat,
-  sourceDigest,commandFingerprint,now,log,digest,requiredChecks,allLive,VERSION,summary
+  sourceDigest,commandFingerprint,commandApproved,now,log,digest,requiredChecks,allLive,VERSION,summary
 } from './core.mjs';
 
 /** Execute a declared argv without a shell. Repository programs remain trusted code. */
@@ -13,7 +13,9 @@ export async function runCommand(root,id) {
     requireThat(c,'Commando niet in de route: '+id);
     requireThat(allLive(s).length===0&&!t.command_running,'Geen commandoloop naast agentcontrole of andere commandos.');
     const fingerprint=commandFingerprint(root,c);
-    requireThat(t.approved_commands[id]===fingerprint||['read','test','build','preview'].includes(c.purpose)&&s.trusted_commands[fingerprint], 'Commando/bronnen niet goedgekeurd. Presenteer het commando en vraag AAE GO.');
+    requireThat(commandApproved(root,t,c)||['read','test','build','preview'].includes(c.purpose)&&s.trusted_commands[fingerprint], 'Commando/bronnen niet goedgekeurd. Presenteer het commando en vraag AAE GO.');
+    // v3.2-local (R6): een vooraf goedgekeurde merge/deploy draait pas als het resultaat aantoonbaar READY is.
+    if(c.gate==='ready')assertReady(root,s,t,'Gate '+id+': ');
     requireThat(t.usage.commands<t.contract.budget.command_runs,'Totaal commandobudget bereikt. Niet automatisch herstarten.');
     requireThat((t.command_counts[id]||0)<c.max_runs,'Maximum aantal runs voor '+id+' bereikt.');
     const src=sourceDigest(root,t.contract);
@@ -63,6 +65,26 @@ function checkedEvidence(root,s,items,method,src) {
   requireThat(Array.isArray(items)&&items.length>0,'Bewijsverwijzing ontbreekt.');
   for(const p of items) {const f=safePath(root,p,{allowMissing:false});requireThat(fs.statSync(f).isFile(),'Bewijs moet een bestand zijn.');}
   if(method==='command') requireThat(items.some(p=>s.task.command_receipts.some(r=>r.evidence_path===p&&r.exit_code===0&&r.source_before===r.source_after&&r.source_after===src&&r.route_digest===s.task.digest)),'Geen succesvolle actuele commandoreceipt voor deze controle.');
+}
+/**
+ * v3.2-local (R6): dezelfde READY-bewijsregels als close, zonder de taak te sluiten. Een commando met
+ * gate "ready" draait alleen als RESULT.json bij de actuele route en bron hoort en alles aantoonbaar geslaagd is.
+ */
+function assertReady(root,s,t,prefix) {
+  requireThat(fs.existsSync(safePath(root,RESULT)),prefix+'RESULT.json ontbreekt; eerst alle criteria en controles aantoonbaar READY maken.');
+  const r=readJson(root,RESULT),src=sourceDigest(root,t.contract);
+  requireThat(r.schema_version===3&&r.task_id===t.id&&r.route_digest===t.digest,prefix+'Resultaat hoort niet bij de actieve route.');
+  requireThat(r.source_digest===src,prefix+'Broncode veranderd sinds bewijsrapport. Maak relevante controles opnieuw.');
+  requireThat(r.status==='READY',prefix+'Resultaat is niet READY.');
+  requireThat(Array.isArray(r.criteria)&&Array.isArray(r.checks),prefix+'Resultaat mist criteria of controles.');
+  for(const a of t.contract.acceptance){const x=r.criteria.find(y=>y.id===a.id);requireThat(x?.status==='passed',prefix+'Criterium niet bewezen: '+a.id);checkedEvidence(root,s,x.evidence,'inspection',src);}
+  for(const kind of [...new Set([...requiredChecks(t.contract),...t.contract.test_plan.map(c=>c.kind)])]){
+    const x=r.checks.find(y=>y.kind===kind),planned=t.contract.test_plan.find(y=>y.kind===kind);
+    requireThat(x?.status==='passed',prefix+'Verplichte controle niet geslaagd: '+kind);
+    requireThat(x.method===planned.method,prefix+'Bewijsmethode wijkt af van plan: '+kind);
+    checkedEvidence(root,s,x.evidence,x.method,src);
+  }
+  if(t.contract.phase==='implementation'&&t.contract.mode==='high-assurance')requireThat(Object.values(t.calls).some(c=>['aae-security-reviewer','aae-code-reviewer','aae-test-writer'].includes(c.role)&&c.status==='stopped'&&c.reported_status==='READY'&&c.source_digest===src&&c.task_digest===t.digest),prefix+'High Assurance mist actueel onafhankelijk READY-oordeel.');
 }
 export function reportTemplate(root) {
   return withState(root,s=>{const t=assertBound(root,s);return {

@@ -35,5 +35,6 @@
   },
   "approval_required": false,
   "design_freeze": false,
+  "decision_points": [],
   "integrations": {}
 }

@@ -1,0 +1,2 @@
+  sourceDigest,commandFingerprint,now,log,digest,requiredChecks,allLive,VERSION,summary
+} from './core.mjs';
