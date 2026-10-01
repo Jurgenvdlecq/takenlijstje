@@ -104,7 +104,8 @@ export function importLegacy(root) {
     else if (lt.status === 'paused') { st.proposed = c; st.status = 'PAUSED'; st.paused_from = 'EXECUTING'; }
     else {
       if (goedgekeurd) { st.approved = {envelope_hash: hash, contract: c, at: lt.approval.at || now(), source: 'v3.2 GO (overgenomen)'}; st.status = 'EXECUTING'; st.activity = 'BUILDING'; }
-      else { st.proposed = c; approve(st, c, 'v3.2 route zonder GO-eis (overgenomen)'); }
+      else if (t.approval_required === false && c.risk_class === 'LIGHT') { st.proposed = c; approve(st, c, 'v3.2 LIGHT-route zonder GO-eis (overgenomen)'); }
+      else { st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; log(st, 'legacy_zonder_geldige_go', {reden: 'geen of verouderde v3.2-goedkeuring; een nieuwe AAE GO is nodig'}); }
     }
     // Niet-lokale commando's blijven alleen goedgekeurd als hun bronnen sinds de v3.2-GO niet zijn veranderd.
     st.extra_fp = {};

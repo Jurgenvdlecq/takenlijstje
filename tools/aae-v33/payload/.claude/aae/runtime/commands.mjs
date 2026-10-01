@@ -46,7 +46,7 @@ function kies(root, id, pred, wat) {
   requireThat(lijst.length <= 1, 'Meerdere werkpakketten komen in aanmerking (' + lijst.map(s => s.id).join(', ') + '). Noem het ID: AAE ' + wat + ' <id>.');
   return lijst[0] || null;
 }
-function pauzeer(st, why) { st.paused_from = st.status; transition(st, 'PAUSED', why); st.activity = null; }
+function pauzeer(st, why) { st.paused_from = st.status; st.confirmed = null; transition(st, 'PAUSED', why); st.activity = null; } // een bevestiging overleeft een pauze niet
 
 export function handlePrompt(root, e) {
   const prompt = String(e.prompt || '').trim();

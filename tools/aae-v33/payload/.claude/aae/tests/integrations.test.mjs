@@ -168,11 +168,35 @@ test('I22 het verbreden van de Supabase-integratie is een wezenlijke wijziging',
 
 test('DB-klassen: A (additief), B (middel), C (destructief) op echte SQL; onbekend is nooit stilzwijgend A', () => {
   const k = s => classifyDb(s).klasse;
-  for (const s of ['CREATE TABLE a (id int);', 'ALTER TABLE a ADD COLUMN b text;', 'CREATE INDEX i ON a (b);', 'ALTER TABLE a ENABLE ROW LEVEL SECURITY;', 'CREATE POLICY p ON a FOR SELECT USING (true);']) assert.equal(k(s), 'A', s);
-  for (const s of ['UPDATE a SET b = 1 WHERE id = 1;', 'ALTER TABLE a ADD CONSTRAINT c UNIQUE (b);', 'GRANT SELECT ON a TO x;', 'ALTER TABLE a ALTER COLUMN b SET NOT NULL;', "SELECT cron.schedule('j','* * * * *','SELECT 1');", 'ALTER TABLE a RENAME TO b;', 'VACUUM a;']) assert.equal(k(s), 'B', s);
+  for (const s of ['CREATE TABLE a (id int);', 'ALTER TABLE a ADD COLUMN b text;', 'CREATE INDEX i ON a (b);', 'ALTER TABLE a ENABLE ROW LEVEL SECURITY;']) assert.equal(k(s), 'A', s);
+  for (const s of ['CREATE POLICY p ON a FOR SELECT USING (true);', 'UPDATE a SET b = 1 WHERE id = 1;', 'ALTER TABLE a ADD CONSTRAINT c UNIQUE (b);', 'GRANT SELECT ON a TO x;', 'ALTER TABLE a ALTER COLUMN b SET NOT NULL;', "SELECT cron.schedule('j','* * * * *','SELECT 1');", 'ALTER TABLE a RENAME TO b;', 'VACUUM a;']) assert.equal(k(s), 'B', s);
   for (const s of ['DROP TABLE a;', 'TRUNCATE a;', 'DELETE FROM a;', 'UPDATE a SET b = 1;', 'ALTER TABLE a DISABLE ROW LEVEL SECURITY;', 'ALTER TABLE a ALTER COLUMN b TYPE int;', "INSERT INTO auth.users (id) VALUES (1);", 'ALTER TABLE a DROP COLUMN b;', '']) assert.equal(k(s), 'C', s);
   assert.equal(k('CREATE TABLE a (id int); DROP TABLE b;'), 'C', 'de hoogste klasse van alle statements telt');
 });
+test('DB-klassen (review): DO-blokken, EXECUTE, CALL en E-strings kunnen een destructieve stap niet als A of B verbergen', () => {
+  const k = s => classifyDb(s).klasse;
+  for (const s of ['DO $$ BEGIN DROP TABLE x; END $$;', "DO $f$ BEGIN EXECUTE 'drop table x'; END $f$;", "DO LANGUAGE plpgsql $$ BEGIN DELETE FROM x; END $$;", "EXECUTE 'drop table x';", 'CALL opruimen();', "COPY x FROM PROGRAM 'rm -rf /';", 'ALTER SYSTEM SET x = 1;',
+    "SELECT E'a\\'b'; DROP TABLE x;", "SELECT 'a' || 'b; DROP TABLE x;", 'SELECT $q$ x; DROP TABLE y;', '/* open DROP TABLE x;']) assert.equal(k(s), 'C', s);
+  assert.equal(k("CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();"), 'B', 'EXECUTE FUNCTION is een gewone trigger');
+  assert.equal(k("INSERT INTO a (b) VALUES (E'it\\'s fine');"), 'A', 'een gewone E-string blijft leesbaar');
+});
+test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
+  const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
+  executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'k0'})), /zelf heeft gemaakt/);
+  pre(root, 'mcp__github__create_pull_request', {base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'k1'});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: {}, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
+  assert.deepEqual(st(root).created_prs, [12]);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 99}, {tool_use_id: 'k2'})), /zelf heeft gemaakt/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 12}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
+}));
+test('review: een bevestiging overleeft een pauze niet', met(root => {
+  run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
+  const call = {name: 'weg', query: 'DROP TABLE notities;', project_id: REF};
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'p1'})), /AAE BEVESTIG/);
+  prompt(root, 'AAE BEVESTIG'); assert.ok(st(root).confirmed);
+  prompt(root, 'AAE PAUZE'); assert.equal(st(root).confirmed, null);
+}));
 test('toolherkenning: alleen aantoonbaar Supabase- of GitHub-tools worden herkend', () => {
   assert.deepEqual(identifyExternalTool('mcp__Supabase__execute_sql'), {provider: 'supabase', action: 'execute_sql'});
   assert.equal(identifyExternalTool('mcp__onbekend__execute_sql'), null);

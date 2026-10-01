@@ -15,7 +15,7 @@ export const VERSION = '3.3.0';
 export const MANAGED = '.claude/aae/managed.json';
 const GITIGNORE = '.gitignore';
 const MARK_START = '# >>> AAE 3.3 (beheerd blok) >>>', MARK_END = '# <<< AAE 3.3 <<<';
-const IGNORE_LINES = ['/.claude/aae/state/', '/.claude/aae/private/', '/.aae-backups/', '/docs/aae/work/*/state.json', '/docs/aae/work/*/state.json.tmp-*', '/docs/aae/evidence/', '/docs/aae/notes/', '/docs/aae/RESULT.json', '/docs/aae/TASK.json'];
+const IGNORE_LINES = ['/.claude/aae/state/', '/.claude/aae/private/', '/.aae-backups/', '/docs/aae/work/*/state.json', '/docs/aae/work/*/state.json.tmp-*', '/docs/aae/work/*/result.json','/docs/aae/evidence/', '/docs/aae/notes/', '/docs/aae/RESULT.json', '/docs/aae/TASK.json'];
 const IGNORE_BLOCK = [MARK_START, ...IGNORE_LINES, MARK_END].join('\n');
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'SubagentStart', 'SubagentStop'];
 const SKIP = ['.claude/aae/state', '.claude/aae/private'];
@@ -185,7 +185,7 @@ export function apply(project, opts = {}) {
 /** Plan voor terugdraaien: alleen als niets sinds de installatie is gewijzigd. */
 export function planRollback(project, backupRel) {
   const base = fs.realpathSync(project);
-  if (!/^\.aae-backups\/[A-Za-z0-9._-]+$/.test(backupRel)) fail('Ongeldig back-uppad: ' + backupRel);
+  if (!/^\.aae-backups\/[A-Za-z0-9._-]+$/.test(backupRel) || /^\.{1,2}$/.test(backupRel.split('/')[1])) fail('Ongeldig back-uppad: ' + backupRel);
   const rf = abs(base, backupRel + '/RESTORE.json');
   if (!exists(rf)) fail('RESTORE.json niet gevonden in ' + backupRel);
   const r = JSON.parse(fs.readFileSync(rf, 'utf8')), conflicts = [];

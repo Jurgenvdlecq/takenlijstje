@@ -32,10 +32,10 @@
     "begint_met_kop": true,
     "eindigt_met_eindmarkering": true,
     "eindigt_op_de_staart_van_de_hook": true,
-    "hook_eindtijd": "2026-10-01T19:00:06.143Z",
+    "hook_eindtijd": "2026-10-01T20:02:37.005Z",
     "hook_finished": "2026-10-01T19:00:06.260Z",
     "weggeschreven_voor_hook_eindtijd": true,
-    "verschil_ms_mtime_min_hook_eindtijd": -65
+    "verschil_ms_mtime_min_hook_eindtijd": -3750927
   },
   "eerdere_probe_transcript": {
     "gevonden": true,

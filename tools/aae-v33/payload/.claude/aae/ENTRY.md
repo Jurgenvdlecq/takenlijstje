@@ -15,7 +15,7 @@ Ben je een `aae-*` subagent? Voer alleen je afgebakende, read-only vraag uit. St
 3. Voer `node .claude/aae/runtime/cli.mjs preflight <id>` uit (voor niet-LIGHT werk) en los op wat kan. Alles wat alleen Jurgen kan doen, vraag je één keer gebundeld.
 4. Vat het werkpakket in hoogstens vijf regels samen (doel, wat mag en wat niet, wat gebeurt er vanzelf, waar stop je en vraag je, wat wordt overgeslagen) en vraag exact **`AAE GO`**. Alleen die exacte tekst keurt goed; elk ander bericht (ook een screenshot of melding) laat de goedkeuring ongemoeid.
 5. Werk daarna zelfstandig tot het werkpakket klaar is: bouwen, testen, reviewen, herstellen, committen en pushen **binnen de envelop**. De GO blijft geldig tot het werkpakket klaar, gepauzeerd of geannuleerd is of de envelop wezenlijk verandert. Vraag alleen bij een echte productkeuze, een grens van de envelop of een `NEEDS_HUMAN`-toestand.
-6. Sluit af met `report-template`, vul `docs/aae/work/<id>/result.json` met echt bewijs (`READY`, `PARTIAL` of `BLOCKED`) en voer `node .claude/aae/runtime/cli.mjs close` uit. READY betekent nooit gedeployed.
+6. Sluit af met `report-template`, vul `docs/aae/work/<id>/result.json` met echt bewijs (`READY`, `PARTIAL` of `BLOCKED`) en voer `node .claude/aae/runtime/cli.mjs close` uit. READY betekent nooit gedeployed. Wil je samenvoegen: commit eerst alles, maak dán het rapport (het legt de commit vast; de merge-gate eist dat HEAD en de branch daarmee gelijk zijn).
 
 ## Commando's van Jurgen (exacte tekst)
 `AAE GO` · `AAE PAUZE` · `AAE VERDER` · `AAE STATUS` · `AAE ANNULEER` · `AAE BEVESTIG` (alleen voor één beschreven destructieve database-actie). Bij meerdere werkpakketten voeg je het ID toe.

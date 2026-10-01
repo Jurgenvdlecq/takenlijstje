@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
-  validateContract, safeLocalArgv, bashArgv, classifyCommand, areaAllows, protectedPath, materialChanges, envelopeHash, relName, scopeContains, requiredChecks
+  sourceDigest, validateContract, safeLocalArgv, bashArgv, classifyCommand, areaAllows, protectedPath, materialChanges, envelopeHash, relName, scopeContains, requiredChecks
 } from '../runtime/core.mjs';
 import {contract} from './helpers.mjs';
 
@@ -127,6 +130,34 @@ test('relName en scopeContains: onveilige paden worden geweigerd', () => {
   assert.equal(scopeContains(['src'], 'srcx/a.ts'), false);
 });
 
+test('review: branchnamen als HEAD, refs/heads/main of revisiesyntaxis zijn nooit een toegestane werkbranch', () => {
+  for (const b of ['HEAD', 'head', 'refs/heads/main', 'heads/main', 'tags/v1', 'MAIN', 'Main', 'a..b', 'a//b', 'x.lock', 'x/', 'x@{1}', 'release/1']) {
+    assert.throws(() => validateContract(structuredClone(contract({envelope: {git: {commit: true, push: [b], merge: null, deploy: 'none'}}}))), /Pushbranch ongeldig/, b);
+  }
+  assert.doesNotThrow(() => validateContract(structuredClone(contract({envelope: {git: {commit: true, push: ['claude/werk-1'], merge: null, deploy: 'none'}}}))));
+  const c = validateContract(structuredClone(contract({envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}})));
+  for (const argv of [['git', 'push', 'origin', 'HEAD'], ['git', 'push', 'origin', 'refs/heads/main'], ['git', 'push', 'origin', 'MAIN'], ['git', 'push', 'origin', 'HEAD:claude/w']]) assert.equal(classifyCommand(c, {argv, purpose: 'push'}).ok, false, argv.join(' '));
+});
+test('review: hoofdletters, afsluitende punten/spaties en korte Windows-namen omzeilen de beschermde paden niet', () => {
+  for (const p of ['.Claude/aae/x', 'claude.MD', 'DOCS/AAE/work/W/state.json', '.GIT/config', '.ENV.local']) assert.equal(protectedPath(p), true, p);
+  for (const p of ['docs/aae./x', 'docs/aae /x', 'CLAUDE~1.MD', 'a/b.']) assert.throws(() => relName(p), /Onveilig pad/, p);
+  assert.throws(() => validateContract(structuredClone(contract({envelope: {areas: [{name: 'Systeem', write: ['.Claude/aae'], support: []}]}}))), /Systeembestanden/);
+});
+test('review: preflight voert alleen bekende programma\'s uit en bevraagt alleen gewone hostnamen', () => {
+  const met = pf => structuredClone(contract({plan: {...contract().plan, preflight: pf}}));
+  assert.doesNotThrow(() => validateContract(met({tools: ['node', 'git'], hosts: ['api.supabase.co'], env_names: ['SUPABASE_URL'], fixtures: [{source: 'probe', path: 'tests/fixtures/x.json'}]})));
+  for (const pf of [{tools: ['./evil']}, {tools: ['rm']}, {tools: ['/bin/sh']}, {hosts: ['localhost']}, {hosts: ['evil.com/pad']}, {hosts: ['a@b.com']}, {hosts: ['169.254.169.254']}, {env_names: ['lowercase']}, {fixtures: [{source: 'x', path: '../x'}]}, {onbekend: 1}])
+    assert.throws(() => validateContract(met(pf)), undefined, JSON.stringify(pf));
+});
+test('review: de bronvingerafdruk omvat de goedgekeurde ondersteunende categorie (tests)', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33dig-')));
+  try {
+    fs.mkdirSync(path.join(dir, 'src')); fs.mkdirSync(path.join(dir, 'tests')); fs.writeFileSync(path.join(dir, 'tests/a.test.ts'), '1');
+    const c = validateContract(structuredClone(contract())), a = sourceDigest(dir, c);
+    fs.writeFileSync(path.join(dir, 'tests/a.test.ts'), '2');
+    assert.notEqual(sourceDigest(dir, c), a);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
 test('envelophash: een plan-wijziging (agent/commando) verandert de envelop niet; een gebied wel', () => {
   const a = geldig(), b = geldig(); b.plan.agents.push({name: 'aae-architect', question: 'Ontwerp een kleinere variant.', files: ['src']});
   assert.equal(envelopeHash(a), envelopeHash(validateContract(b)));

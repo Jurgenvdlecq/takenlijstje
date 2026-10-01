@@ -26,9 +26,11 @@ export function stripSql(sql) {
   let s = String(sql || '');
   s = s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n\r]*/g, ' ');
   s = s.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, ' ');
-  s = s.replace(/'(?:''|[^'])*'/g, ' ').replace(/"(?:""|[^"])*"/g, ' ');
+  s = s.replace(/[eE]'(?:\\.|''|[^'\\])*'/g, ' ').replace(/'(?:''|[^'])*'/g, ' ').replace(/"(?:""|[^"])*"/g, ' ');
   return s;
 }
+/** Na het weghalen van commentaar, strings en $-blokken mogen er geen losse aanhalingstekens of $-tags overblijven; anders is de SQL niet betrouwbaar te lezen. */
+export const unparsable = sql => { const s = stripSql(sql); return /['"]/.test(s) || /\$[A-Za-z_]*\$/.test(s) || /\/\*|\*\//.test(s); };
 const statements = sql => stripSql(sql).split(';').map(x => x.trim()).filter(Boolean);
 export function sqlText(input = {}) { for (const k of ['query', 'sql', 'statement']) if (typeof input[k] === 'string') return input[k]; return ''; }
 export function migrationSql(input = {}) { return typeof input.query === 'string' ? input.query : typeof input.sql === 'string' ? input.sql : ''; }
@@ -55,11 +57,14 @@ export function classifySql(sql) {
 export function classifyDb(sql) {
   const lijst = statements(sql);
   if (!lijst.length) return {klasse: 'C', redenen: ['Lege of onleesbare migratie.']};
+  if (unparsable(sql)) return {klasse: 'C', redenen: ['C: de SQL is niet betrouwbaar te lezen (niet-afgesloten tekst of blok); behandeld als destructief.']};
   const rang = {A: 1, B: 2, C: 3};
   let hoogste = 'A'; const redenen = [];
   const zet = (k, r) => { if (rang[k] > rang[hoogste]) hoogste = k; redenen.push(k + ': ' + r); };
   for (const s of lijst) {
     const U = s.replace(/\s+/g, ' ').toUpperCase();
+    // Statements die willekeurige code uitvoeren, tellen als destructief: hun inhoud is niet vooraf te classificeren.
+    if (/^(DO|CALL)\b/.test(U) || /\bEXECUTE\b(?!\s+(FUNCTION|PROCEDURE)\b)/.test(U) || /\bCOPY\b.*\bPROGRAM\b/.test(U) || /^ALTER SYSTEM\b/.test(U)) { zet('C', 'voert willekeurige code uit (DO/CALL/EXECUTE/COPY PROGRAM/ALTER SYSTEM)'); continue; }
     if (/\bDROP\b/.test(U)) { zet('C', 'DROP'); continue; }
     if (/\bTRUNCATE\b/.test(U)) { zet('C', 'TRUNCATE'); continue; }
     if (/^DELETE\b/.test(U)) { zet('C', 'DELETE'); continue; }
@@ -71,7 +76,7 @@ export function classifyDb(sql) {
     if (/\bCRON\s*\./.test(U)) { zet('C', 'cron direct'); continue; }
     if (/SECURITY DEFINER/.test(U)) { zet('B', 'SECURITY DEFINER'); continue; }
     if (/^(GRANT|REVOKE)\b/.test(U)) { zet('B', 'GRANT/REVOKE'); continue; }
-    if (/^ALTER POLICY\b/.test(U)) { zet('B', 'bestaand beleid wijzigen'); continue; }
+    if (/^(ALTER|CREATE) POLICY\b/.test(U)) { zet('B', 'beleid (toegangsgrens) maken of wijzigen'); continue; }
     if (/ADD (CONSTRAINT|CHECK|UNIQUE|PRIMARY KEY|FOREIGN KEY)\b/.test(U) || /SET NOT NULL/.test(U)) { zet('B', 'constraint aanscherpen'); continue; }
     if (/ADD COLUMN\b/.test(U) && /NOT NULL/.test(U) && !/DEFAULT/.test(U)) { zet('B', 'NOT NULL-kolom zonder default'); continue; }
     if (/\bRENAME\b/.test(U) || /^CREATE (OR REPLACE )?TRIGGER\b/.test(U) || /^ALTER (TRIGGER|FUNCTION)\b/.test(U) || /^CREATE EXTENSION\b/.test(U)) { zet('B', 'hernoemen/trigger/functie/extensie'); continue; }
@@ -104,6 +109,8 @@ function collectText(v, depth = 0) {
   return String(v);
 }
 export function projectRefFromResponse(response) { const m = collectText(response).match(/https:\/\/([a-z0-9-]{5,})\.supabase\.co\b/i); return m ? m[1] : null; }
+/** Het nummer van een zojuist gemaakte pull request uit de toolrespons (null als het niet te vinden is: dan kan er niets worden samengevoegd). */
+export function prNumberFromResponse(response) { const m = collectText(response).match(/(?:"number"\s*:\s*|\bnumber\s+|\/pull\/)(\d{1,9})\b/); return m ? Number(m[1]) : null; }
 export const responseDigest = response => crypto.createHash('sha256').update(collectText(response)).digest('hex');
 export const inputDigest = input => crypto.createHash('sha256').update(JSON.stringify(input || {})).digest('hex');
 export function safeExternalSummary(call, input = {}) {

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, denies, agentCall, runAgent, REPORT, put} from './helpers.mjs';
 import {runCommand, reportTemplate, closeTask} from '../runtime/runner.mjs';
 import {validateContract, clock} from '../runtime/core.mjs';
@@ -222,6 +223,37 @@ test('R28 de merge-gate weigert een READY-resultaat van een oudere bron', met(as
   makeResult(root, r.evidence_path);
   fs.writeFileSync(path.join(root, 'src/laat.js'), 'na het rapport');
   assert.match(await msg(runCommand(root, 'samenvoegen')), /Broncode veranderd/);
+}));
+const sh = (root, ...a) => spawnSync('git', ['-c', 'user.email=t@t.nl', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...a], {cwd: root, encoding: 'utf8'});
+function gitFixture(root) { sh(root, 'init', '-q'); sh(root, 'add', '-A'); sh(root, 'commit', '-q', '-m', 'eerste'); sh(root, 'commit', '-q', '--allow-empty', '-m', 'tweede'); sh(root, 'checkout', '-q', '-b', 'claude/w'); }
+test('review: de merge-gate bindt het bewijs aan de commit: HEAD moet gelijk zijn aan de vastgelegde commit en de branch aan HEAD', met(async root => {
+  gitFixture(root);
+  executing(root, metCmds([mergeCmd], [], mergeEnv));
+  const r = await runCommand(root, 't_ok');
+  const t = makeResult(root, r.evidence_path);
+  assert.match(t.git_head, /^[0-9a-f]{40,64}$/, 'het rapportsjabloon legt HEAD vast');
+  const s = st(root);
+  assert.doesNotThrow(() => assertGate(root, s, s.contract, 'merge', mergeCmd.argv), 'alles actueel: de gate laat het door');
+  sh(root, 'branch', 'claude/oud', 'HEAD~1');
+  assert.throws(() => assertGate(root, s, s.contract, 'merge', ['git', 'push', 'origin', 'claude/oud:main']), /staat niet op dezelfde commit/);
+  sh(root, 'commit', '-q', '--allow-empty', '-m', 'derde');
+  assert.throws(() => assertGate(root, s, s.contract, 'merge', mergeCmd.argv), /hoort bij commit/);
+}));
+test('review: een commit neemt geen geheimen mee (bestandsnaam of inhoud); .env.example mag wel', met(async root => {
+  gitFixture(root);
+  const cmds = [C('stage', ['git', 'add', '-A', '--', 'src'], 'commit', {max_runs: 10}), C('commit', ['git', 'commit', '-m', 'Tussenstand'], 'commit', {max_runs: 10})];
+  executing(root, metCmds(cmds, [], {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}));
+  fs.writeFileSync(path.join(root, 'src/.env.local'), 'SUPABASE_URL=x\n');
+  assert.match(await msg(runCommand(root, 'stage')), /Mogelijk geheim.*\.env\.local/);
+  fs.rmSync(path.join(root, 'src/.env.local'));
+  fs.writeFileSync(path.join(root, 'src/notitie.txt'), ['-----BEGIN ', 'RSA PRIVATE ', 'KEY-----'].join('') + '\nabc\n');
+  const fout = await msg(runCommand(root, 'stage'));
+  assert.match(fout, /privésleutel/); assert.ok(!fout.includes('abc'), 'de inhoud wordt nooit getoond');
+  fs.rmSync(path.join(root, 'src/notitie.txt'));
+  fs.writeFileSync(path.join(root, 'src/.env.example'), 'SUPABASE_URL=\n'); fs.writeFileSync(path.join(root, 'src/gewoon.js'), 'export {};\n');
+  assert.equal((await runCommand(root, 'stage')).exit_code, 0);
+  fs.writeFileSync(path.join(root, 'src/geheim.pem'), 'x'); sh(root, 'add', '-f', 'src/geheim.pem');
+  assert.match(await msg(runCommand(root, 'commit')), /Mogelijk geheim.*geheim\.pem/, 'ook wat al klaarstaat wordt bij de commit gecontroleerd');
 }));
 test('R29 een wijziging in een bewaakt script binnen het gebied laat een lokaal commando goedgekeurd', met(async root => {
   fs.writeFileSync(path.join(root, 'src/check.js'), 'console.log(1)');

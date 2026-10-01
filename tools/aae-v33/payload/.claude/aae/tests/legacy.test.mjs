@@ -97,6 +97,24 @@ test('legacy: een nog niet goedgekeurde v3.2-route wacht op de GO; een gepauzeer
     assert.equal(st(root2, 'AAE-OUD-2').status, 'READY');
   } finally { cleanup(root2); }
 }));
+test('review: een actieve v3.2-route zonder (geldige) goedkeuring wordt NIET stilzwijgend goedgekeurd', met(root => {
+  const t = v32Task(); zet(root, t, v32State(t, {approval: null}));
+  importLegacy(root);
+  assert.equal(st(root, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL'); assert.equal(st(root, 'AAE-OUD-1').approved, null);
+  const root2 = fixture();
+  try {
+    zet(root2, t, v32State(t, {approval: {digest: 'verouderd', at: '2026-09-30T10:00:00.000Z'}}));
+    importLegacy(root2);
+    assert.equal(st(root2, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL', 'een goedkeuring van een oud contract geldt niet');
+    assert.ok(denies(() => write(root2, 'src/x.js')), 'zonder GO geen schrijfrechten');
+  } finally { cleanup(root2); }
+}));
+test('legacy: een v3.2-route zonder GO-eis wordt alleen LIGHT automatisch overgenomen', met(root => {
+  const t = v32Task({approval_required: false, risk: 'low', mode: 'lean', risk_flags: []}); t.test_plan = t.test_plan.filter(x => ['scope', 'functional', 'regression'].includes(x.kind));
+  t.commands = [cmd('t_local', ['node', '--test', 'src/ok.test.mjs'], 'test')];
+  zet(root, t, v32State(t, {approval: null})); importLegacy(root);
+  assert.equal(st(root, 'AAE-OUD-1').status, 'EXECUTING');
+}));
 test('legacy: een v3.2-contract dat niet in v3.3 past blokkeert zichtbaar in plaats van stil te verdwijnen', met(root => {
   const t = v32Task({scope: {read: ['src'], write: []}, phase: 'implementation'}); t.commands = []; zet(root, t, v32State(t));
   const uit = importLegacy(root);

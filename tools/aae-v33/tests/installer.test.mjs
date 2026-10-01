@@ -157,6 +157,8 @@ test('rollback: een beschadigde back-upblob of een onveilig pad in RESTORE.json 
   x.files.push({path: '../buiten.txt', before: null, after: null, mode: null}); fs.writeFileSync(rf, JSON.stringify(x));
   assert.ok(planRollback(dir, r.backup).conflicts.some(c => c.includes('Onveilig pad')));
   assert.throws(() => planRollback(dir, '../ergens'), /Ongeldig back-uppad/);
+  assert.throws(() => planRollback(dir, '.aae-backups/..'), /Ongeldig back-uppad/);
+  assert.throws(() => planRollback(dir, '.aae-backups/.'), /Ongeldig back-uppad/);
 }));
 test('rollback: is zelf atomair; een fout halverwege laat de v3.3-installatie intact', metProject(dir => {
   const r = apply(dir), na = boom(dir);

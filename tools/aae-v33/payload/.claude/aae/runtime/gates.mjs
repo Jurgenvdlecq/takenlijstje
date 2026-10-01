@@ -1,6 +1,7 @@
 /** READY-bewijs en de gates voor merge en deployment. Eén logica voor sluiten en gate-commando's. */
 import fs from 'node:fs';
-import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks} from './core.mjs';
+import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks, areaWrite, SUPPORT_ROOTS} from './core.mjs';
+import {gitHead, refCommit, dirtyPaths} from './gitops.mjs';
 import {resultFile} from './state.mjs';
 import {runCompleted} from './reports.mjs';
 import {deployInfo} from './preflight.mjs';
@@ -39,7 +40,7 @@ export function assertReady(root, st, c, prefix = '') {
   if (c.envelope.phase === 'implementation' && c.risk_class === 'HIGH') requireThat(independentReview(st, c, src), prefix + 'HIGH mist een actueel onafhankelijk READY-oordeel van een reviewer.');
 }
 /** Merge en deployment zijn aparte capabilities. Een merge naar een branch die (mogelijk) automatisch deployt valt vanzelf onder de deploy-capability. */
-export function assertGate(root, st, c, kind) {
+export function assertGate(root, st, c, kind, argv = null) {
   // Eerst de capabilities (goedkoop en duidelijk), daarna het bewijs; het bewijs blijft altijd verplicht (B5: de gate verdwijnt nooit).
   if (kind === 'merge') {
     requireThat(Boolean(c.envelope.git.merge), 'Merge is geen capability in deze envelop.');
@@ -48,4 +49,14 @@ export function assertGate(root, st, c, kind) {
   }
   if (kind === 'deploy') requireThat(c.envelope.git.deploy === 'trigger', 'Deploy starten is geen capability in deze envelop.');
   assertReady(root, st, c, 'Gate ' + kind + ': ');
+  if (kind === 'merge') {
+    // Het bewijs moet bij precies de commit horen die wordt samengevoegd, niet alleen bij de werkmap.
+    const r = readJson(root, resultFile(c.id)), head = gitHead(root);
+    requireThat(head, 'Gate merge: geen git-HEAD te bepalen; samenvoegen vereist een git-werkmap.');
+    requireThat(r.git_head === head, 'Gate merge: het READY-resultaat hoort bij commit ' + String(r.git_head || 'onbekend').slice(0, 10) + ', maar HEAD is ' + head.slice(0, 10) + '. Maak het rapport opnieuw na de laatste commit.');
+    const paden = [...areaWrite(c), ...c.envelope.areas.flatMap(a => (a.support || []).flatMap(k => SUPPORT_ROOTS[k] || []))];
+    const vuil = dirtyPaths(root, paden);
+    requireThat(!vuil.length, 'Gate merge: niet-vastgelegde wijzigingen in de gebieden (' + vuil.slice(0, 3).join(', ') + '); leg ze vast en maak het rapport opnieuw.');
+    if (argv) { const van = String(argv[3] || '').split(':')[0]; requireThat(refCommit(root, van) === head, 'Gate merge: branch ' + van + ' staat niet op dezelfde commit als HEAD waarvoor het resultaat geldt.'); }
+  }
 }

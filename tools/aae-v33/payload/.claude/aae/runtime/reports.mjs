@@ -79,9 +79,10 @@ export function extractDigest(full) {
   return {tekst: kop + (staart ? '\n[... ingekort; volledig rapport staat in de ruwe laag ...]\n' + staart : ''), onvolledig: true};
 }
 export function parseVerdict(full, blok) {
-  const v = /^VERDICT:\s*(READY|PARTIAL|BLOCKED)/m.exec(blok || '');
-  if (v) return v[1];
-  const all = [...full.matchAll(/STATUS:\s*(READY|PARTIAL|BLOCKED)/g)];
+  // Alleen een eenduidige regel telt; een sjabloonregel "READY|PARTIAL|BLOCKED" is geen oordeel. De laatste geldige regel wint.
+  const v = [...(blok || '').matchAll(/^VERDICT:[ \t]*(READY|PARTIAL|BLOCKED)[ \t]*$/gm)];
+  if (v.length) return v.at(-1)[1];
+  const all = [...full.matchAll(/^STATUS:[ \t]*(READY|PARTIAL|BLOCKED)[ \t]*$/gm)];
   return all.length ? all.at(-1)[1] : 'UNKNOWN';
 }
 const slug = s => String(s || 'x').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 40);

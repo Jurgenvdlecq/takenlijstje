@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fixture, cleanup, contract, executing, st, prompt, hook, pre, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, installRuntime, spawnHook, SID} from './helpers.mjs';
-import {reconcile, liveRows, finalizeRun, extractDigest, contentText, normalizeText, DIGEST_MAX} from '../runtime/reports.mjs';
+import {reconcile, liveRows, finalizeRun, extractDigest, contentText, normalizeText, parseVerdict, DIGEST_MAX} from '../runtime/reports.mjs';
 import {saveWork, loadWork} from '../runtime/state.mjs';
 import {clock} from '../runtime/core.mjs';
 
@@ -101,6 +101,12 @@ test('rapport: een ingekorte respons (kop) en het volledige transcript stemmen o
   assert.equal(r.report.status, 'COMPLETED');
   assert.ok(fs.readFileSync(path.join(root, r.report.raw_path), 'utf8').includes('EINDE-SAMENVATTING'), 'het einde staat in de ruwe laag');
 }));
+test('review: een sjabloonregel "READY|PARTIAL|BLOCKED" is geen oordeel; de laatste eenduidige regel wint', () => {
+  assert.equal(parseVerdict('x', 'SAMENVATTING\nVERDICT: READY|PARTIAL|BLOCKED\nEINDE-SAMENVATTING'), 'UNKNOWN');
+  assert.equal(parseVerdict('x', 'VERDICT: READY\nVERDICT: BLOCKED'), 'BLOCKED');
+  assert.equal(parseVerdict('tekst\nSTATUS: PARTIAL', ''), 'PARTIAL');
+  assert.equal(parseVerdict('Een tekst met STATUS: READY midden in een zin', ''), 'UNKNOWN');
+});
 test('rapport: afwijkende bronnen geven REPORT_CONFLICT en tellen niet als onafhankelijk READY-bewijs', met((root, cfg) => {
   executing(root);
   start(root, 'tu-1', 'conf0001', 'Beoordeel src/a.js.');

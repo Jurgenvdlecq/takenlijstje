@@ -12,7 +12,7 @@ import {
   withLock, listWork, loadWork, saveWork, activeWork, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
 import {liveRows, LIVE, reconcile, finalizeRun, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
-import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
+import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
 import {assertGate} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
@@ -210,7 +210,11 @@ function preExternal(root, e, call) {
     if (cfg.base) requireThat(input.base === cfg.base, 'PR-base wijkt af van de envelop.');
     if (cfg.head) requireThat(input.head === cfg.head, 'PR-head wijkt af van de envelop.');
   }
-  if (call.provider === 'github' && call.level === 'merge') assertGate(root, st, c, 'merge');
+  if (call.provider === 'github' && call.level === 'merge') {
+    const nr = Number(input.pullNumber ?? input.pull_number);
+    requireThat(Number.isInteger(nr) && (st.created_prs || []).includes(nr), 'merge_pull_request alleen voor een pull request die dit werkpakket zelf heeft gemaakt (een nummer uit de respons van create_pull_request).');
+    assertGate(root, st, c, 'merge');
+  }
   st.usage.external++;
   st.external_calls[e.tool_use_id] = {id: e.tool_use_id, provider: call.provider, action: call.action, level: call.level, status: 'reserved', at: now(), summary: safeExternalSummary(call, input)};
   log(st, 'extern_gereserveerd', {provider: call.provider, actie: call.action, niveau: call.level});
@@ -279,6 +283,7 @@ function externalLifecycle(root, e) {
       else { st.supabase_verified = {ref, at: now()}; log(st, 'supabase_project_geverifieerd', {project_ref: ref}); }
     }
   }
+  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) st.created_prs = [...new Set([...(st.created_prs || []), nr])]; }
   const index = st.external_receipts.length + 1;
   const receipt = {schema_version: 1, id: st.id, envelope_hash: envelopeHash(st.contract), provider: row.provider, action: row.action, level: row.level, status: row.status, summary: row.summary, result_digest: row.result_digest, observed_project_ref: row.observed_project_ref || null, finished: row.finished};
   const rp = 'docs/aae/evidence/' + st.id + '/external-' + index + '.json'; atomicJson(root, rp, receipt);

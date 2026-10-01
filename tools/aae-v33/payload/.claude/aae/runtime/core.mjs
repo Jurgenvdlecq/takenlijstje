@@ -60,11 +60,14 @@ export function relName(value) {
   requireThat(!/[\\\x00-\x1f*?\[\]{}:]/.test(value) && !value.startsWith('/') && !value.startsWith('~'), 'Pad moet relatief, exact en zonder glob zijn: ' + value);
   const p = value.replace(/\/$/, '');
   requireThat(p && p.split('/').every(s => s !== '.' && s !== '..' && s !== ''), 'Onveilig pad: ' + value);
+  // Windows/macOS: afsluitende punt of spatie en 8.3-korte namen kunnen een beschermd pad aanduiden.
+  requireThat(p.split('/').every(s => !/[. ]$/.test(s) && !/~\d/.test(s)), 'Onveilig pad (afsluitende punt/spatie of korte naam): ' + value);
   return p;
 }
 export function protectedPath(p) {
-  return p === 'CLAUDE.md' || p.startsWith('.claude/') || p === '.claude' || p === '.git' || p.startsWith('.git/') || p === '.gitignore' || p.startsWith('.aae-backups/') ||
-    p.split('/').some(s => /^\.env(?:\.|$)/i.test(s) && s !== '.env.example') || p.startsWith('docs/aae/');
+  const l = p.toLowerCase(); // hoofdletterongevoelige bestandssystemen (macOS, Windows)
+  return l === 'claude.md' || l.startsWith('.claude/') || l === '.claude' || l === '.git' || l.startsWith('.git/') || l === '.gitignore' || l.startsWith('.aae-backups/') ||
+    l.split('/').some(s => /^\.env(?:\.|$)/.test(s) && s !== '.env.example') || l.startsWith('docs/aae/') || l === 'docs/aae';
 }
 export function controlDocument(p) {
   return DOCS.has(p) || /^docs\/aae\/notes\/[A-Za-z0-9_-]+\.md$/.test(p) || /^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/(contract|result)\.json$/.test(p);
@@ -113,6 +116,7 @@ const SUPPORT = {
   docs: p => p === 'docs/PROGRESS.md'
 };
 export const SUPPORT_KINDS = Object.keys(SUPPORT);
+export const SUPPORT_ROOTS = {tests: ['tests', 'supabase/tests'], lockfile: ['package-lock.json'], types: ['src/types/database.ts'], docs: ['docs/PROGRESS.md']};
 export const areaWrite = c => c.envelope.areas.flatMap(a => a.write);
 /** Mag dit bestand zonder nieuwe goedkeuring worden geschreven? Binnen een gebiedspatroon of een vooraf goedgekeurde ondersteunende categorie van een gebied. */
 export function areaAllows(c, p) {
@@ -166,8 +170,11 @@ export function bashArgv(command) {
 }
 
 // ---- git-regels per capability ----
-const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,200}$/;
-const PROTECTED_BRANCH = /^(main|master|production|prod|release\/.*)$/;
+const BRANCH_SHAPE = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,200}$/;
+const PROTECTED_BRANCH = /^(main|master|production|prod|release\/.*)$/i;
+/** Een gewone branchnaam: geen HEAD-achtige verwijzing, geen refs/-voorvoegsel, geen git-revisiesyntaxis, niet beschermd. */
+export const branchName = b => typeof b === 'string' && BRANCH_SHAPE.test(b) && !/^(HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD|CHERRY_PICK_HEAD)$/i.test(b) && !/^(refs|heads|tags|remotes)\//i.test(b) && !b.includes('..') && !b.includes('//') && !/(\.lock|\/|\.)$/.test(b) && !/@\{/.test(b);
+const BRANCH = {test: branchName};
 const sameArgv = (a, b) => stable(a) === stable(b);
 function addAllowed(c, p) {
   try { p = relName(p); } catch { return false; }
@@ -247,6 +254,16 @@ export function validateProviders(p, c) {
     if (x.tools.includes('merge_pull_request')) requireThat(Boolean(c.envelope.git.merge), 'merge_pull_request vereist envelop.git.merge.');
   }
 }
+/** Preflight voert alleen bekende programma's met --version uit en bevraagt alleen gewone hostnamen; nooit een pad of vrije opdracht. */
+export const PREFLIGHT_TOOLS = ['node', 'npm', 'npx', 'git', 'supabase', 'psql', 'deno', 'python3', 'pnpm', 'yarn'];
+export function validatePreflight(pf) {
+  keys(pf, ['tools', 'hosts', 'env_names', 'fixtures'], [], 'Preflight');
+  pf.tools ??= []; pf.hosts ??= []; pf.env_names ??= []; pf.fixtures ??= [];
+  array(pf.tools, 0, 10, 'Preflight-programma\'s'); for (const t of pf.tools) requireThat(PREFLIGHT_TOOLS.includes(t), 'Preflight-programma niet toegestaan: ' + String(t));
+  array(pf.hosts, 0, 10, 'Preflight-hosts'); for (const h of pf.hosts) requireThat(typeof h === 'string' && /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(h), 'Preflight-host is geen gewone hostnaam: ' + String(h));
+  array(pf.env_names, 0, 20, 'Preflight-configuratienamen'); for (const n of pf.env_names) requireThat(typeof n === 'string' && /^[A-Z][A-Z0-9_]{0,63}$/.test(n), 'Preflight-configuratienaam ongeldig: ' + String(n));
+  array(pf.fixtures, 0, 10, 'Preflight-fixtures'); for (const f of pf.fixtures) { keys(f, ['source', 'path'], ['source', 'path'], 'Preflight-fixture'); text(f.source, 'Fixturebron', 120); relName(f.path); }
+}
 export function validateContract(c) {
   keys(c, ['schema_version', 'id', 'title', 'goal', 'risk_class', 'risk_flags', 'envelope', 'plan'], ['schema_version', 'id', 'title', 'goal', 'risk_class', 'risk_flags', 'envelope', 'plan'], 'Contract');
   requireThat(c.schema_version === 4, 'Contract vereist schema_version 4.');
@@ -304,6 +321,7 @@ export function validateContract(c) {
   const p = c.plan;
   keys(p, ['test_plan', 'agents', 'commands', 'read', 'open_product_questions', 'keep_raw', 'preflight'], ['test_plan'], 'Plan');
   p.agents ??= []; p.commands ??= []; p.read ??= []; p.open_product_questions ??= []; p.keep_raw ??= false;
+  if (p.preflight !== undefined) validatePreflight(p.preflight);
   array(p.read, 0, 30, 'Leesscope'); for (const x of p.read) relName(x);
   array(p.test_plan, 1, 24, 'Bewijsplan');
   for (const t of p.test_plan) { keys(t, ['kind', 'method', 'description'], ['kind', 'method', 'description'], 'Bewijsplan'); choice(t.kind, [...CHECKS], 'Controle'); choice(t.method, ['command', 'inspection', 'manual'], 'Bewijsmethode'); text(t.description, 'Bewijsomschrijving'); }
@@ -398,6 +416,8 @@ export function sourceDigest(root, c) {
       found.set(p, sha(fs.readFileSync(f)));
     }
   }
-  for (const p of [...areaWrite(c), ...c.plan.read]) visit(relName(p));
+  // Ook de vooraf goedgekeurde ondersteunende categorieën (tests, lockfile, types, docs) tellen mee: een wijziging daar is een bronwijziging.
+  const steun = c.envelope.areas.flatMap(a => (a.support || []).flatMap(k => SUPPORT_ROOTS[k] || []));
+  for (const p of [...areaWrite(c), ...c.plan.read, ...steun]) visit(relName(p));
   return digest([...found.entries()].sort(([x], [y]) => x.localeCompare(y)));
 }

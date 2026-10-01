@@ -8,6 +8,7 @@ import {withLock, activeWork, loadWork, saveWork, log, transition, resultFile, l
 import {liveRows} from './reports.mjs';
 import {assertReady, assertGate} from './gates.mjs';
 import {extraKey} from './commands.mjs';
+import {gitHead, candidateFiles, stagedFiles, secretHits} from './gitops.mjs';
 
 const hasLive = st => liveRows(st).some(r => ['reserved', 'running'].includes(r.status));
 const NON_LOCAL = ['install', 'destructive', 'merge', 'deploy'];
@@ -32,7 +33,13 @@ export async function runCommand(root, cmdId) {
         for (const [p, h] of Object.entries(nu)) requireThat(rec.refs[p] === h || scopeContains(areaWrite(c), p), 'Een bewaakt bestand buiten de schrijfgebieden is gewijzigd: ' + p);
       }
     }
-    if (m.purpose === 'merge') assertGate(root, st, c, 'merge');
+    if (m.purpose === 'commit' && m.argv[0] === 'git') {
+      // Geen geheimen in een commit: controleer wat er klaargezet wordt (add) en wat er al klaarstaat (commit). Alleen namen en soort, nooit de inhoud.
+      const kandidaten = m.argv[1] === 'add' ? candidateFiles(root, m.argv.slice(4)) : m.argv[1] === 'commit' ? stagedFiles(root) : [];
+      const geheimen = secretHits(root, kandidaten);
+      requireThat(!geheimen.length, 'Mogelijk geheim in de commit (' + geheimen.slice(0, 5).map(h => h.path + ': ' + h.reden).join('; ') + '). Verwijder of negeer het bestand (.gitignore) en probeer opnieuw.');
+    }
+    if (m.purpose === 'merge') assertGate(root, st, c, 'merge', m.argv[0] === 'git' ? m.argv : null);
     if (m.purpose === 'deploy') assertGate(root, st, c, 'deploy');
     requireThat(st.usage.commands < c.envelope.budgets.command_runs, 'Totaal commandobudget bereikt.');
     requireThat((st.command_counts[cmdId] || 0) < m.max_runs, 'Maximum aantal runs voor ' + cmdId + ' bereikt.');
@@ -60,7 +67,8 @@ export async function runCommand(root, cmdId) {
     result = await new Promise(resolve => {
       const m = launch.m;
       // NODE_TEST_CONTEXT hoort bij een bovenliggende node --test-run; geërfd laat het een geneste testrun altijd "slagen". Een commando draait altijd los.
-      const env = {...process.env, CI: '1'}; delete env.NODE_TEST_CONTEXT;
+      // npm_config_yes=false: npx installeert nooit stilzwijgend een ontbrekend pakket.
+      const env = {...process.env, CI: '1', npm_config_yes: 'false'}; delete env.NODE_TEST_CONTEXT;
       const child = spawn(m.argv[0], m.argv.slice(1), {cwd: fs.realpathSync(root), shell: false, detached: process.platform !== 'win32', env, stdio: ['ignore', 'pipe', 'pipe']});
       let timedOut = false, spawnError = null;
       const kill = () => { try { if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch { /* al weg */ } };
@@ -90,7 +98,7 @@ export function reportTemplate(root) {
   return withLock(root, () => {
     const st = activeWork(root); requireThat(st, 'Geen actief werkpakket.');
     const c = st.contract;
-    return {schema_version: 4, id: c.id, envelope_hash: envelopeHash(c), source_digest: sourceDigest(root, c), status: 'PARTIAL', summary: 'Vul in wat aantoonbaar is uitgevoerd; geen verondersteld bewijs.',
+    return {schema_version: 4, id: c.id, envelope_hash: envelopeHash(c), source_digest: sourceDigest(root, c), git_head: gitHead(root), status: 'PARTIAL', summary: 'Vul in wat aantoonbaar is uitgevoerd; geen verondersteld bewijs.',
       criteria: c.envelope.acceptance.map(a => ({id: a.id, status: 'not_run', evidence: [], note: ''})),
       checks: c.plan.test_plan.map(t => ({kind: t.kind, method: t.method, status: 'not_run', evidence: [], note: ''}))};
   });
