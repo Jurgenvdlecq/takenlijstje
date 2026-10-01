@@ -160,6 +160,17 @@ test('rollback: een beschadigde back-upblob of een onveilig pad in RESTORE.json 
   assert.throws(() => planRollback(dir, '.aae-backups/..'), /Ongeldig back-uppad/);
   assert.throws(() => planRollback(dir, '.aae-backups/.'), /Ongeldig back-uppad/);
 }));
+test('rollback (review): eigen regels in .gitignore na de installatie blokkeren het terugdraaien niet; alleen het beheerde blok verdwijnt', metProject(dir => {
+  const voor = boom(dir), r = apply(dir);
+  fs.appendFileSync(path.join(dir, '.gitignore'), '\n/eigen-map/\n');
+  const plan = planRollback(dir, r.backup);
+  assert.deepEqual(plan.conflicts, []);
+  rollback(dir, r.backup);
+  const na = boom(dir), gi = fs.readFileSync(path.join(dir, '.gitignore'), 'utf8');
+  assert.ok(gi.includes('/eigen-map/') && !gi.includes('AAE 3.3'), 'eigen regel blijft, blok weg');
+  for (const p of Object.keys(voor)) if (p !== '.gitignore') assert.equal(na[p], voor[p], p);
+  assert.ok(gi.startsWith(git(['show', BASE + ':.gitignore']).toString()), 'de oorspronkelijke regels staan er nog ongewijzigd');
+}));
 test('rollback: is zelf atomair; een fout halverwege laat de v3.3-installatie intact', metProject(dir => {
   const r = apply(dir), na = boom(dir);
   assert.throws(() => rollback(dir, r.backup, {failAfter: 7}), /Gesimuleerde fout/);

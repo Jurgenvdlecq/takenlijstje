@@ -130,6 +130,28 @@ test('rapport: mislukte opslag geeft REPORT_LOST en wordt zonder gebruikersactie
   assert.notEqual(r.report.status, 'REPORT_LOST');
   assert.ok(fs.existsSync(path.join(root, r.report.raw_path)));
 }));
+test('review: een verloren rapport wordt ook uit de bewaarde handback hersteld, en dezelfde vraag mag daarna opnieuw', met((root, cfg) => {
+  executing(root);
+  start(root, 'tu-1', 'hand0001', 'Beoordeel src/a.js.');
+  fs.writeFileSync(path.join(root, '.claude/aae/state/raw'), 'geen map');
+  const s0 = st(root); s0.agents['tu-1'].handback_text = REPORT(); saveWork(root, s0);
+  stop(root, 'hand0001', REPORT());
+  assert.equal(st(root).agents['tu-1'].report.status, 'REPORT_LOST');
+  fs.rmSync(path.join(root, '.claude/aae/state/raw'));
+  const s = st(root); assert.deepEqual(reconcile(root, s).map(x => x.naar), ['report_hersteld']); saveWork(root, s);
+  assert.notEqual(st(root).agents['tu-1'].report.status, 'REPORT_LOST');
+  assert.ok(agentCall(root, {id: 'tu-2', vraag: 'Beoordeel src/a.js.'}), 'een herstelbaar verloren rapport blokkeert dezelfde vraag niet');
+}));
+test('review: zonder transcript is alleen een hostbevestiging bewijs: hint of tijd geeft "onbevestigd", pas "host kent hem niet meer" geeft presumed_dead', met(root => {
+  executing(root);
+  start(root, 'tu-a', 'geen00001', 'Beoordeel src/a.js.');
+  const t0 = Date.now(), s = st(root);
+  s.agents['tu-a'].interrupted_hint = true;
+  for (const m of [20, 22, 200]) reconcile(root, s, {nowMs: t0 + m * 60000});
+  assert.equal(s.agents['tu-a'].status, 'unverified');
+  s.agents['tu-a'].host_observed = {state: 'absent', at: t0}; reconcile(root, s, {nowMs: t0 + 203 * 60000});
+  assert.equal(s.agents['tu-a'].status, 'presumed_dead');
+}));
 test('rapport: zonder enige bron is het resultaat REPORT_LOST (geen verzonnen rapport)', met(root => {
   const s = executing(root);
   const row = {run_key: 'run-009', role: 'aae-reviewer', focus: 'code', seq: 9};

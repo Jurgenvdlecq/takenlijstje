@@ -171,8 +171,9 @@ export function reconcile(root, st, opts = {}) {
     if (!['stopped', 'presumed_dead'].includes(row.status) || row.report?.status !== 'REPORT_LOST') continue;
     const pad = row.transcript_path || findTranscript(row.agent_id, opts);
     const tekst = pad ? transcriptFinalText(pad) : null;
-    if (!tekst) continue;
-    try { finalizeRun(root, st, row, {transcript: tekst}, opts); wijzigingen.push({run: row.run_key, naar: 'report_hersteld'}); } catch { /* volgende afstemming probeert opnieuw */ }
+    const bron = {}; if (tekst) bron.transcript = tekst; if (row.handback_text) bron.last_message = row.handback_text;
+    if (!Object.keys(bron).length) continue;
+    try { finalizeRun(root, st, row, bron, opts); wijzigingen.push({run: row.run_key, naar: 'report_hersteld'}); } catch { /* volgende afstemming probeert opnieuw */ }
   }
   for (const row of liveRows(st)) {
     const sinds = nowMs - Date.parse(row.last_seen || row.reserved_at);
@@ -188,7 +189,9 @@ export function reconcile(root, st, opts = {}) {
     // Zonder vindbaar transcript valt er niets te meten: dat is nooit "stilstaand".
     const stilstaand = Boolean(a && b && a.size !== null && b.size !== null && b.at - a.at >= gapMs && a.size === b.size && a.mtimeMs === b.mtimeMs);
     const hostWeg = row.host_observed?.state === 'absent' || Boolean(row.interrupted_hint);
-    if (stilstaand && (hostWeg || sinds >= ceilingMs)) {
+    // Zonder vindbaar transcript valt niets te meten: dan is alleen een hostbevestiging (absent/onderbroken) bewijs, nooit tijd alleen.
+    const geenTranscript = Boolean(a && b && a.size === null && b.size === null && b.at - a.at >= gapMs);
+    if ((stilstaand && (hostWeg || sinds >= ceilingMs)) || (geenTranscript && row.host_observed?.state === 'absent')) {
       row.status = 'presumed_dead'; row.finished = new Date(nowMs).toISOString();
       const tekst = pad ? transcriptFinalText(pad) : null;
       finalizeRun(root, st, row, tekst ? {transcript: tekst} : {}, opts);

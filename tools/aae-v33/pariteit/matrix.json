@@ -132,7 +132,7 @@
     {"v32": "R6: gate command waits for a READY result on the current source", "status": "behouden", "v33": ["R27"]},
     {"v32": "R6: gate refuses a READY result from an older source", "status": "behouden", "v33": ["R28"]},
     {"v32": "R12: in-scope change to a watched script keeps the command approved", "status": "behouden", "v33": ["R29"]},
-    {"v32": "B4: in-scope change to a watched file still needs a new GO for publish commands", "status": "behouden", "v33": ["R30"]},
+    {"v32": "B4: in-scope change to a watched file still needs a new GO for publish commands", "status": "aangepast", "v33": ["R30", "R04"], "toelichting": "Geldt nu voor deploy/install/destructieve en niet-git merge-commando's (vingerafdruk). git push en git merge zijn niet meer aan bronbestanden gebonden maar aan exacte argv-regels, het bewijs-gate en (merge) de commit van het rapport."},
     {"v32": "B4: in-scope change to a watched file still needs a new GO for a local gate command", "status": "aangepast", "v33": ["R31"], "toelichting": "Het gate-commando is nu de merge-capability: git-merge is aan exacte argv-regels gebonden; een niet-git samenvoegcommando aan zijn vingerafdruk."},
     {"v32": "R4: amended route keeps approved commands runnable without a new GO", "status": "behouden", "v33": ["R32"]},
     {"v32": "R3: follow-up prompt keeps command approval", "status": "behouden", "v33": ["R33"]},

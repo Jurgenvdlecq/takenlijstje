@@ -115,6 +115,20 @@ test('legacy: een v3.2-route zonder GO-eis wordt alleen LIGHT automatisch overge
   zet(root, t, v32State(t, {approval: null})); importLegacy(root);
   assert.equal(st(root, 'AAE-OUD-1').status, 'EXECUTING');
 }));
+test('review: een v3.2-gate op een commando dat geen merge is, laat de overname zichtbaar blokkeren (de gate vervalt niet stil)', met(root => {
+  const t = v32Task(); t.commands.push(cmd('gate_lokaal', ['node', '--test', 'src/ok.test.mjs'], 'test', {gate: 'ready'}));
+  zet(root, t, v32State(t)); const uit = importLegacy(root);
+  assert.equal(uit.status, 'BLOCKED'); assert.match(st(root, 'AAE-OUD-1').blockers[0], /gate "ready"/);
+}));
+test('review: een gesloten v3.2-taak met PARTIAL of BLOCKED blijft open (BLOCKED), alleen READY is READY', met(root => {
+  const t = v32Task(); zet(root, t, v32State(t, {status: 'closed', result: 'PARTIAL'})); importLegacy(root);
+  assert.equal(st(root, 'AAE-OUD-1').status, 'BLOCKED'); assert.equal(st(root, 'AAE-OUD-1').result, 'PARTIAL');
+}));
+test('review: eenmalige commando\'s (merge, deploy, install, destructief) worden bij de overname op één run begrensd in plaats van de route te blokkeren', () => {
+  const t = v32Task(); t.commands.find(m => m.id === 'gate').max_runs = 5; t.commands.find(m => m.id === 'setup').max_runs = 4;
+  const v = validateContract(structuredClone(adaptLegacyContract(t).contract));
+  assert.equal(v.plan.commands.find(m => m.id === 'gate').max_runs, 1); assert.equal(v.plan.commands.find(m => m.id === 'setup').max_runs, 1);
+});
 test('legacy: een v3.2-contract dat niet in v3.3 past blokkeert zichtbaar in plaats van stil te verdwijnen', met(root => {
   const t = v32Task({scope: {read: ['src'], write: []}, phase: 'implementation'}); t.commands = []; zet(root, t, v32State(t));
   const uit = importLegacy(root);

@@ -247,6 +247,35 @@ test('T18b dood pas bij stilstaand transcript over twee metingen én hosthint (o
   assert.equal(s.agents['tu-a'].report.status, 'REPORT_UNVERIFIED', 'één bron is geen COMPLETED');
 }));
 
+test('T23 incident (tweede echte reproductie): een achtergrond-/afhankelijkheidsagent blijft achter, de hoofdbeurt eindigt, het vervolgbericht wordt niet geblokkeerd, de stale registratie wordt vanzelf afgestemd en de bestaande GO blijft geldig', metRoot((root, cfg) => {
+  executing(root);
+  const goed = JSON.stringify(st(root).approved);
+  // De agent wordt (door de host) op de achtergrond gestart en de beurt van de hoofdsessie eindigt zonder resultaat.
+  agentCall(root, {id: 'tu-bg', vraag: 'Beoordeel src/a.js als afhankelijkheid van de volgende stap.'});
+  hook(root, {hook_event_name: 'SubagentStart', agent_type: 'aae-reviewer', agent_id: 'bg000001'});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_use_id: 'tu-bg', tool_input: {}, tool_response: {status: 'async_launched', agentId: 'bg000001'}});
+  writeTranscript(cfg, 'bg000001', 'tussenstand van de achtergrondagent, nog geen eindrapport');
+  assert.equal(st(root).agents['tu-bg'].status, 'running');
+  assert.equal(hook(root, {hook_event_name: 'Stop'}), null, 'het einde van de beurt wordt nooit geblokkeerd');
+  const t0 = Date.now();
+  // Vervolgbericht(en) na lange stilte: nooit een blokkade, nooit een noodgreep van de gebruiker (geen AAE HERSTEL nodig).
+  clock.ms = () => t0 + 20 * 60000;
+  assert.doesNotThrow(() => prompt(root, 'Ik ben er weer. Hoe staat het ervoor?'));
+  assert.equal(st(root).status, 'EXECUTING'); assert.equal(JSON.stringify(st(root).approved), goed, 'de GO blijft geldig');
+  assert.equal(st(root).agents['tu-bg'].status, 'unverified', 'eerst onbevestigd, nog niet dood');
+  clock.ms = () => t0 + 22 * 60000;
+  assert.doesNotThrow(() => prompt(root, 'Nog een bericht.'));
+  assert.equal(st(root).agents['tu-bg'].status, 'presumed_dead', 'stilstaand transcript over twee metingen + onderbreking: automatisch afgestemd');
+  assert.equal(JSON.stringify(st(root).approved), goed); assert.equal(st(root).status, 'EXECUTING');
+  assert.equal(liveRows(st(root)).length, 0, 'het slot is vrij zonder gebruikersactie');
+  assert.equal(st(root).usage.agents, 1, 'het verbruik blijft behouden');
+  // Het werk gaat gewoon door: schrijven, een nieuwe, kleinere agentvraag, en een laat resultaat van de oude agent.
+  assert.equal(write(root, 'src/a.js'), null);
+  assert.ok(agentCall(root, {id: 'tu-2', vraag: 'Beoordeel alleen src/a.js, kleiner.'}));
+  hook(root, {hook_event_name: 'SubagentStop', agent_type: 'aae-reviewer', agent_id: 'bg000001', last_assistant_message: REPORT()});
+  assert.equal(st(root).agents['tu-bg'].status, 'stopped', 'een laat resultaat wordt alsnog verwerkt');
+}));
+
 test('T19 merge op een automatisch deployende branch vraagt een deploy-capability; handmatig vastgelegd deployen mag zonder', metRoot(root => {
   fs.writeFileSync(path.join(root, 'vercel.json'), '{}\n');
   assert.equal(deployInfo(root, 'main').trigger, 'auto');

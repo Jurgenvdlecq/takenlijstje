@@ -175,6 +175,11 @@ test('materialChanges: binnen de envelop is vrij; breder gebied, hoger risico, d
   assert.ok(materialChanges(a, geldig({envelope: {budgets: {agent_calls: {soft: 2, hard: 6}, command_runs: 20, external_calls: 0, max_parallel: 1}}})).includes('budget'));
   assert.ok(materialChanges(a, geldig({envelope: {acceptance: [{id: 'AC1', text: 'Iets heel anders dan eerst.'}]}})).includes('acceptatiecriteria'));
 });
+test('materialChanges: meer parallelle agents is een budgetverruiming', () => {
+  const a = geldig(), b = geldig({envelope: {budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 0, max_parallel: 2}}});
+  assert.ok(materialChanges(a, b).includes('budget'));
+  assert.deepEqual(materialChanges(b, a), []);
+});
 test('B5 behouden: een merge-gate kan niet stilletjes uit de envelop verdwijnen', () => {
   const m = geldig({envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'}}});
   const zonder = geldig({envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'verify'}}});

@@ -16,7 +16,8 @@ export const MANAGED = '.claude/aae/managed.json';
 const GITIGNORE = '.gitignore';
 const MARK_START = '# >>> AAE 3.3 (beheerd blok) >>>', MARK_END = '# <<< AAE 3.3 <<<';
 const IGNORE_LINES = ['/.claude/aae/state/', '/.claude/aae/private/', '/.aae-backups/', '/docs/aae/work/*/state.json', '/docs/aae/work/*/state.json.tmp-*', '/docs/aae/work/*/result.json','/docs/aae/evidence/', '/docs/aae/notes/', '/docs/aae/RESULT.json', '/docs/aae/TASK.json'];
-const IGNORE_BLOCK = [MARK_START, ...IGNORE_LINES, MARK_END].join('\n');
+const BLOCK_RE = /\n?# >>> AAE 3\.3 \(beheerd blok\) >>>\n[\s\S]*?# <<< AAE 3\.3 <<<\n/;
+const IGNORE_BLOCK =[MARK_START, ...IGNORE_LINES, MARK_END].join('\n');
 const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'SubagentStart', 'SubagentStop'];
 const SKIP = ['.claude/aae/state', '.claude/aae/private'];
 const SAFE_RESTORE = p => typeof p === 'string' && !p.startsWith('/') && !p.includes('\\') && p.split('/').every(s => s && s !== '.' && s !== '..') && (p.startsWith('.claude/') || p.startsWith('docs/archief/') || p === GITIGNORE);
@@ -193,7 +194,9 @@ export function planRollback(project, backupRel) {
   for (const e of r.files) {
     if (!SAFE_RESTORE(e.path)) { conflicts.push('Onveilig pad in RESTORE.json: ' + e.path); continue; }
     const nu = hashOf(abs(base, e.path));
-    if (nu !== e.after) conflicts.push('gewijzigd sinds de installatie: ' + e.path);
+    // .gitignore is gedeeld: eigen regels na de installatie zijn geen conflict; alleen het beheerde blok wordt verwijderd.
+    const gedeeldeGitignore = e.path === GITIGNORE && nu !== null && BLOCK_RE.test(fs.readFileSync(abs(base, e.path), 'utf8'));
+    if (nu !== e.after && !gedeeldeGitignore) conflicts.push('gewijzigd sinds de installatie: ' + e.path);
     if (e.before) { const blob = abs(base, backupRel + '/blobs/' + e.before); if (hashOf(blob) !== e.before) conflicts.push('back-upblob ontbreekt of is beschadigd voor ' + e.path); }
   }
   const werk = walk(base, 'docs/aae/work').filter(p => p.endsWith('/state.json'));
@@ -210,11 +213,17 @@ export function rollback(project, backupRel, opts = {}) {
     for (const e of [...r.files].reverse()) {
       if (opts.failAfter != null && ++n > opts.failAfter) fail('Gesimuleerde fout (test).');
       const f = abs(base, e.path);
+      if (e.path === GITIGNORE && hashOf(f) !== e.after) { // alleen het beheerde blok eruit; eigen regels blijven
+        const rest = fs.readFileSync(f, 'utf8').replace(BLOCK_RE, '');
+        if (!rest.trim() && !e.before) fs.rmSync(f, {force: true}); else fs.writeFileSync(f, rest);
+        continue;
+      }
       if (e.before) { fs.mkdirSync(path.dirname(f), {recursive: true}); fs.writeFileSync(f, fs.readFileSync(abs(base, backupRel + '/blobs/' + e.before)), {mode: parseInt(e.mode, 8)}); fs.chmodSync(f, parseInt(e.mode, 8)); }
       else fs.rmSync(f, {force: true});
     }
     for (const d of r.dirs_created || []) { if (d !== 'docs' && !SAFE_RESTORE(d + '/x')) continue; try { rmEmptyTree(abs(base, d)); } catch { /* niet leeg: laten staan */ } }
-    for (const e of r.files) if (e.before && hashOf(abs(base, e.path)) !== e.before) fail('Controle na terugdraaien mislukt voor ' + e.path);
+    for (const e of r.files) if (e.before && e.path !== GITIGNORE && hashOf(abs(base, e.path)) !== e.before) fail('Controle na terugdraaien mislukt voor ' + e.path);
+    if (exists(abs(base, GITIGNORE)) && fs.readFileSync(abs(base, GITIGNORE), 'utf8').includes(MARK_START)) fail('Het beheerde .gitignore-blok staat er nog.');
     for (const e of r.files) if (!e.before && exists(abs(base, e.path))) fail('Bestand zou weg moeten zijn: ' + e.path);
     const rf = abs(base, backupRel + '/RESTORE.json'); fs.writeFileSync(rf, JSON.stringify({...r, status: 'rolled_back', rolled_back: new Date().toISOString()}, null, 2) + '\n');
     return {backup: backupRel, hersteld: r.files.length, plan};

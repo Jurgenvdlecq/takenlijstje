@@ -89,7 +89,7 @@ function delegation(root, st, e) {
   reconcile(root, st);
   const hash = questionHash(role, focus, input.prompt);
   requireThat(!duplicateOf(st, hash), 'Dezelfde vraag loopt nog of is niet aantoonbaar afgerond. Stem eerst af (cli reconcile) of stel een kleinere, andere vraag.');
-  const mislukt = Object.values(st.agents).filter(r => r.question_hash === hash && (['presumed_dead', 'abandoned'].includes(r.status) || ['REPORT_LOST', 'REPORT_CONFLICT'].includes(r.report?.status)));
+  const mislukt = Object.values(st.agents).filter(r => r.question_hash === hash && (['presumed_dead', 'abandoned'].includes(r.status) || r.report?.status === 'REPORT_CONFLICT') && !(r.report?.status === 'COMPLETED'));
   requireThat(mislukt.length === 0 && Object.values(st.agents).filter(r => r.question_hash === hash && r.status === 'failed').length < 2, 'Dezelfde vraag is al eerder niet afgerond. Geen herhaling van een identieke poging: stel een kleinere of andere vraag.');
   const b = c.envelope.budgets;
   requireThat(st.usage.agents < b.agent_calls.hard, 'Hard agentplafond (' + b.agent_calls.hard + ') bereikt. Doe het zelf of meld dat het plafond te laag is.');

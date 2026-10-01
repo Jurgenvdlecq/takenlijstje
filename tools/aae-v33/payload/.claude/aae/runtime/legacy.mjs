@@ -37,7 +37,10 @@ export function adaptLegacyContract(t) {
     } else if (purpose === 'publish') { purpose = 'deploy'; extra.push({argv: a, purpose}); }
     else if (['install', 'destructive'].includes(purpose)) extra.push({argv: a, purpose});
     else if (LOCAL.includes(purpose) && !safeLocalArgv(a)) extra.push({argv: a, purpose});
-    commands.push({id: m.id, argv: a, purpose, why: m.why, watch: m.watch, timeout_ms: m.timeout_ms, max_runs: purpose === 'push' || purpose === 'commit' ? Math.min(m.max_runs, 30) : m.max_runs, _legacyPurpose: m.purpose});
+    // Een v3.2-gate ("ready") bestaat in v3.3 alleen als merge-capability; elders zou de overname de gate stil laten vervallen.
+    if (m.gate === 'ready' && purpose !== 'merge') throw new Error('Het v3.2-gatecommando ' + m.id + ' (gate "ready") kan niet als merge-capability worden overgenomen.');
+    const eenmalig = ['merge', 'deploy', 'install', 'destructive'].includes(purpose);
+    commands.push({id: m.id, argv: a, purpose, why: m.why, watch: m.watch, timeout_ms: m.timeout_ms, max_runs: eenmalig ? 1 : purpose === 'push' || purpose === 'commit' ? Math.min(m.max_runs, 30) : m.max_runs, _legacyPurpose: m.purpose});
   }
   // Een v3.2-GO voor een merge naar een branch die automatisch deployt dekt ook die uitrol; v3.3 maakt dat expliciet (verify).
   if (git.merge) git.deploy = 'verify';
@@ -77,9 +80,8 @@ export function importLegacy(root) {
   const lt = s.task;
   return withLock(root, () => {
     if (loadWork(root, t.id)) return null;
-    const {contract, legacyPurposes} = adaptLegacyContract(t);
-    let c;
-    try { c = validateContract(contract); }
+    let c, legacyPurposes;
+    try { const adapted = adaptLegacyContract(t); legacyPurposes = adapted.legacyPurposes; c = validateContract(adapted.contract); }
     catch (e) {
       const st = newState(t.id); st.legacy = true; st.status = 'BLOCKED'; st.blockers = ['Overgenomen v3.2-contract past niet in v3.3: ' + e.message];
       log(st, 'legacy_import_mislukt', {fout: e.message}); saveWork(root, st); eventLog(root, 'legacy_import_mislukt', {id: t.id}); return {id: t.id, status: 'BLOCKED'};
@@ -99,7 +101,8 @@ export function importLegacy(root) {
         why: 'overgenomen uit v3.2', question_hash: null, source_digest: r.source_digest || null, envelope_hash: r.task_digest === lt.digest ? hash : null, reported_status: r.reported_status || 'UNKNOWN', checks: [],
         report: r.report_summary ? {status: 'REPORT_UNVERIFIED', verified: false, legacy: true, verdict: r.reported_status || 'UNKNOWN', sources: ['staart_v32']} : null};
     }
-    if (lt.status === 'closed') { st.status = lt.result === 'BLOCKED' ? 'BLOCKED' : 'READY'; st.result = lt.result; }
+    // Alleen een bewezen READY telt als READY; PARTIAL en BLOCKED blijven zichtbaar open (zoals v3.3 zelf afsluit).
+    if (lt.status === 'closed') { st.status = lt.result === 'READY' ? 'READY' : 'BLOCKED'; st.result = lt.result; if (st.status === 'BLOCKED') st.blockers = ['Overgenomen v3.2-taak was afgesloten als ' + String(lt.result || 'onbekend') + '.']; }
     else if (lt.status === 'pending') { st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; }
     else if (lt.status === 'paused') { st.proposed = c; st.status = 'PAUSED'; st.paused_from = 'EXECUTING'; }
     else {

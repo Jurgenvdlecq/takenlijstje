@@ -386,7 +386,7 @@ export function materialChanges(a, n) {
   if ((DEPLOY_LEVEL[en.git.deploy] ?? 9) > (DEPLOY_LEVEL[ea.git.deploy] ?? 0)) why.push('deploy');
   if (!sub(en.extra_commands.map(x => stable(x)), ea.extra_commands.map(x => stable(x)))) why.push('extra commando\'s');
   const ba = ea.budgets, bn = en.budgets;
-  if (bn.agent_calls.hard > ba.agent_calls.hard || bn.command_runs > ba.command_runs || bn.external_calls > ba.external_calls) why.push('budget');
+  if (bn.agent_calls.hard > ba.agent_calls.hard || bn.command_runs > ba.command_runs || bn.external_calls > ba.external_calls || bn.max_parallel > ba.max_parallel) why.push('budget');
   if (!ea.acceptance.every(x => en.acceptance.some(y => y.id === x.id && y.text === x.text))) why.push('acceptatiecriteria');
   if (!sub(en.assumptions, ea.assumptions)) why.push('nieuwe aannames');
   if (!sub(en.decision_defaults, ea.decision_defaults)) why.push('nieuwe beslisstandaarden');
