@@ -19,7 +19,8 @@ function projectie(root) {
   const f = path.join(fs.realpathSync(root), 'docs/aae/PROGRESS.md');
   const bestaand = fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '# Voortgang\n';
   const blok = PROJ_START + '\n' + regels.join('\n') + '\n' + PROJ_END;
-  const nieuw = bestaand.includes(PROJ_START) ? bestaand.replace(new RegExp(PROJ_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\S]*?' + PROJ_END.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')), blok) : bestaand.trimEnd() + '\n\n' + blok + '\n';
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const nieuw = bestaand.includes(PROJ_START) ? bestaand.replace(new RegExp(esc(PROJ_START) + '[\\s\\S]*?' + esc(PROJ_END)), () => blok) : bestaand.trimEnd() + '\n\n' + blok + '\n';
   atomicText(root, 'docs/aae/PROGRESS.md', nieuw);
   return {geschreven: 'docs/aae/PROGRESS.md', regels: s.plain.length};
 }
@@ -40,7 +41,7 @@ function prune(root) {
 try {
   const [verb, arg, ...extra] = process.argv.slice(2);
   requireThat(extra.length === 0, 'Te veel argumenten.');
-  importLegacy(root);
+  if (verb !== 'doctor') importLegacy(root); // doctor is strikt alleen-lezen (ook de installer gebruikt hem)
   let result;
   switch (verb) {
     case 'status': result = plainSummary(root); break;
@@ -64,7 +65,7 @@ try {
         saveWork(root, st);
         return {id: arg, status: st.status, checks, acties, deploy};
       });
-      if (result.status === 'PLANNING' || result.status === 'WAITING_FOR_APPROVAL') { const c = validateContract(readJson(root, contractFile(arg))); result.registratie = registerContract(root, c); }
+      if (result.status === 'PLANNING' || result.status === 'WAITING_FOR_APPROVAL') { const c = validateContract(readJson(root, contractFile(arg))); result.registratie = registerContract(root, c); result.status = result.registratie.status; }
       break;
     }
     case 'reconcile': result = withLock(root, () => {

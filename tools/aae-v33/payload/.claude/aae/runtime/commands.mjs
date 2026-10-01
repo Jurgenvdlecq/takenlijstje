@@ -91,9 +91,14 @@ export function handlePrompt(root, e) {
       return context('UserPromptSubmit', 'AAE: bevestiging geldt alleen voor de ene beschreven actie (' + st.pending_decision.description + ') en vervalt zodra die is uitgevoerd of bij het volgende gewone bericht.');
     }
     if (actie === 'VERDER') {
-      const st = kies(root, id, s => ['PAUSED', 'BLOCKED'].includes(s.status), 'VERDER');
-      if (!st) return context('UserPromptSubmit', 'AAE: er is geen gepauzeerd of vastgelopen werkpakket om te hervatten.');
-      if (st.approved) { transition(st, 'EXECUTING', 'AAE VERDER'); st.activity = 'BUILDING'; st.blockers = []; st.result = null; }
+      // Hervatten kan vanuit PAUSED, BLOCKED en een wachtende beslissing zonder gevoelige actie (extern, scope); een gevoelige DB-stap vraagt AAE BEVESTIG.
+      const st = kies(root, id, s => ['PAUSED', 'BLOCKED'].includes(s.status) || (s.status === 'NEEDS_HUMAN' && ['extern', 'scope_change'].includes(s.needs_human?.kind) && !s.pending_decision), 'VERDER');
+      if (!st) return context('UserPromptSubmit', 'AAE: er is geen gepauzeerd, vastgelopen of wachtend werkpakket om te hervatten.');
+      if (st.approved) {
+        const ander = kandidaten(root, s => s.id !== st.id && ['EXECUTING', 'NEEDS_HUMAN'].includes(s.status));
+        requireThat(!ander.length, 'Werkpakket ' + ander[0]?.id + ' is nog actief; er is één bouwer per werkmap.');
+        transition(st, 'EXECUTING', 'AAE VERDER'); st.activity = 'BUILDING'; st.blockers = []; st.result = null;
+      } else if (st.status === 'NEEDS_HUMAN') { st.preflight = null; st.blockers = ['Preflight opnieuw uitvoeren (cli preflight).']; transition(st, 'PLANNING', 'AAE VERDER'); }
       else transition(st, st.status === 'BLOCKED' ? 'PLANNING' : 'WAITING_FOR_APPROVAL', 'AAE VERDER');
       saveWork(root, st); eventLog(root, 'verder', {id: st.id});
       return context('UserPromptSubmit', 'AAE: ' + st.id + ' hervat binnen dezelfde envelop (' + st.status + ').');

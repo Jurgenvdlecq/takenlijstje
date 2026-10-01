@@ -104,7 +104,8 @@ function loadStored(root, id, runKey) {
   }
   return uit;
 }
-const agree = (a, b) => a === b || ((a.length >= 64 && b.length >= 64) && (a.endsWith(b) || b.endsWith(a)));
+// Twee bronnen stemmen overeen als ze gelijk zijn of de ene de kop (ingekorte respons) of staart (last_assistant_message) van de andere is.
+const agree = (a, b) => a === b || ((a.length >= 64 && b.length >= 64) && (a.endsWith(b) || b.endsWith(a) || a.startsWith(b) || b.startsWith(a)));
 
 /**
  * Bepaalt, bewaart en verifieert het volledige rapport van een run. Idempotent: bij een later binnenkomende bron

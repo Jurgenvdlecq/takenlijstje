@@ -90,6 +90,17 @@ test('rapport: een staart-only last_assistant_message stemt overeen met de volle
   done(root, 'tu-1', 'staart01', lang);
   assert.equal(st(root).agents['tu-1'].report.status, 'COMPLETED');
 }));
+test('rapport: een ingekorte respons (kop) en het volledige transcript stemmen overeen; de volledige tekst wordt bewaard', met((root, cfg) => {
+  executing(root);
+  const lang = REPORT('READY', 'Lange toelichting op de bevindingen. '.repeat(100));
+  start(root, 'tu-1', 'kop00001', 'Beoordeel src/a.js.');
+  writeTranscript(cfg, 'kop00001', lang);
+  stop(root, 'kop00001', lang.slice(-1800));
+  done(root, 'tu-1', 'kop00001', lang.slice(0, 2000));
+  const r = st(root).agents['tu-1'];
+  assert.equal(r.report.status, 'COMPLETED');
+  assert.ok(fs.readFileSync(path.join(root, r.report.raw_path), 'utf8').includes('EINDE-SAMENVATTING'), 'het einde staat in de ruwe laag');
+}));
 test('rapport: afwijkende bronnen geven REPORT_CONFLICT en tellen niet als onafhankelijk READY-bewijs', met((root, cfg) => {
   executing(root);
   start(root, 'tu-1', 'conf0001', 'Beoordeel src/a.js.');
