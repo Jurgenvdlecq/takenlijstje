@@ -6,8 +6,12 @@ export const SUPABASE_READ_TOOLS = Object.freeze(['get_project_url', 'list_table
 export const SUPABASE_SQL_TOOL = 'execute_sql';
 export const SUPABASE_CHANGE_TOOLS = Object.freeze(['apply_migration']);
 const readStart = new Set(['SELECT', 'SHOW', 'EXPLAIN', 'VALUES', 'WITH']);
-const forbiddenReadTokens = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'GRANT', 'REVOKE', 'VACUUM', 'CALL', 'DO', 'COPY', 'COMMENT', 'REFRESH', 'REINDEX', 'CLUSTER', 'ANALYZE', 'LOCK', 'SET', 'RESET']);
-const readOnlyPhrases = [/ALTER\s+TABLE[\s\S]*\bDROP\b/i, /DISABLE\s+ROW\s+LEVEL\s+SECURITY/i, /SECURITY\s+DEFINER/i, /pg_terminate_backend\s*\(/i, /pg_cancel_backend\s*\(/i, /set_config\s*\(/i, /nextval\s*\(/i, /setval\s*\(/i];
+const forbiddenReadTokens = new Set(['INSERT', 'UPDATE', 'DELETE', 'MERGE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'GRANT', 'REVOKE', 'VACUUM', 'CALL', 'DO', 'COPY', 'COMMENT', 'REFRESH', 'REINDEX', 'CLUSTER', 'ANALYZE', 'LOCK', 'SET', 'RESET', 'INTO']);
+// Functies met bijwerkingen buiten gewone tabelgegevens (bestanden, andere databases, sessies, configuratie, volgnummers): nooit "alleen lezen" en in een migratie destructief.
+const EXTERNAL_NAMES = 'DBLINK\\w*|LO_\\w+|PG_READ_\\w+|PG_LS_\\w+|PG_STAT_FILE|PG_RELOAD_CONF|PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|PG_SWITCH_WAL|PG_CREATE_\\w+|PG_DROP_\\w+';
+const EXTERNAL_FN = new RegExp('\\b(' + EXTERNAL_NAMES + ')\\s*\\(', 'i'); // bijwerkingen buiten gewone tabelgegevens
+const SIDE_EFFECT_FN = new RegExp('\\b(' + EXTERNAL_NAMES + '|PG_ADVISORY\\w*|PG_SLEEP\\w*|PG_NOTIFY|SET_CONFIG|NEXTVAL|SETVAL|LASTVAL)\\s*\\(', 'i'); // ook sessie/volgnummer-effecten: nooit "alleen lezen"
+const readOnlyPhrases = [SIDE_EFFECT_FN,/ALTER\s+TABLE[\s\S]*\bDROP\b/i, /DISABLE\s+ROW\s+LEVEL\s+SECURITY/i, /SECURITY\s+DEFINER/i, /pg_terminate_backend\s*\(/i, /pg_cancel_backend\s*\(/i, /set_config\s*\(/i, /nextval\s*\(/i, /setval\s*\(/i];
 
 function suffixMatch(name, provider, action) {
   const n = String(name || '').toLowerCase();
@@ -52,7 +56,8 @@ export function scanSql(sql) {
       if (!/\d/.test(d || '')) { ok = false; } // een losse $ die geen parameter ($1) of geldige tag is: niet betrouwbaar te lezen
     }
     if ((c === 'E' || c === 'e') && d === "'" && !ident(vorige)) { i += 2; if (!tekst("'", true)) ok = false; uit += ' '; continue; }
-    if (c === "'") { i++; if (!tekst("'", false)) ok = false; uit += ' '; continue; }
+    // Een gewone string kent geen backslash-escape, behalve als standard_conforming_strings uit staat; een backslash erin maakt de SQL daarom niet betrouwbaar te lezen.
+    if (c === "'") { const start = i; i++; if (!tekst("'", false)) ok = false; if (s.slice(start, i).includes('\\')) ok = false; uit += ' '; continue; }
     if (c === '"') { i++; if (!tekst('"', false)) ok = false; uit += ' '; continue; }
     uit += c; i++;
   }
@@ -101,14 +106,14 @@ export function classifyDb(sql) {
     const beschrijft = /^(CREATE|ALTER)\s+(OR REPLACE\s+)?(POLICY|TRIGGER|RULE)\b|^(GRANT|REVOKE|COMMENT|SECURITY LABEL)\b/.test(U);
     if (!beschrijft && /\b(DELETE|TRUNCATE|MERGE)\b/.test(U2)) { zet('C', 'bevat DELETE/TRUNCATE/MERGE'); continue; }
     if (!beschrijft && !/^(UPDATE|INSERT)\b/.test(U) && /\bUPDATE\b/.test(U2)) { zet('C', 'UPDATE binnen een ander statement (EXPLAIN/WITH)'); continue; }
-    if (/\b(DBLINK\w*|LO_UNLINK|PG_READ_FILE|PG_LS_DIR|PG_RELOAD_CONF|PG_TERMINATE_BACKEND)\b/.test(U)) { zet('C', 'functie met bijwerkingen buiten de database'); continue; }
-    if (/^INSERT\b/.test(U) && /\bDO UPDATE\b/.test(U)) { zet('B', 'upsert (ON CONFLICT DO UPDATE)'); continue; }
+    if (EXTERNAL_FN.test(U) || /^SET\b.*\b(STANDARD_CONFORMING_STRINGS|BACKSLASH_QUOTE|ESCAPE_STRING_WARNING)\b/.test(U)) { zet('C', 'functie of instelling met bijwerkingen buiten gewone tabelgegevens'); continue; }
     if (/\bDROP\b/.test(U)) { zet('C', 'DROP'); continue; }
     if (/\bTRUNCATE\b/.test(U)) { zet('C', 'TRUNCATE'); continue; }
     if (/^DELETE\b/.test(U)) { zet('C', 'DELETE'); continue; }
     if (/DISABLE ROW LEVEL SECURITY/.test(U)) { zet('C', 'RLS uitzetten'); continue; }
     if (/\b(AUTH|VAULT)\s*\./.test(U)) { zet('C', 'auth/vault direct'); continue; }
     if (/ALTER COLUMN .* (SET DATA )?TYPE\b/.test(U)) { zet('C', 'onomkeerbare typewijziging'); continue; }
+    if (/^INSERT\b/.test(U) && /\bDO UPDATE\b/.test(U)) { zet('B', 'upsert (ON CONFLICT DO UPDATE)'); continue; }
     if (/^UPDATE\b/.test(U)) { /\bWHERE\b/.test(U) ? zet('B', 'backfill/UPDATE met WHERE') : zet('C', 'UPDATE zonder WHERE'); continue; }
     if (/\bCRON\.(SCHEDULE|UNSCHEDULE|ALTER_JOB)\b/.test(U)) { zet('B', 'cron-job'); continue; }
     if (/\bCRON\s*\./.test(U)) { zet('C', 'cron direct'); continue; }

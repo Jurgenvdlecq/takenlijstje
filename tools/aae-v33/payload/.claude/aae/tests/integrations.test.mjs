@@ -199,6 +199,14 @@ test('DB-klassen (review ronde 4): niet-ASCII $-tags en identifiers, EXPLAIN ANA
   assert.equal(k('GRANT DELETE ON a TO x;'), 'B');
   assert.equal(k('SELECT $1'), 'B', 'een gewone parameter blijft leesbaar');
 });
+test('DB-klassen (review ronde 5): bijwerkingenfuncties zijn nooit "read", backslashes in gewone strings en schakelaars voor stringgedrag zijn C', () => {
+  for (const s of ["SELECT dblink_exec('x', 'drop table t')", "SELECT lo_unlink(1)", "SELECT pg_read_file('x')", "SELECT pg_ls_dir('.')", 'SELECT * INTO nieuw FROM t', "SELECT pg_advisory_lock(1)", "SELECT pg_sleep(5)", "SELECT lastval()"])
+    assert.notEqual(classifySql(s).level, 'read', s);
+  const k = s => classifyDb(s).klasse;
+  for (const s of ["SET standard_conforming_strings = off; SELECT 'a\\''; DROP TABLE x; SELECT '", "SELECT 'pad\\naam'", 'SET backslash_quote = on;', "SELECT lo_unlink(1)", "INSERT INTO auth.users (id) VALUES (1) ON CONFLICT (id) DO UPDATE SET id = 2;"]) assert.equal(k(s), 'C', s);
+  assert.equal(k("ALTER TABLE t ALTER COLUMN id SET DEFAULT nextval('s');"), 'B', 'een gewone volgnummer-default is geen C');
+  assert.equal(classifySql("SELECT 'gewone tekst' AS x").level, 'read');
+});
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
   executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
