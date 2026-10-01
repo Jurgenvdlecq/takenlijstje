@@ -1,0 +1,266 @@
+// Runner, bewijs en gates (pariteit met de v3.2-runnertests R01-R34).
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {fixture, cleanup, contract, plan, executing, st, prompt, hook, pre, denies, agentCall, runAgent, REPORT, put} from './helpers.mjs';
+import {runCommand, reportTemplate, closeTask} from '../runtime/runner.mjs';
+import {validateContract, clock} from '../runtime/core.mjs';
+import {assertGate} from '../runtime/gates.mjs';
+import {plainSummary} from '../runtime/commands.mjs';
+import {contractFile} from '../runtime/state.mjs';
+
+const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
+const msg = async p => { try { await p; } catch (e) { return e.message; } assert.fail('verwacht een weigering'); };
+const C = (id, argv, purpose = 'test', o = {}) => ({id, argv, purpose, why: 'Test van ' + id + '.', watch: [], timeout_ms: 60000, max_runs: 5, ...o});
+const metCmds = (cmds, extra = [], env = {}) => ({envelope: {extra_commands: extra, ...env}, plan: {...contract().plan, commands: [...contract().plan.commands, ...cmds]}});
+const ex = (argv, purpose = 'test') => ({argv, purpose});
+const makeResult = (root, receipt, mutate) => {
+  const t = reportTemplate(root);
+  t.status = 'READY'; t.summary = 'Alles bewezen en gecontroleerd binnen het gebied.';
+  for (const a of t.criteria) { a.status = 'passed'; a.evidence = ['src/ok.test.mjs']; a.note = 'Bewezen met de test.'; }
+  for (const x of t.checks) { x.status = 'passed'; x.note = 'Uitgevoerd en geslaagd.'; x.evidence = x.method === 'command' ? [receipt] : ['src/ok.test.mjs']; }
+  if (mutate) mutate(t);
+  put(root, 'docs/aae/work/W-T/result.json', t); return t;
+};
+
+test('R01 een commando draait pas na de GO van het werkpakket', met(async root => {
+  plan(root);
+  assert.match(await msg(runCommand(root, 't_ok')), /Geen actief werkpakket/);
+  prompt(root, 'AAE GO');
+  assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
+}));
+test('R02 de receipt bevat echte exitcode, bronvingerafdrukken, begrensde uitvoer en looptijd', met(async root => {
+  executing(root);
+  const r = await runCommand(root, 't_ok');
+  assert.equal(r.exit_code, 0); assert.match(r.source_before, /^[0-9a-f]{64}$/); assert.equal(r.source_before, r.source_after);
+  assert.equal(typeof r.duration_ms, 'number'); assert.ok(r.tail.length <= 2500); assert.ok(fs.existsSync(path.join(root, r.log_path)));
+  assert.ok(fs.existsSync(path.join(root, r.evidence_path))); assert.match(r.envelope_hash, /^[0-9a-f]{64}$/);
+  assert.equal(st(root).command_running, null);
+}));
+test('R03 het maximum aantal uitvoeringen per commando blijft bewaard', met(async root => {
+  executing(root, metCmds([C('twee', ['node', '--test', 'src/ok.test.mjs'], 'test', {max_runs: 2})]));
+  await runCommand(root, 'twee'); await runCommand(root, 'twee');
+  assert.match(await msg(runCommand(root, 'twee')), /Maximum aantal runs/);
+  assert.equal(st(root).command_counts.twee, 2);
+}));
+test('R04 een wijziging in een script of configuratie maakt de goedkeuring van een niet-lokaal commando ongeldig', met(async root => {
+  fs.mkdirSync(path.join(root, 'scripts')); fs.writeFileSync(path.join(root, 'scripts/inst.js'), 'console.log(1)');
+  executing(root, metCmds([C('inst', ['node', 'scripts/inst.js'], 'install', {max_runs: 1, watch: ['scripts/inst.js']})], [ex(['node', 'scripts/inst.js'], 'install')]));
+  fs.writeFileSync(path.join(root, 'scripts/inst.js'), 'console.log(2)');
+  assert.match(await msg(runCommand(root, 'inst')), /niet \(meer\) gelijk/);
+}));
+test('R05 het pakketmanifest zit in de vingerafdruk, ook als het niet in watch staat', met(async root => {
+  executing(root, metCmds([C('inst', ['node', '-e', '1'], 'install', {max_runs: 1})], [ex(['node', '-e', '1'], 'install')]));
+  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"fixture","private":true,"scripts":{"x":"y"}}\n');
+  assert.match(await msg(runCommand(root, 'inst')), /niet \(meer\) gelijk/);
+}));
+test('R06 shell-metatekens zijn letterlijke argv-tekst en worden nooit uitgevoerd', met(async root => {
+  const argv = ['node', '-e', 'require("fs").writeFileSync("gelezen.txt", process.argv[1])', 'a;touch pwned'];
+  executing(root, metCmds([C('lit', argv)], [ex(argv)]));
+  assert.equal((await runCommand(root, 'lit')).exit_code, 0);
+  assert.equal(fs.readFileSync(path.join(root, 'gelezen.txt'), 'utf8'), 'a;touch pwned');
+  assert.equal(fs.existsSync(path.join(root, 'pwned')), false);
+}));
+test('R07 een time-out geeft een vastgelegde mislukte receipt', met(async root => {
+  const argv = ['node', '-e', 'setTimeout(() => {}, 60000)'];
+  executing(root, metCmds([C('traag', argv, 'test', {timeout_ms: 1000})], [ex(argv)]));
+  const r = await runCommand(root, 'traag');
+  assert.equal(r.timed_out, true); assert.notEqual(r.exit_code, 0); assert.equal(st(root).command_running, null);
+}));
+test('R08 een ontbrekend programma geeft een begrensde fout zonder vastgelopen registratie', met(async root => {
+  const argv = ['aae-bestaat-niet-xyz'];
+  executing(root, metCmds([C('weg', argv)], [ex(argv)]));
+  const r = await runCommand(root, 'weg');
+  assert.notEqual(r.exit_code, 0); assert.ok(String(r.error || r.tail).length < 3000);
+  assert.equal(st(root).command_running, null);
+}));
+test('R09 grote uitvoer wordt lokaal en in het antwoord begrensd', met(async root => {
+  const argv = ['node', '-e', 'process.stdout.write("x".repeat(3 * 1024 * 1024))'];
+  executing(root, metCmds([C('groot', argv)], [ex(argv)]));
+  const r = await runCommand(root, 'groot');
+  assert.equal(r.log_truncated, true); assert.ok(fs.statSync(path.join(root, r.log_path)).size <= 1024 * 1024); assert.ok(r.tail.length <= 2500);
+}));
+test('R10 twee gelijke mislukte pogingen zonder bronwijziging vragen een andere hypothese', met(async root => {
+  executing(root, metCmds([C('rood', ['node', '--test', 'src/rood.test.mjs'])]));
+  assert.notEqual((await runCommand(root, 'rood')).exit_code, 0); assert.notEqual((await runCommand(root, 'rood')).exit_code, 0);
+  assert.match(await msg(runCommand(root, 'rood')), /Twee gelijke mislukte pogingen/);
+  fs.writeFileSync(path.join(root, 'src/nieuw.js'), 'wijziging');
+  assert.notEqual((await runCommand(root, 'rood')).exit_code, 0, 'na een bronwijziging mag het weer');
+}));
+test('R11 een gelijktijdige runneraanroep wordt geblokkeerd', met(async root => {
+  const argv = ['node', '-e', 'setTimeout(() => {}, 700)'];
+  executing(root, metCmds([C('lang', argv)], [ex(argv)]));
+  const eerste = runCommand(root, 'lang');
+  assert.match(await msg(runCommand(root, 't_ok')), /Geen commandoloop/);
+  assert.equal((await eerste).exit_code, 0);
+}));
+test('R12 een op schijf gewijzigd maar niet geregistreerd contract wordt niet uitgevoerd', met(async root => {
+  executing(root);
+  const c = structuredClone(st(root).contract); c.plan.commands.push(C('sluip', ['node', '--test', 'src/rood.test.mjs']));
+  put(root, contractFile('W-T'), c);
+  assert.match(await msg(runCommand(root, 'sluip')), /Commando niet in het plan/);
+}));
+test('R13 alleen lokale commando\'s van de allowlist draaien zonder extra goedkeuring; andere moeten exact in de envelop staan', met(async root => {
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('vrij', ['node', '-e', '1'])])))), /valt buiten de envelop/);
+  executing(root);
+  assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
+}));
+test('R14 deploy is een expliciete capability met bewijs: zonder capability of zonder READY-resultaat geen uitvoering', met(async root => {
+  const argv = ['node', '-e', '1'];
+  executing(root, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'verify'}}));
+  assert.match(await msg(runCommand(root, 'uitrol')), /Deploy starten is geen capability/);
+  const root2 = fixture();
+  try {
+    executing(root2, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}}));
+    assert.match(await msg(runCommand(root2, 'uitrol')), /result\.json ontbreekt/);
+  } finally { cleanup(root2); }
+}));
+test('R15 een gepauzeerd werkpakket voert een eerder goedgekeurd commando niet uit', met(async root => {
+  executing(root); prompt(root, 'AAE PAUZE');
+  assert.match(await msg(runCommand(root, 't_ok')), /Geen actief werkpakket/);
+}));
+test('R16 een commando draait niet terwijl een reviewer actief is', met(async root => {
+  executing(root); agentCall(root, {id: 'tu-1'});
+  assert.match(await msg(runCommand(root, 't_ok')), /agentcontrole/);
+}));
+test('R17 het standaardrapport is PARTIAL en beweert geen niet-uitgevoerde tests', met(async root => {
+  executing(root);
+  const t = reportTemplate(root);
+  assert.equal(t.status, 'PARTIAL'); assert.ok(t.criteria.every(a => a.status === 'not_run')); assert.ok(t.checks.every(x => x.status === 'not_run'));
+}));
+test('R18 READY kan geen verplicht criterium of verplichte controle weglaten', met(async root => {
+  executing(root);
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path, t => { t.criteria[0].status = 'not_run'; });
+  assert.throws(() => closeTask(root), /Criterium niet bewezen/);
+  makeResult(root, r.evidence_path, t => { t.checks = t.checks.filter(x => x.kind !== 'regression'); });
+  assert.throws(() => closeTask(root), /Verplichte controle niet geslaagd: regression/);
+}));
+test('R19 READY weigert niet-bestaand bewijs', met(async root => {
+  executing(root);
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path, t => { t.criteria[0].evidence = ['docs/aae/evidence/bestaat-niet.json']; });
+  assert.throws(() => closeTask(root));
+}));
+test('R20 READY weigert bewijs van een oudere bronversie', met(async root => {
+  executing(root);
+  const r = await runCommand(root, 't_ok');
+  fs.writeFileSync(path.join(root, 'src/na-de-test.js'), 'nieuwe wijziging');
+  makeResult(root, r.evidence_path);
+  assert.throws(() => closeTask(root), /actuele commandoreceipt/);
+}));
+test('R21 commandobewijs moet een echte, geslaagde en actuele receipt zijn', met(async root => {
+  executing(root, metCmds([C('rood', ['node', '--test', 'src/rood.test.mjs'])]));
+  const rood = await runCommand(root, 'rood'); await runCommand(root, 't_ok');
+  makeResult(root, rood.evidence_path);
+  assert.throws(() => closeTask(root), /actuele commandoreceipt/);
+  makeResult(root, 'src/ok.test.mjs');
+  assert.throws(() => closeTask(root), /actuele commandoreceipt/);
+}));
+test('R22 een script dat de bron wijzigt kan niet dienen als bewijs voor een ongewijzigde bron', met(async root => {
+  const argv = ['node', '-e', 'require("fs").writeFileSync("src/gen.js", String(Date.now()))'];
+  executing(root, metCmds([C('gen', argv)], [ex(argv)]));
+  const r = await runCommand(root, 'gen');
+  assert.notEqual(r.source_before, r.source_after);
+  makeResult(root, r.evidence_path);
+  assert.throws(() => closeTask(root), /actuele commandoreceipt/);
+}));
+test('R23 een extra gepland of risicogebonden bewijs moet ook zijn afgerond', met(async root => {
+  const p = contract({risk_flags: ['background_jobs']}).plan;
+  p.test_plan.push(...['idempotency', 'retry'].map(kind => ({kind, method: 'inspection', description: 'Beschrijf de controle van ' + kind + '.'})));
+  executing(root, {risk_flags: ['background_jobs'], plan: p});
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path, t => { t.checks = t.checks.filter(x => x.kind !== 'idempotency'); });
+  assert.throws(() => closeTask(root), /Verplichte controle niet geslaagd: idempotency/);
+}));
+test('R24 eerlijk PARTIAL afsluiten doet niet alsof het klaar of uitgerold is en laat VERDER toe', met(async root => {
+  executing(root);
+  const t = reportTemplate(root); t.summary = 'Alleen de eerste helft is gebouwd; de tweede helft ontbreekt nog.';
+  put(root, 'docs/aae/work/W-T/result.json', t);
+  const r = closeTask(root);
+  assert.equal(r.status, 'PARTIAL'); assert.equal(r.work_status, 'BLOCKED'); assert.equal(r.not_deployed, true);
+  assert.match(plainSummary(root).plain[0], /gedeeltelijk klaar/);
+  prompt(root, 'AAE VERDER');
+  assert.equal(st(root).status, 'EXECUTING'); assert.equal(st(root).blockers.length, 0);
+}));
+test('R24b een bewezen READY sluit het werkpakket af zonder deployment of publicatie', met(async root => {
+  executing(root);
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path);
+  const klaar = closeTask(root);
+  assert.equal(klaar.work_status, 'READY'); assert.equal(klaar.not_deployed, true);
+  assert.equal(st(root).status, 'READY');
+  assert.match(await msg(runCommand(root, 't_ok')), /Geen actief werkpakket/);
+}));
+test('R25 HIGH vraagt een actueel onafhankelijk READY-oordeel van een voltooide reviewerrun', met(async (root, cfg) => {
+  executing(root, {risk_class: 'HIGH'});
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path);
+  assert.throws(() => closeTask(root), /onafhankelijk READY-oordeel/);
+  runAgent(root, {configDir: cfg});
+  makeResult(root, r.evidence_path);
+  assert.equal(closeTask(root).work_status, 'READY');
+}));
+test('R26 een PARTIAL reviewerrapport is geen onafhankelijk READY-bewijs', met(async (root, cfg) => {
+  executing(root, {risk_class: 'HIGH'});
+  const r = await runCommand(root, 't_ok');
+  runAgent(root, {configDir: cfg, text: REPORT('PARTIAL')});
+  makeResult(root, r.evidence_path);
+  assert.throws(() => closeTask(root), /onafhankelijk READY-oordeel/);
+}));
+const mergeEnv = {git: {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'}};
+const mergeCmd = C('samenvoegen', ['git', 'push', 'origin', 'claude/w:main'], 'merge', {max_runs: 1});
+test('R27 de merge-gate wacht op een READY-resultaat op de actuele bron (B5)', met(async root => {
+  executing(root, metCmds([mergeCmd], [], mergeEnv));
+  assert.match(await msg(runCommand(root, 'samenvoegen')), /result\.json ontbreekt/);
+}));
+test('R28 de merge-gate weigert een READY-resultaat van een oudere bron', met(async root => {
+  executing(root, metCmds([mergeCmd], [], mergeEnv));
+  const r = await runCommand(root, 't_ok');
+  makeResult(root, r.evidence_path);
+  fs.writeFileSync(path.join(root, 'src/laat.js'), 'na het rapport');
+  assert.match(await msg(runCommand(root, 'samenvoegen')), /Broncode veranderd/);
+}));
+test('R29 een wijziging in een bewaakt script binnen het gebied laat een lokaal commando goedgekeurd', met(async root => {
+  fs.writeFileSync(path.join(root, 'src/check.js'), 'console.log(1)');
+  const argv = ['node', 'src/check.js'];
+  executing(root, metCmds([C('check', argv, 'test', {watch: ['src/check.js']})], [ex(argv)]));
+  assert.equal((await runCommand(root, 'check')).exit_code, 0);
+  fs.writeFileSync(path.join(root, 'src/check.js'), 'console.log(2)');
+  assert.equal((await runCommand(root, 'check')).exit_code, 0);
+}));
+test('R30 B4: een wijziging aan een bewaakt bestand binnen het gebied vraagt voor deploy-commando\'s een nieuwe GO', met(async root => {
+  fs.writeFileSync(path.join(root, 'src/deploy.js'), 'console.log(1)');
+  const argv = ['node', 'src/deploy.js'];
+  executing(root, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1, watch: ['src/deploy.js']})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}}));
+  fs.writeFileSync(path.join(root, 'src/deploy.js'), 'console.log(2)');
+  assert.match(await msg(runCommand(root, 'uitrol')), /niet \(meer\) gelijk/);
+}));
+test('R31 B4: ook een niet-git samenvoegcommando is aan zijn vingerafdruk gebonden', met(async root => {
+  fs.writeFileSync(path.join(root, 'src/merge.js'), 'console.log(1)');
+  const argv = ['node', 'src/merge.js'];
+  executing(root, metCmds([C('samenvoegen', argv, 'merge', {max_runs: 1, watch: ['src/merge.js']})], [ex(argv, 'merge')], mergeEnv));
+  fs.writeFileSync(path.join(root, 'src/merge.js'), 'console.log(2)');
+  assert.match(await msg(runCommand(root, 'samenvoegen')), /niet \(meer\) gelijk/);
+}));
+test('R32 een binnen de envelop aangepast plan houdt goedgekeurde commando\'s uitvoerbaar zonder nieuwe GO', met(async root => {
+  executing(root);
+  const c = contract(); c.plan = {...c.plan, commands: [...c.plan.commands, C('t_rood', ['node', '--test', 'src/rood.test.mjs'], 'test', {max_runs: 2})]};
+  const v = validateContract(structuredClone(c)); put(root, contractFile('W-T'), v);
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: {file_path: path.join(root, contractFile('W-T')), content: JSON.stringify(v)}, tool_response: {}});
+  assert.equal(st(root).status, 'EXECUTING');
+  assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
+  assert.notEqual((await runCommand(root, 't_rood')).exit_code, 0);
+}));
+test('R33 een vervolgbericht laat de commandogoedkeuring intact', met(async root => {
+  executing(root);
+  prompt(root, 'Gewoon een vraag tussendoor'); prompt(root, 'Nog een bericht');
+  assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
+}));
+test('R34 herhalen binnen het goedgekeurde aantal runs mag voor lokale en git-commando\'s; gevoelige commando\'s zijn eenmalig en nooit vertrouwd', () => {
+  const git = {commit: true, push: ['claude/w'], merge: null, deploy: 'none'};
+  assert.doesNotThrow(() => validateContract(structuredClone(contract(metCmds([C('p', ['git', 'push', '-u', 'origin', 'claude/w'], 'push', {max_runs: 3})], [], {git})))));
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('d', ['node', '-e', '1'], 'deploy', {max_runs: 2})], [ex(['node', '-e', '1'], 'deploy')], {git: {...git, deploy: 'trigger'}})))), /Aantal uitvoeringen/);
+});

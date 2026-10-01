@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "agentrun": {
+    "agent_id": "a57d245effe9b5610",
+    "model_gemeld": "claude-sonnet-5-5",
+    "duur_ms": 42890,
+    "toolaanroepen": 0,
+    "subagent_stop_last_assistant_message": {
+      "staartlengte_tekens": 2500,
+      "eindigt_met_eindmarkering": true,
+      "kop_zichtbaar": false,
+      "opmerking": "v3.2 bewaart alleen de laatste 2500 tekens; de kop kan hier niet bewezen worden."
+    },
+    "posttooluse_tool_response_content": {
+      "bevat_kop_van_volledige_tekst": true,
+      "afleiding": "De STATUS-regel staat alleen in de kop. De staart bevat geen STATUS, dus een eindstatus PARTIAL kan alleen uit tool_response.content komen.",
+      "einde_apart_bewezen": false
+    },
+    "agent_transcript_path_veld": "niet bewezen: de ongewijzigde hook registreert dit veld niet"
+  },
+  "transcript": {
+    "gevonden": true,
+    "aantal_bestanden": 1,
+    "pad_patroon": "<claude-map>/projects/<project>/<sessie>/subagents/agent-<id>.jsonl",
+    "bestandsgrootte_bytes": 65226,
+    "mtime": "2026-10-01T19:00:06.078Z",
+    "regels_in_bestand": 13,
+    "tekstblokken": 2,
+    "langste_probetekst_tekens": 16325,
+    "genummerde_regels": 80,
+    "alle_regels_in_juiste_volgorde": true,
+    "begint_met_kop": true,
+    "eindigt_met_eindmarkering": true,
+    "eindigt_op_de_staart_van_de_hook": true,
+    "hook_eindtijd": "2026-10-01T19:00:06.143Z",
+    "hook_finished": "2026-10-01T19:00:06.260Z",
+    "weggeschreven_voor_hook_eindtijd": true,
+    "verschil_ms_mtime_min_hook_eindtijd": -65
+  },
+  "eerdere_probe_transcript": {
+    "gevonden": true,
+    "bestandsgrootte_bytes": 56918,
+    "mtime": "2026-10-01T17:00:12.758Z",
+    "regels_in_bestand": 14,
+    "tekstblokken": 2,
+    "langste_probetekst_tekens": 6335,
+    "genummerde_regels": 30,
+    "alle_regels_in_juiste_volgorde": true,
+    "begint_met_kop": true,
+    "eindigt_met_eindmarkering": true,
+    "eindigt_op_de_staart_van_de_hook": null
+  },
+  "integriteit": {
+    "hook_mjs_gelijk_aan_commit": true,
+    "settings_json_gelijk_aan_commit": true,
+    "claude_en_claude_md_schoon": true
+  },
+  "antwoorden": {
+    "a_volledige_tekst_in_hookvelden": {
+      "tool_response_content": "bewezen (kop van de volledige tekst aanwezig)",
+      "last_assistant_message": "einde bewezen; kop niet bewijsbaar (v3.2 bewaart alleen de staart)"
+    },
+    "b_transcript": "vindbaar op agent-id, leesbaar, volledig; weggeschreven vóór het stop-event van de hook",
+    "c_bron_voor_v33": "primair tool_response.content (PostToolUse van de Agent-aanroep), onafhankelijke controle via het transcript (zoeken op agent-id onder de Claude-map) en via de staart van last_assistant_message; COMPLETED alleen bij overeenstemming van twee bronnen",
+    "onbewezen": [
+      "agent_transcript_path als hookveld",
+      "volledige kop in last_assistant_message",
+      "einde van tool_response.content apart van het transcript"
+    ]
+  }
+}
