@@ -13,7 +13,7 @@ node tools/aae-v33/installer/install.mjs --project . --rollback .aae-backups/<id
 1. Controle: een bestaande v3.1- of v3.2-installatie is onveranderd (hashes uit `.claude/aae/managed.json`), geen symlinks, geen lopende lock, Node ≥ 20. Een gewijzigd beheerd bestand geeft een conflict, geen stil verlies.
 2. Back-up in `.aae-backups/<id>/` (blobs met mode en `RESTORE.json` met voor/na-hashes) en een leesbaar archief van de vorige versie in `docs/archief/aae-<oude versie>/`.
 3. De dertien oude `aae-*` agents en de oude docs, voorbeelden en tests worden vervangen door de v3.3-bestanden (drie agents). `.claude/settings.json` (de hooks zijn gelijk gebleven), `CLAUDE.md` en de map `.claude/aae/state/` blijven ongemoeid.
-4. Het nieuwe beheermanifest `.claude/aae/managed.json` (versie 3.3.0) en een controle: de runtime laadt en `doctor` slaagt.
+4. Het nieuwe beheermanifest `.claude/aae/managed.json` (versie 3.3.1) en een controle: de runtime laadt en `doctor` slaagt.
 
 ## Lopende route
 Een lopende, goedgekeurde v3.2-route (`docs/aae/TASK.json` + `.claude/aae/state/local.json`) wordt bij het eerste hook-event overgenomen als v3.3-werkpakket, met behoud van verbruik, receipts en agentregistraties, maar nooit stil goedgekeurd: het pakket wacht op een expliciete `cli present` en `AAE GO <id> <korte hash van 12 tekens>` (eenmalige migratiegrens). Past het contract niet, dan wordt het werkpakket zichtbaar `BLOCKED` (nooit stil kwijt). De v3.2-bestanden blijven staan; terugdraaien zet de v3.2-regels terug op het punt van installeren. Voortgang daarna staat alleen in `docs/aae/work/<id>/state.json`.

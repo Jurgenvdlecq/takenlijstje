@@ -59,7 +59,7 @@ test('installer: apply installeert v3.3; instellingen, CLAUDE.md en status blijv
   const payload = payloadFiles();
   for (const [rel, f] of payload) assert.equal(sha(fs.readFileSync(path.join(dir, rel))), f.sha, rel);
   const managed = JSON.parse(fs.readFileSync(path.join(dir, '.claude/aae/managed.json'), 'utf8'));
-  assert.equal(managed.version, '3.3.0'); assert.deepEqual(Object.keys(managed.files).sort(), [...payload.keys()].sort());
+  assert.equal(managed.version, VERSION); assert.equal(VERSION, '3.3.1', 'v3.3.1: de installer meldt dezelfde versie als de runtime in de payload'); assert.deepEqual(Object.keys(managed.files).sort(), [...payload.keys()].sort());
   assert.deepEqual(fs.readdirSync(path.join(dir, '.claude/agents')).sort(), ['aae-architect.md', 'aae-product-partner.md', 'aae-reviewer.md']);
   for (const p of ['.claude/settings.json', 'CLAUDE.md', '.claude/aae/state/marker.txt']) assert.equal(sha(fs.readFileSync(path.join(dir, p))), voor[p], p + ' is ongewijzigd');
   assert.equal(sha(fs.readFileSync(path.join(dir, 'docs/archief/aae-3.2.0-local/aae/ENTRY.md'))), voor['.claude/aae/ENTRY.md'], 'archief bevat de v3.2-versie');
