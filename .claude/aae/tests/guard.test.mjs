@@ -103,9 +103,10 @@ test('G18 het contract wordt niet gewijzigd terwijl een agent loopt', met(root =
   const c = validateContract(structuredClone(contract()));
   assert.match(msg(() => pre(root, 'Write', {file_path: path.join(root, contractFile('W-T')), content: JSON.stringify(c)})), /tijdens lopend werk/);
 }));
-test('G19 met een agentbudget van nul start er geen agent', met(root => {
-  executing(root, {envelope: {budgets: {agent_calls: {soft: 0, hard: 0}, command_runs: 20, external_calls: 0, max_parallel: 1}}});
-  assert.match(msg(() => agentCall(root)), /Hard agentplafond \(0\)/);
+test('G19 het agentplafond hangt aan het niveau (v3.3.1): LIGHT start hoogstens één agent, een tweede wordt geweigerd', met(root => {
+  executing(root, {risk_class: 'LIGHT'});
+  assert.ok(agentCall(root, {id: 'tu-1'}));
+  assert.match(msg(() => agentCall(root, {id: 'tu-2', vraag: 'Een tweede, andere vraag over src/b.js.'})), /agentplafond van niveau LIGHT \(1\)/);
 }));
 test('G20 een tweede werkpakket start niet zolang een ander actief is; één bouwer per werkmap', met(root => {
   executing(root);

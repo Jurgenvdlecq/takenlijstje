@@ -1,0 +1,44 @@
+{
+  "schema_version": 4,
+  "id": "VOORBEELD-KLEIN",
+  "title": "Tekst op de takenlijst aanpassen",
+  "goal": "De lege-staat-tekst op de takenlijst vriendelijker maken, zonder iets anders te veranderen.",
+  "risk_class": "LIGHT",
+  "risk_flags": [],
+  "envelope": {
+    "phase": "implementation",
+    "areas": [
+      {"name": "Takenlijstscherm", "write": ["app/tasks", "components/tasks"], "support": ["tests"]}
+    ],
+    "db_max": "none",
+    "providers": {},
+    "git": {"commit": false, "push": [], "merge": null, "deploy": "none"},
+    "budgets": {
+      "agent_calls": {"soft": 0, "hard": 1},
+      "command_runs": 20,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "acceptance": [
+      {"id": "AC1", "text": "De nieuwe tekst staat op de takenlijst als er geen taken zijn; alle andere schermen zijn ongewijzigd."}
+    ],
+    "assumptions": ["De tekst blijft Nederlands en kort."],
+    "decision_defaults": [],
+    "decision_points": [],
+    "extra_commands": []
+  },
+  "plan": {
+    "test_plan": [
+      {"kind": "scope", "method": "inspection", "description": "Controleer in de gewijzigde bestanden dat alleen het takenlijstscherm is geraakt."},
+      {"kind": "functional", "method": "command", "description": "Draai de bestaande tests van het takenlijstscherm."},
+      {"kind": "regression", "method": "command", "description": "Draai de volledige testsuite."}
+    ],
+    "agents": [],
+    "commands": [
+      {"id": "test_alles", "argv": ["npx", "vitest", "run"], "purpose": "test", "why": "Draait alle bestaande tests; schrijft niets.", "watch": [], "timeout_ms": 240000, "max_runs": 6}
+    ],
+    "read": [],
+    "open_product_questions": [],
+    "keep_raw": false
+  }
+}

@@ -2,11 +2,11 @@
  * Gebruikersopdrachten. Alleen exacte AAE-commando's veranderen een goedkeuring; elk ander bericht is een voortzetting
  * (continuation_event) en laat status en GO ongemoeid. Interne hook-meldingen raken dit pad nooit.
  */
-import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRefs, stable, envelopeHash, shortHash, SHORT_HASH_LENGTH} from './core.mjs';
+import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRefs, stable, envelopeHash, shortHash, SHORT_HASH_LENGTH, AGENT_CAP} from './core.mjs';
 import {
-  withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
+  withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, blockSnapshot, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
 } from './state.mjs';
-import {writeSnapshot} from './snapshot.mjs';
+import {writeSnapshot, writeSnapshotRetry} from './snapshot.mjs';
 import {liveRows, reconcile} from './reports.mjs';
 import {importLegacy} from './legacy.mjs';
 
@@ -74,7 +74,7 @@ export function presentProposal(root, id) {
       'Git: ' + [e.git.commit ? 'committen' : 'niet committen', e.git.push.length ? 'pushen naar ' + e.git.push.join(', ') : 'niet pushen', e.git.merge ? 'samenvoegen naar ' + e.git.merge.to : 'geen samenvoeging', e.git.deploy === 'none' ? 'geen uitrol' : 'uitrol: ' + e.git.deploy].join('; ') + '.',
       'Database: ' + (dbTekst[e.db_max] || e.db_max) + '.',
       'Externe diensten: ' + (providers.length ? providers.join(' | ') : 'geen') + '.',
-      'Harde budgetten: ' + e.budgets.agent_calls.hard + ' agents (zacht ' + e.budgets.agent_calls.soft + '), ' + e.budgets.command_runs + ' commando\'s, ' + (e.budgets.external_calls ?? 0) + ' externe aanroepen, ' + (e.budgets.max_parallel ?? 2) + ' tegelijk.',
+      'Harde budgetten: ' + e.budgets.command_runs + ' commando\'s, ' + (e.budgets.external_calls ?? 0) + ' externe aanroepen, ' + (e.budgets.max_parallel ?? 2) + ' tegelijk. Agents: intern plafond van niveau ' + c.risk_class + ' (hoogstens ' + AGENT_CAP[c.risk_class].hard + ', normaal ' + AGENT_CAP[c.risk_class].normal + '); dat hoef jij niet te beheren.',
       'Acceptatiecriteria (' + e.acceptance.length + '):', ...e.acceptance.map(a => '  - ' + a.id + ': ' + a.text),
       'Extra commando\'s buiten de standaardlijst (' + e.extra_commands.length + ')' + (e.extra_commands.length ? ':' : ': geen.'), ...extra,
       'Beslisstandaarden: ' + (e.decision_defaults.length ? e.decision_defaults.join(' | ') : 'geen') + '.',
@@ -182,14 +182,15 @@ export function handlePrompt(root, e) {
       requireThat(st.status === 'NEEDS_HUMAN' || !st.blockers.length, 'Plan is nog niet klaar: ' + st.blockers.join(' '));
       const bron = st.status === 'NEEDS_HUMAN' ? 'AAE GO (envelopewijziging)' : 'AAE GO';
       approve(st, c, bron);
-      // Als eerste schrijfactie na de GO legt de runtime de goedgekeurde envelop duurzaam vast (gevolgde, append-only snapshot). Lukt dat niet, dan wacht het pakket op een beslissing.
+      // Als eerste schrijfactie na de GO legt de runtime de goedgekeurde envelop vast (gevolgde, append-only snapshot), met automatische herpogingen.
+      // Een blijvende technische fout geeft BLOCKED (geen beslissing van Jurgen); AAE VERDER hervat dezelfde envelop.
       st.approved.snapshot_required = true;
-      try { writeSnapshot(root, st, bron); }
-      catch (err) { needsHuman(st, 'snapshot', 'De goedgekeurde envelop kon nog niet duurzaam worden vastgelegd (' + String(err.message).slice(0, 200) + '). Los het op en stuur AAE VERDER.'); }
+      try { writeSnapshotRetry(root, st, bron); }
+      catch (err) { blockSnapshot(root, st, err); }
       recordExtraFingerprints(root, st); bindProbe(root, st);
     }
     saveWork(root, st); eventLog(root, 'go', {id: st.id, hash: shortHash(st.approved.envelope_hash)});
-    return context('UserPromptSubmit', st.status === 'NEEDS_HUMAN' ? 'AAE: GO ontvangen voor ' + st.id + ', maar de snapshot ontbreekt nog: ' + st.needs_human.summary : 'AAE: GO geldt voor ' + st.id + ' (envelop ' + shortHash(st.approved.envelope_hash) + ') en blijft geldig tot het klaar, gepauzeerd of geannuleerd is, of de envelop materieel wijzigt. De goedgekeurde envelop is vastgelegd in ' + (st.snapshot?.path || 'de snapshot') + '; commit die vóór de eerste bronwijziging. Gewone berichten veranderen dit niet.');
+    return context('UserPromptSubmit', st.status === 'BLOCKED' ? 'AAE: GO ontvangen voor ' + st.id + ', maar de snapshot kon technisch niet worden vastgelegd: ' + (st.blockers[0] || '') : 'AAE: GO geldt voor ' + st.id + ' (envelop ' + shortHash(st.approved.envelope_hash) + ') en blijft geldig tot het klaar, gepauzeerd of geannuleerd is, of de envelop materieel wijzigt. De goedgekeurde envelop is vastgelegd in ' + (st.snapshot?.path || 'de snapshot') + '; commit hem mee met je eerstvolgende commit (geen verplichte volgorde). Gewone berichten veranderen dit niet.');
   });
 }
 export const _internal = {stable};

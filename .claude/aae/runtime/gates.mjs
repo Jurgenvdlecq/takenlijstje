@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks, areaWrite, SUPPORT_ROOTS} from './core.mjs';
 import {gitHead, refCommit, remoteRefCommit, dirtyPaths} from './gitops.mjs';
-import {snapshotCommitted} from './snapshot.mjs';
+import {snapshotCommitted, assertSnapshotValid} from './snapshot.mjs';
 import {resultFile, guardApproval} from './state.mjs';
 import {runCompleted} from './reports.mjs';
 import {deployInfo} from './preflight.mjs';
@@ -39,8 +39,8 @@ export function assertReady(root, st, c, prefix = '') {
     requireThat(typeof x.note === 'string' && x.note.length >= 5, prefix + 'Controle mist toelichting: ' + kind);
   }
   if (c.envelope.phase === 'implementation' && c.risk_class === 'HIGH') requireThat(independentReview(st, c, src), prefix + 'HIGH mist een actueel onafhankelijk READY-oordeel van een reviewer.');
-  // De duurzame snapshot van de goedgekeurde envelop moet vastgelegd zijn (in HEAD); zonder git-map is dat niet te controleren en geldt het niet.
-  requireThat(snapshotCommitted(root, st) !== false, prefix + 'De snapshot van de goedgekeurde envelop (' + (st.snapshot?.path || 'approved/') + ') staat niet in de laatste commit; leg hem vast en maak het rapport opnieuw.');
+  // READY: de lokale snapshot van de goedgekeurde envelop klopt (geldige keten, juiste hash). Een commit is hier niet vereist; de merge- en deploy-gate eisen die wel (assertGate).
+  assertSnapshotValid(root, st);
 }
 /**
  * Merge via een pull request: bovenop de gewone merge-gate moet de remote head van de PR (zoals gelezen met pull_request_read of uit de create-respons) gelijk zijn aan
@@ -70,6 +70,8 @@ export function assertGate(root, st, c, kind, argv = null) {
   }
   if (kind === 'deploy') requireThat(c.envelope.git.deploy === 'trigger', 'Deploy starten is geen capability in deze envelop.');
   assertReady(root, st, c, 'Gate ' + kind + ': ');
+  // Samenvoegen en uitrollen: de duurzame snapshot van de goedgekeurde envelop staat ongewijzigd in de laatste commit (zonder git-map is dat niet te controleren en geldt het niet).
+  requireThat(snapshotCommitted(root, st) !== false, 'Gate ' + kind + ': de snapshot van de goedgekeurde envelop (' + (st.snapshot?.path || 'approved/') + ') staat niet in de laatste commit; leg hem vast en maak het rapport opnieuw.');
   if (kind === 'deploy') {
     // Ook uitrollen hoort bij precies de commit waarvoor het READY-bewijs geldt, met alles vastgelegd.
     const r = readJson(root, resultFile(c.id)), head = gitHead(root);

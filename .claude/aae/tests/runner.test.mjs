@@ -236,11 +236,12 @@ test('R28 de merge-gate weigert een READY-resultaat van een oudere bron', met(as
 }));
 const sh = (root, ...a) => spawnSync('git', ['-c', 'user.email=t@t.nl', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...a], {cwd: root, encoding: 'utf8'});
 function gitFixture(root) { sh(root, 'init', '-q'); sh(root, 'add', '-A'); sh(root, 'commit', '-q', '-m', 'eerste'); sh(root, 'commit', '-q', '--allow-empty', '-m', 'tweede'); sh(root, 'checkout', '-q', '-b', 'claude/w'); }
-test('review: de merge-gate bindt het bewijs aan de commit: HEAD moet gelijk zijn aan de vastgelegde commit en de branch aan HEAD', met(async root => {
+test('review: de merge-gate bindt het bewijs aan de commit: HEAD moet gelijk zijn aan de vastgelegde commit en de branch aan HEAD', met(async (root, cfg) => {
   gitFixture(root);
   executing(root, metCmds([mergeCmd], [], mergeEnv));
-  sh(root, 'add', '-A', '--', 'docs/aae/work'); sh(root, 'commit', '-q', '-m', 'snapshot van de goedgekeurde envelop'); // READY en de merge-gate eisen dat de snapshot in HEAD staat
+  sh(root, 'add', '-A', '--', 'docs/aae/work'); sh(root, 'commit', '-q', '-m', 'snapshot van de goedgekeurde envelop'); // de merge-gate eist dat de snapshot in HEAD staat
   const r = await runCommand(root, 't_ok');
+  runAgent(root, {configDir: cfg}); // v3.3.1: merge vraagt HIGH, dus ook een onafhankelijk READY-oordeel
   const t = makeResult(root, r.evidence_path);
   assert.match(t.git_head, /^[0-9a-f]{40,64}$/, 'het rapportsjabloon legt HEAD vast');
   const s = st(root);

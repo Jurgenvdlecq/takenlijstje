@@ -1,0 +1,58 @@
+{
+  "schema_version": 4,
+  "id": "VOORBEELD-GROOT",
+  "title": "Nieuwe kolom met standaardwaarde, vastgelegd en samengevoegd",
+  "goal": "Een extra, optioneel veld bij taken toevoegen (database en scherm), tussendoor vastleggen op een werkbranch en na bewezen kwaliteit samenvoegen met de hoofdbranch.",
+  "risk_class": "STANDARD",
+  "risk_flags": ["migration"],
+  "envelope": {
+    "phase": "implementation",
+    "areas": [
+      {"name": "Taken: scherm en logica", "write": ["app/tasks", "lib/tasks"], "support": ["tests", "types"]},
+      {"name": "Taken: database", "write": ["supabase/migrations"], "support": ["tests"]}
+    ],
+    "db_max": "A",
+    "providers": {
+      "supabase": {"project_ref": "voorbeeldproject", "tools": ["get_project_url", "list_tables", "apply_migration"], "max_calls": 8}
+    },
+    "git": {"commit": true, "push": ["claude/voorbeeld-kolom"], "merge": {"to": "main"}, "deploy": "verify"},
+    "budgets": {
+      "agent_calls": {"soft": 3, "hard": 6},
+      "command_runs": 80,
+      "external_calls": 8,
+      "max_parallel": 1
+    },
+    "acceptance": [
+      {"id": "AC1", "text": "Het nieuwe veld is optioneel, heeft een standaardwaarde en bestaande taken blijven ongewijzigd."},
+      {"id": "AC2", "text": "De migratie is niet-destructief (klasse A) en terug te draaien."}
+    ],
+    "assumptions": ["Het veld is tekst en hoeft niet te worden gevuld."],
+    "decision_defaults": ["Bij twijfel over de veldnaam: kies de kortste Nederlandse term."],
+    "decision_points": ["Een wijziging aan bestaande gegevens of een verwijdering vraagt altijd eerst jouw beslissing."],
+    "extra_commands": []
+  },
+  "plan": {
+    "test_plan": [
+      {"kind": "scope", "method": "inspection", "description": "Controleer dat alleen de twee gebieden zijn gewijzigd."},
+      {"kind": "functional", "method": "command", "description": "Draai de tests van taken, inclusief het nieuwe veld."},
+      {"kind": "regression", "method": "command", "description": "Draai de volledige testsuite."},
+      {"kind": "migration", "method": "inspection", "description": "Lees de migratie en classificeer elk statement (klasse A)."},
+      {"kind": "rollback", "method": "inspection", "description": "Beschrijf en controleer de terugdraaiactie voor de kolom."},
+      {"kind": "data-preservation", "method": "inspection", "description": "Toon dat bestaande rijen ongewijzigd blijven."}
+    ],
+    "agents": [
+      {"name": "aae-architect", "question": "Ontwerp de kleinste wijziging voor het nieuwe optionele veld, inclusief terugdraaiactie.", "files": ["app/tasks", "lib/tasks", "supabase/migrations"], "model": "sonnet"},
+      {"name": "aae-reviewer", "focus": "data", "question": "Beoordeel de migratie en de gegevensbehoud-aanpak op risico's.", "files": ["supabase/migrations", "lib/tasks"], "model": "sonnet"}
+    ],
+    "commands": [
+      {"id": "test_alles", "argv": ["npx", "vitest", "run"], "purpose": "test", "why": "Draait alle bestaande tests; schrijft niets.", "watch": [], "timeout_ms": 240000, "max_runs": 8},
+      {"id": "stage", "argv": ["git", "add", "-A", "--", "app/tasks", "lib/tasks", "supabase/migrations"], "purpose": "commit", "why": "Zet de toegestane bestanden klaar voor een commit; er verlaat niets de machine.", "watch": [], "timeout_ms": 30000, "max_runs": 8},
+      {"id": "commit", "argv": ["git", "commit", "-m", "Tussenstand: optioneel veld bij taken"], "purpose": "commit", "why": "Legt een tussenstand lokaal vast.", "watch": [], "timeout_ms": 30000, "max_runs": 8},
+      {"id": "push", "argv": ["git", "push", "-u", "origin", "claude/voorbeeld-kolom"], "purpose": "push", "why": "Publiceert de commits op de werkbranch, nooit op main.", "watch": [], "timeout_ms": 120000, "max_runs": 8},
+      {"id": "samenvoegen", "argv": ["git", "push", "origin", "claude/voorbeeld-kolom:main"], "purpose": "merge", "why": "Voegt samen met main, pas na bewezen READY op de actuele bron.", "watch": [], "timeout_ms": 120000, "max_runs": 1}
+    ],
+    "read": ["docs"],
+    "open_product_questions": [],
+    "keep_raw": false
+  }
+}
