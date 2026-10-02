@@ -192,7 +192,8 @@ function controleerHersteld(base, r) {
     if (e.before && e.path !== GITIGNORE && hashOf(abs(base, e.path)) !== e.before) slecht.push('Controle na terugdraaien mislukt voor ' + e.path);
     if (!e.before && e.path !== GITIGNORE && exists(abs(base, e.path))) slecht.push('Bestand zou weg moeten zijn: ' + e.path);
   }
-  if (exists(abs(base, GITIGNORE)) && fs.readFileSync(abs(base, GITIGNORE), 'utf8').includes(MARK_START)) slecht.push('Het beheerde .gitignore-blok staat er nog.');
+  // Alleen als deze installatie het blok zelf heeft toegevoegd (dan staat .gitignore in het manifest); bij een upgrade over een bestaande v3.3-installatie stond het blok er al en blijft het terecht staan.
+  if (r.files.some(e => e.path === GITIGNORE) && exists(abs(base, GITIGNORE)) && fs.readFileSync(abs(base, GITIGNORE), 'utf8').includes(MARK_START)) slecht.push('Het beheerde .gitignore-blok staat er nog.');
   return slecht;
 }
 const ruimMappenOp = (base, r) => { for (const d of r.dirs_created || []) { if (d !== 'docs' && !SAFE_RESTORE(d + '/x')) continue; try { rmEmptyTree(abs(base, d)); } catch { /* niet leeg: laten staan */ } } };

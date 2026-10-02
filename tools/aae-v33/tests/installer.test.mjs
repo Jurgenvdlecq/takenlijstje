@@ -319,6 +319,30 @@ test('RD06 het terugdraaimanifest en de blobs gaan ook atomair: een kill vóór 
   assert.equal(planInstall(dir).conflicts.length, 0, 'geen onafgemaakte installatie die eerst teruggedraaid moet worden: ' + planInstall(dir).conflicts.join('; '));
   apply(dir);
 }));
+// AAE-V331-002: upgrade vanaf een bestaande v3.3.0-installatie (zoals in commit c81feb4, waar het beheerde .gitignore-blok al staat).
+const V330 = 'c81feb4';
+function v330Project() {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae331upg-')));
+  const lijst = git(['ls-tree', '-r', '-z', '--name-only', V330, '.claude', 'CLAUDE.md', '.gitignore']).toString().split('\0').filter(Boolean);
+  for (const p of lijst) { const f = path.join(dir, p); fs.mkdirSync(path.dirname(f), {recursive: true}); fs.writeFileSync(f, git(['show', V330 + ':' + p])); }
+  fs.mkdirSync(path.join(dir, '.claude/aae/state'), {recursive: true}); fs.writeFileSync(path.join(dir, '.claude/aae/state/marker.txt'), 'blijft staan');
+  return dir;
+}
+test('upgrade 3.3.0 → 3.3.1: installeren, byte-exact terugdraaien met behoud van het bestaande .gitignore-blok, en opnieuw installeren', () => {
+  const dir = v330Project();
+  try {
+    const versie = () => JSON.parse(fs.readFileSync(path.join(dir, '.claude/aae/managed.json'), 'utf8')).version;
+    assert.equal(versie(), '3.3.0'); assert.ok(fs.readFileSync(path.join(dir, '.gitignore'), 'utf8').includes('# >>> AAE 3.3'), 'het blok staat er al vóór de upgrade');
+    const voor = boom(dir), plan = planInstall(dir);
+    assert.deepEqual(plan.conflicts, []); assert.equal(plan.from, '3.3.0'); assert.equal(plan.to, VERSION); assert.equal(plan.actions.gitignore, false, 'de upgrade raakt .gitignore niet aan');
+    const r = apply(dir);
+    assert.equal(versie(), VERSION); assert.ok(fs.existsSync(path.join(dir, 'docs/archief/aae-3.3.0/aae/ENTRY.md')));
+    rollback(dir, r.backup);
+    assert.deepEqual(boom(dir), voor, 'byte-exact terug naar 3.3.0, inclusief het bestaande .gitignore-blok en zonder archief');
+    const r2 = apply(dir);
+    assert.ok(r2.backup); assert.equal(versie(), VERSION);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
 test('overgang (echte state): een kopie van de echte lopende route wordt overgenomen en blijft werken', async t => {
   const taakBron = path.join(repo, 'docs/aae/TASK.json'), staatBron = path.join(repo, '.claude/aae/state/local.json');
   let taak, staat;
