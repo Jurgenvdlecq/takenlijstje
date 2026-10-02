@@ -81,12 +81,12 @@
     {"v32": "I07: external provider budget is independent from agent budget", "status": "behouden", "v33": ["I07"]},
     {"v32": "I08: wrong Supabase project input is blocked", "status": "behouden", "v33": ["I08"]},
     {"v32": "I09: failed Supabase call consumes budget but does not spawn repair agents", "status": "behouden", "v33": ["I09"]},
-    {"v32": "I10: sensitive SQL needs exact plan plus separate sensitive GO", "status": "aangepast", "v33": ["I10", "T12", "DB-klassen"], "toelichting": "De aparte gevoelige GO is vervangen door database-klassen: B past alleen binnen een envelop die B toestaat, C stopt altijd vóór uitvoering en vraagt AAE BEVESTIG voor die ene actie."},
+    {"v32": "I10: sensitive SQL needs exact plan plus separate sensitive GO", "status": "aangepast", "v33": ["I10", "T12", "RE03"], "toelichting": "De aparte gevoelige GO is vervangen door database-klassen: B past alleen binnen een envelop die B toestaat, C stopt altijd vóór uitvoering en vraagt AAE BEVESTIG voor die ene actie."},
     {"v32": "I11: ToolSearch is allowed for main session but not subagents", "status": "behouden", "v33": ["I11"]},
     {"v32": "I12: GitHub PR creation is route-bound and merge remains unknown/blocked", "status": "aangepast", "v33": ["I12", "T11"], "toelichting": "Merge is nu een aparte, gegate capability (READY-bewijs op de actuele bron); zonder die capability blijft hij geblokkeerd."},
     {"v32": "I13: migration flag no longer forces High Assurance by itself", "status": "behouden", "v33": ["I13"]},
     {"v32": "I14: SQL classifier rejects side-effect SELECT and multiple statements", "status": "behouden", "v33": ["I14"]},
-    {"v32": "I15: function-body DML in apply_migration is not mistaken for immediate DELETE", "status": "behouden", "v33": ["I15"]},
+    {"v32": "I15: function-body DML in apply_migration is not mistaken for immediate DELETE", "status": "aangepast", "v33": ["I15", "RE01"], "toelichting": "Sinds 001E is elke functie, procedure of trigger altijd klasse C (ook met een onschuldige body); de body wordt niet meer beoordeeld, dus een body met DML wordt nooit voor een directe DELETE aangezien en nooit lager dan C."},
     {"v32": "I16: new ordinary prompt may re-probe Supabase without reviving old route", "status": "behouden", "v33": ["I16"]},
     {"v32": "I17: Supabase verification is scoped to the task and survives follow-up prompts (R10)", "status": "behouden", "v33": ["I17"]},
     {"v32": "I18: apply_migration fails closed without explicit name or SQL", "status": "behouden", "v33": ["I18"]},
@@ -151,6 +151,16 @@
     "B4": {"omschrijving": "Een wijziging aan een bewaakt bestand binnen het gebied vraagt voor publicatie een nieuwe GO.", "v33": ["R30", "R31", "R04"]},
     "B5": {"omschrijving": "Een READY-gate (nu: de merge-gate) verdwijnt niet stil.", "v33": ["B5 behouden", "R27", "R28", "T11"]},
     "B6": {"omschrijving": "node --test accepteert alleen concrete testbestanden, nooit mappen of scripts.", "v33": ["B6 behouden"]}
+  },
+  "wijzigingen_001e": {
+    "bron": "Onafhankelijke review van commit 467ecdd (BLOCKED: een latere onschuldige functiedefinitie overschrijft de klasse van een eerdere destructieve) en de besluiten van Jurgen voor AAE-V33-001E (structurele vereenvoudiging, docs/aae/notes/review-467ecdd.md).",
+    "regels": {
+      "functies, procedures en triggers altijd C; herdefinitie, overloads, schema's, Unicode en quotes zonder eigen logica": ["RE01"],
+      "één exacte allowlist van pure functies; geen tegenspraak met gevoelige schema's": ["RE02"],
+      "korte lijst toegestane SQL-vormen, default-deny, en een klein SQL-gedeelte": ["RE03"],
+      "extra commando's op een kleine toegestane lijst": ["RE04", "RD02"],
+      "mutatiecorpus voor SQL": ["mutatiecorpus"]
+    }
   },
   "wijzigingen_001d": {
     "bron": "Onafhankelijke rereview van commit 5ba1e59 (VERDICT: BLOCKED, 3 blokkerende punten, bewaard als docs/aae/notes/review-5ba1e59.md) en de hardeningpunten daarbij.",

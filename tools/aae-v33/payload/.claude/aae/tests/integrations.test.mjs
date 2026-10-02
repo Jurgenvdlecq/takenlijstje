@@ -119,11 +119,8 @@ test('I14 de SQL-classificatie weigert bijwerkingen in SELECT en meerdere statem
     assert.equal(classifySql(s).level, 'change', s);
   assert.equal(classifySql('').level, 'blocked');
 });
-test('I15 een functielichaam telt mee: een body met DELETE is DB-C (de oude test die klasse A vastpinde is vervangen; zie RB03)', () => {
-  const f = 'CREATE OR REPLACE FUNCTION opruim() RETURNS void LANGUAGE plpgsql AS $$ BEGIN DELETE FROM oud; END; $$;';
-  assert.equal(classifyDb(f).klasse, 'C', 'de body voert een DELETE uit zodra de functie draait');
-  assert.equal(classifyDb('CREATE FUNCTION f() RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;').klasse, 'B');
-  assert.equal(classifyDb('CREATE FUNCTION g() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;').klasse, 'A', 'een onschuldige functiebody blijft additief');
+test('I15 een functie, procedure of trigger is altijd DB-C, ook met een onschuldige body (de oude test die klasse A vastpinde is vervangen; zie RE01)', () => {
+  for (const f of ['CREATE OR REPLACE FUNCTION opruim() RETURNS void LANGUAGE plpgsql AS $$ BEGIN DELETE FROM oud; END; $$;', 'CREATE FUNCTION f() RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;', 'CREATE FUNCTION g() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;']) assert.equal(classifyDb(f).klasse, 'C', f);
   assert.equal(classifyDb('DELETE FROM oud;').klasse, 'C');
 });
 test('I16 een gewoon bericht mag opnieuw proben zonder een oud werkpakket te heractiveren', met(root => {
@@ -172,56 +169,7 @@ test('I22 het verbreden van de Supabase-integratie is een wezenlijke wijziging',
   assert.deepEqual(materialChanges(b, a), []);
 });
 
-test('DB-klassen: A (additief), B (middel), C (destructief) op echte SQL; onbekend is nooit stilzwijgend A', () => {
-  const k = s => classifyDb(s).klasse;
-  for (const s of ['CREATE TABLE a (id int);', 'ALTER TABLE a ADD COLUMN b text;', 'CREATE INDEX i ON a (b);', 'ALTER TABLE a ENABLE ROW LEVEL SECURITY;']) assert.equal(k(s), 'A', s);
-  for (const s of ['CREATE POLICY p ON a FOR SELECT USING (b = current_user);', 'UPDATE a SET b = 1 WHERE id = 1;', 'ALTER TABLE a ADD CONSTRAINT c UNIQUE (b);', 'GRANT SELECT ON a TO x;', 'ALTER TABLE a ALTER COLUMN b SET NOT NULL;', "SELECT cron.schedule('j','* * * * *','SELECT 1');", 'ALTER TABLE a RENAME TO b;', 'VACUUM a;']) assert.equal(k(s), 'B', s);
-  for (const s of ['DROP TABLE a;', 'TRUNCATE a;', 'DELETE FROM a;', 'UPDATE a SET b = 1;', 'ALTER TABLE a DISABLE ROW LEVEL SECURITY;', 'ALTER TABLE a ALTER COLUMN b TYPE int;', "INSERT INTO auth.users (id) VALUES (1);", 'ALTER TABLE a DROP COLUMN b;', '']) assert.equal(k(s), 'C', s);
-  assert.equal(k('CREATE TABLE a (id int); DROP TABLE b;'), 'C', 'de hoogste klasse van alle statements telt');
-});
-test('DB-klassen (review): DO-blokken, EXECUTE, CALL en E-strings kunnen een destructieve stap niet als A of B verbergen', () => {
-  const k = s => classifyDb(s).klasse;
-  for (const s of ['DO $$ BEGIN DROP TABLE x; END $$;', "DO $f$ BEGIN EXECUTE 'drop table x'; END $f$;", "DO LANGUAGE plpgsql $$ BEGIN DELETE FROM x; END $$;", "EXECUTE 'drop table x';", 'CALL opruimen();', "COPY x FROM PROGRAM 'rm -rf /';", 'ALTER SYSTEM SET x = 1;',
-    "SELECT E'a\\'b'; DROP TABLE x;", "SELECT 'a' || 'b; DROP TABLE x;", 'SELECT $q$ x; DROP TABLE y;', '/* open DROP TABLE x;']) assert.equal(k(s), 'C', s);
-  assert.equal(k("CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION f();"), 'B', 'EXECUTE FUNCTION is een gewone trigger');
-  assert.equal(k("INSERT INTO a (b) VALUES (E'it\\'s fine');"), 'A', 'een gewone E-string blijft leesbaar');
-});
-test('DB-klassen (review ronde 3): een string die op commentaar lijkt, verbergt geen destructief statement; WITH/MERGE met DELETE is C', () => {
-  const k = s => classifyDb(s).klasse;
-  for (const s of ["SELECT '--';\nDROP TABLE t;\nSELECT '--'", "SELECT '/*'; DROP TABLE t; SELECT '*/'", "SELECT '--', 1; DROP TABLE t; -- x", 'SELECT 1; /* a /* geneste */ b */ DROP TABLE t;',
-    'WITH x AS (DELETE FROM t RETURNING 1) SELECT 1', 'MERGE INTO t USING s ON true WHEN MATCHED THEN DELETE', 'WITH x AS (UPDATE t SET a = 1 RETURNING 1) SELECT * FROM x']) assert.equal(k(s), 'C', s);
-  assert.equal(k("INSERT INTO a (b) VALUES ('--'); INSERT INTO a (b) VALUES ('/*');"), 'A', 'strings met streepjes of sterretjes blijven gewoon strings');
-  for (const s of ["SELECT '--';\nDROP TABLE t;\nSELECT '--'", "SELECT '/*'; DROP TABLE t; SELECT '*/'", "SELECT 1 /* open", "SELECT 'open"]) assert.notEqual(classifySql(s).level, 'read', s);
-  assert.equal(classifySql("SELECT 'a--b' AS x").level, 'read'); assert.equal(classifySql('SELECT $1').level, 'read');
-});
-test('DB-klassen (review ronde 4): niet-ASCII $-tags en identifiers, EXPLAIN ANALYZE, upserts en functies met bijwerkingen', () => {
-  const k = s => classifyDb(s).klasse;
-  for (const s of ["SELECT $é$ ' $é$; DROP TABLE x; SELECT $é$ ' $é$", 'SELECT é$a$; DROP TABLE x; SELECT é$a$', 'SELECT $ ; DROP TABLE x', 'EXPLAIN ANALYZE DELETE FROM t', 'EXPLAIN ANALYZE UPDATE t SET a = 1', "SELECT dblink_exec('x', 'drop table t')", 'TRUNCATE t, u;'])
-    assert.equal(k(s), 'C', s);
-  for (const s of ["SELECT $é$ ' $é$; DROP TABLE x; SELECT $é$ ' $é$", 'SELECT é$a$; DROP TABLE x; SELECT é$a$', 'SELECT $ ; DROP TABLE x']) assert.notEqual(classifySql(s).level, 'read', s);
-  assert.equal(k('CREATE TABLE b (a int REFERENCES t (id) ON DELETE CASCADE);'), 'A', 'ON DELETE CASCADE is een verwijzingsactie');
-  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (b = current_user);'), 'B', 'een beleid beschrijft alleen een regel');
-  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (true);'), 'C', 'een beleid dat voor iedereen alles toestaat is een escalatie');
-  assert.equal(k('INSERT INTO a (b) VALUES (1) ON CONFLICT (b) DO UPDATE SET b = 2;'), 'B');
-  assert.equal(k('GRANT DELETE ON a TO x;'), 'B');
-  assert.equal(k('SELECT $1'), 'B', 'een gewone parameter blijft leesbaar');
-});
-test('DB-klassen (review ronde 5): bijwerkingenfuncties zijn nooit "read", backslashes in gewone strings en schakelaars voor stringgedrag zijn C', () => {
-  for (const s of ["SELECT dblink_exec('x', 'drop table t')", "SELECT lo_unlink(1)", "SELECT pg_read_file('x')", "SELECT pg_ls_dir('.')", 'SELECT * INTO nieuw FROM t', "SELECT pg_advisory_lock(1)", "SELECT pg_sleep(5)", "SELECT lastval()"])
-    assert.notEqual(classifySql(s).level, 'read', s);
-  const k = s => classifyDb(s).klasse;
-  for (const s of ["SET standard_conforming_strings = off; SELECT 'a\\''; DROP TABLE x; SELECT '", "SELECT 'pad\\naam'", 'SET backslash_quote = on;', "SELECT lo_unlink(1)", "INSERT INTO auth.users (id) VALUES (1) ON CONFLICT (id) DO UPDATE SET id = 2;"]) assert.equal(k(s), 'C', s);
-  assert.equal(k("ALTER TABLE t ALTER COLUMN id SET DEFAULT nextval('s');"), 'B', 'een gewone volgnummer-default is geen C');
-  assert.equal(classifySql("SELECT 'gewone tekst' AS x").level, 'read');
-});
-test('DB-klassen (review ronde 6): geciteerde functienamen/schema\'s verbergen niets; een WHERE in een subquery beperkt een UPDATE niet', () => {
-  for (const s of ['SELECT "dblink_exec"(\'c\', \'DROP TABLE x\')', 'SELECT pg_catalog."pg_read_file"(\'f\')', 'SELECT "lo_unlink"(1)', 'SELECT "pg_sleep"(1)', 'SELECT "nextval"(\'s\')']) assert.notEqual(classifySql(s).level, 'read', s);
-  const k = s => classifyDb(s).klasse;
-  for (const s of ['SELECT "dblink_exec"(\'c\', \'x\')', 'INSERT INTO "auth"."users" (id) VALUES (1)', 'DELETE FROM "t"', 'DROP TABLE "t"', 'UPDATE t SET a = (SELECT 1 WHERE true)', 'UPDATE t SET a = 1 WHERE true', 'UPDATE t SET a = 1 WHERE 1 = 1', 'UPDATE t SET a = (SELECT b FROM u WHERE u.id = 1)']) assert.equal(k(s), 'C', s);
-  assert.equal(k('UPDATE t SET a = 1 WHERE id = 2'), 'B'); assert.equal(k('UPDATE t SET a = (SELECT b FROM u WHERE u.id = t.id) WHERE t.id = 3'), 'B');
-  assert.equal(k('CREATE TABLE "notities" (id int);'), 'A', 'een gewone geciteerde tabelnaam blijft additief'); assert.equal(k('CREATE TABLE "mijn tabel" (id int);'), 'A');
-  assert.equal(classifySql('SELECT "a" FROM "t"').level, 'read');
-});
+// De SQL-klassen (A/B/C, default-deny) worden getoetst in sql.test.mjs (RE01-RE03 en de mutatiecorpus); hier alleen de integratie met de tools.
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
   executing(root, {envelope: {git, providers: GHP(['create_pull_request', 'merge_pull_request'], 4), budgets: BUDGET(4)}});

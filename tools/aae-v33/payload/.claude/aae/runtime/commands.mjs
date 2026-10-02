@@ -7,7 +7,6 @@ import {
   withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
 } from './state.mjs';
 import {writeSnapshot} from './snapshot.mjs';
-import {runsArbitraryCode} from './core.mjs';
 import {liveRows, reconcile} from './reports.mjs';
 import {importLegacy} from './legacy.mjs';
 
@@ -65,7 +64,7 @@ export function presentProposal(root, id) {
     const steun = [...new Set(e.areas.flatMap(a => a.support || []))];
     const extra = e.extra_commands.map(x => {
       const reden = (c.plan.commands.find(m => m.purpose === x.purpose && stable(m.argv) === stable(x.argv)) || {}).why;
-      return '  - [' + x.purpose + '] ' + x.argv.join(' ') + (reden ? ' — reden: ' + reden : '') + ' — BUITEN de standaardlijst' + (runsArbitraryCode(x.argv) ? ' en voert willekeurige code uit' : '');
+      return '  - [' + x.purpose + '] ' + x.argv.join(' ') + (reden ? ' — reden: ' + reden : '') + ' — BUITEN de standaardlijst' + (x.argv[0] === 'node' ? ' en voert projectcode uit' : '');
     });
     const regels = [
       'Werkpakket ' + id + ' — korte hash ' + kort + ' (alleen ter herkenning; intern telt de volledige hash).',

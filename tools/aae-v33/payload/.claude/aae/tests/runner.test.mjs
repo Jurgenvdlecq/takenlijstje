@@ -75,7 +75,7 @@ test('R07 een time-out geeft een vastgelegde mislukte receipt', met(async root =
   assert.equal(r.timed_out, true); assert.notEqual(r.exit_code, 0); assert.equal(st(root).command_running, null);
 }));
 test('R08 een ontbrekend programma geeft een begrensde fout zonder vastgelopen registratie', met(async root => {
-  const argv = ['aae-bestaat-niet-xyz'];
+  const argv = ['node', 'scripts/bestaat-niet-xyz.mjs']; // een extra commando is alleen node <script>, npm, git of rm/mv/mkdir: het ontbrekende script geeft hier de begrensde fout
   executing(root, metCmds([C('weg', argv)], [ex(argv)]));
   const r = await runCommand(root, 'weg');
   assert.notEqual(r.exit_code, 0); assert.ok(String(r.error || r.tail).length < 3000);

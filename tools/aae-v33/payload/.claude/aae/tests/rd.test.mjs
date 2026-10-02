@@ -1,89 +1,45 @@
-// AAE-V33-001D: regressietests voor de blokkerende bevindingen B1-B3 van de rereview van commit 5ba1e59 (RD01-RD03) en de hardeningpunten
-// korte GO-hash van 12 tekens (RD04) en atomaire, crash-safe snapshot (RD05). RD06 (installer) staat in tools/aae-v33/tests/installer.test.mjs.
-// De scenario's komen letterlijk uit het reviewrapport (docs/aae/notes/review-5ba1e59.md).
+// AAE-V33-001D/001E: regressietests voor de rereview van commit 5ba1e59. RD01 (SQL) staat sinds 001E in sql.test.mjs.
+// RD02 (extra commando's, nu een kleine toegestane lijst), RD03 (analyse zonder GO), RD04 (GO-hash van 12 tekens), RD05 (atomaire snapshot). RD06 (installer) staat in tools/aae-v33/tests/installer.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {pathToFileURL} from 'node:url';
 import {spawnSync} from 'node:child_process';
-import {fixture, cleanup, contract, plan, executing, st, prompt, put, installRuntime} from './helpers.mjs';
+import {fixture, cleanup, contract, plan, executing, st, prompt, installRuntime} from './helpers.mjs';
 import {validateContract, classifyCommand, extraRefusal, analysisArgv, safeLocalArgv, shortHash, SHORT_HASH_LENGTH, PURPOSES, clock} from '../runtime/core.mjs';
-import {classifyDb, classifySql, classifyExternalCall, unsafeCalls, scanSql} from '../runtime/integrations.mjs';
 import {analysisFree, loadWork, withLock, saveWork} from '../runtime/state.mjs';
 import {presentProposal} from '../runtime/commands.mjs';
 import {runCommand} from '../runtime/runner.mjs';
 import {createFileAtomic, TEMP_NAME, listSnapshots, snapshotDir, verifyChain, writeSnapshot, ruimTijdelijkeOp} from '../runtime/snapshot.mjs';
 
 const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
-const k = s => classifyDb(s).klasse;
 const amsg = async p => { try { await p; } catch (e) { return e.message; } assert.fail('verwacht een weigering'); };
 const tekst = r => JSON.stringify(r);
 
-// ---------------------------------------------------------------- RD01 (B1)
-test('RD01 niet-ASCII functienamen vallen niet buiten de classificatie (reviewscenario: CREATE FUNCTION public.é() … DELETE FROM tasks, daarna SELECT public.é())', () => {
-  const f = 'CREATE FUNCTION public.é() RETURNS void LANGUAGE sql AS $$ DELETE FROM tasks $$;';
-  assert.equal(k(f), 'C', 'FN_DEF herkende é niet: de body werd niet beoordeeld en de definitie was klasse A');
-  assert.equal(k(f + ' SELECT public.é();'), 'C'); assert.equal(k(f + ' SELECT é();'), 'C', 'een kale aanroep erft de klasse van de body');
-  assert.equal(classifyExternalCall('mcp__supabase__apply_migration', {name: 'x', query: f + ' SELECT public.é();'}).db, 'C');
-  // via execute_sql ging dit als read-only door terwijl de DELETE werd uitgevoerd
-  for (const s of ['SELECT public.é()', 'SELECT é()', 'SELECT public."é"()', 'SELECT 日本語()', 'SELECT données.f()', 'SELECT ü(1)']) assert.equal(classifySql(s).level, 'change', s);
-  for (const s of ['SELECT public.é();', 'SELECT é();']) assert.notEqual(k(s), 'A', s + ' (een niet-herkende gebruikersfunctie is minimaal B)');
-  // andere niet-ASCII namen, ook geciteerd en in procedures
-  for (const naam of ['日本語', 'ü', 'Ünï', '"é"', 'mаx']) assert.equal(k('CREATE FUNCTION ' + naam + '() RETURNS void LANGUAGE sql AS $$ TRUNCATE x $$; SELECT ' + naam + '();'), 'C', naam);
-  assert.equal(k('CREATE PROCEDURE é() LANGUAGE sql AS $$ DROP TABLE x $$; CALL é();'), 'C');
-  // een definitie waarvan de naam niet te lezen is, is nooit klasse A
-  assert.equal(k('CREATE FUNCTION 1x() RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;'), 'C');
-  // een onschuldige niet-ASCII functie blijft gewoon A
-  assert.equal(k('CREATE FUNCTION é() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;'), 'A');
-  // een andere schrijfwijze van dezelfde naam (genormaliseerd) erft ook: é als e + U+0301
-  assert.equal(k('CREATE FUNCTION public.é() RETURNS void LANGUAGE sql AS $$ DELETE FROM t $$; SELECT public.é();'), 'C');
-});
-test('RD01 een geciteerde functienaam is nooit het ingebouwde max (reviewscenario: "Max"(1)); alleen een kale ASCII-naam uit de lijst is alleen-lezen', () => {
-  assert.equal(classifySql('SELECT "Max"(1)').level, 'change', '"Max" werd als de ingebouwde max gelezen');
-  for (const s of ['SELECT "Max" /* verborgen */ (1)', 'SELECT "Max" -- verborgen\n (1)', 'SELECT "max"(1)', 'SELECT "count"(*) FROM t', 'SELECT public."Max"(x) FROM t', 'SELECT "Lower"(a) FROM t']) assert.equal(classifySql(s).level, 'change', s);
-  // een Cyrillische of full-width variant is een andere functie dan max
-  for (const s of ['SELECT mаx(1)', 'SELECT ｍａｘ(1)', 'SELECT mаx(1) FROM t']) assert.equal(classifySql(s).level, 'change', s);
-  // gewone kale functies blijven alleen-lezen, ook met hoofdletters (Postgres leest ze als kleine letters)
-  for (const s of ['SELECT max(1)', 'SELECT Max(x) FROM t', 'SELECT COUNT(*) FROM t', "SELECT lower(a) FROM t WHERE b = 'x'", 'SELECT * FROM "Max"']) assert.equal(classifySql(s).level, 'read', s);
-  // een in de migratie gedefinieerde "Max" erft: de naam geldt conservatief voor elke schrijfwijze
-  assert.equal(k('CREATE FUNCTION "Max"(int) RETURNS int LANGUAGE sql AS $$ DELETE FROM t RETURNING 1 $$; SELECT max(1);'), 'C');
-  // het schaduwen van een ingebouwde functie via de definitie zelf telt ook in INSERT en DEFAULT
-  assert.equal(k('INSERT INTO a (b) SELECT "Max"(1)'), 'B'); assert.equal(k('ALTER TABLE t ADD COLUMN x int DEFAULT "Max"(1);'), 'B');
-  // de lijst van aanroepen kent alleen kale ASCII-namen als toegestaan
-  assert.deepEqual(unsafeCalls('max(1) lower(a)'), []); assert.deepEqual(unsafeCalls('é(1)'), ['é']); assert.deepEqual(unsafeCalls('max(1)', new Set(), new Set(['max'])), ['max']);
-});
-test('RD01 gereserveerde plaatsvervangertekens in de invoer maken SQL niet betrouwbaar leesbaar; een tekstwaarde lijkt nooit op een aanroep', () => {
-  assert.equal(scanSql('SELECT 0').ok, false); assert.equal(classifySql('SELECT 1 /*  */').level, 'change'); assert.equal(k('SELECT '), 'C');
-  // DEFAULT 'a' laat een plaatsvervanger achter die naast een haakje niet als functienaam wordt gelezen
-  assert.equal(k("CREATE TABLE t3 (id uuid DEFAULT gen_random_uuid(), tekst text DEFAULT 'a', n int DEFAULT (1 + 2));"), 'A');
-});
-
-// ---------------------------------------------------------------- RD02 (B2)
+// ---------------------------------------------------------------- RD02 (B2): extra commando's = een kleine toegestane lijst
 const LOKAAL = ['read', 'test', 'build', 'preview'], ZWAAR = ['install', 'destructive'];
+// De scenario's uit het reviewrapport (en een steekproef daaromheen): geen enkel doel laat ze door. Dit zijn voorbeelden; de lijst is een allowlist, dus elk ander programma wordt ook geweigerd.
 const VERBODEN = [['gh', 'pr', 'merge', '1'], ['vercel', '--prod'], ['npm', 'publish'], ['curl', '-X', 'POST', 'https://x.example'], ['supabase', 'db', 'push'],
   ['env', 'git', 'push', 'origin', 'main'], ['sh', 'script.sh'], ['bash', '-c', 'git push origin main'], ['xargs', 'curl'], ['npx', 'supabase', 'db', 'push'], ['pnpm', 'dlx', 'supabase', 'db', 'push'], ['npm', 'exec', 'vercel'],
-  ['/usr/bin/curl', 'https://x.example'], ['./deploy.sh'], ['node', '-e', 'process.exit(0)'], ['python3', '-c', 'import os'], ['find', '.', '-exec', 'rm', '{}', ';'], ['git', '-c', 'alias.x=!sh', 'status'], ['git', 'push', 'origin', 'x'], ['git', 'merge', 'x'],
-  ['psql', '-c', 'DROP TABLE x'], ['docker', 'run', 'x'], ['aws', 's3', 'ls'], ['wrangler', 'deploy'], ['npm', 'run', 'deploy'], ['yarn', 'publish'], ['bun', 'x', 'supabase'], ['sudo', 'rm', '-rf', '/'], ['nohup', 'curl', 'x'], ['timeout', '5', 'curl', 'x'],
-  ['awk', 'BEGIN{system("curl x")}'], ['node', '-pe', '1'], ['node', '--eval=1'], ['python3', '-Sc', 'x'], ['deno', 'eval', '1'], ['deno', 'run', 'https://x.example/a.ts'], ['env', '-S', 'git push']];
-test('RD02 elk doel krijgt dezelfde inhoudelijke commandocontrole: gh pr merge, vercel --prod, npm publish, curl, supabase db push en wrappers zijn nooit een extra commando (reviewscenario)', () => {
+  ['/usr/bin/curl', 'https://x.example'], ['./deploy.sh'], ['node', '-e', 'process.exit(0)'], ['node', '-pe', '1'], ['node', '--eval=1'], ['python3', '-c', 'import os'], ['find', '.', '-exec', 'rm', '{}', ';'], ['git', '-c', 'alias.x=!sh', 'status'],
+  ['git', 'push', 'origin', 'x'], ['git', 'merge', 'x'], ['psql', '-c', 'DROP TABLE x'], ['docker', 'run', 'x'], ['aws', 's3', 'ls'], ['wrangler', 'deploy'], ['npm', 'run', 'deploy'], ['yarn', 'publish'], ['sudo', 'rm', '-rf', '/'], ['awk', 'BEGIN{system("curl x")}'],
+  ['make', 'deploy'], ['deno', 'eval', '1'], ['rm', '-rf', '/'], ['rm', '-rf', '..'], ['rm', '-rf', '.git'], ['mv', '/etc/passwd', 'x'], ['npm', 'install', 'https://x.example/p.tgz']];
+test('RD02 elk doel krijgt dezelfde controle: gh pr merge, vercel --prod, npm publish, curl, supabase db push en wrappers zijn nooit een extra commando (reviewscenario)', () => {
   for (const argv of VERBODEN) for (const doel of [...LOKAAL, ...ZWAAR]) {
-    assert.ok(extraRefusal(argv, doel), argv.join(' ') + ' (' + doel + ') hoort geweigerd te worden');
+    const nee = extraRefusal(argv, doel);
+    // de enige uitzonderingen zijn vormen die voor dit doel wél bestaan (bijvoorbeeld npm run build met een toegestane scriptnaam): die staan niet in VERBODEN
+    assert.ok(nee, argv.join(' ') + ' (' + doel + ') hoort geweigerd te worden');
     assert.throws(() => validateContract(structuredClone(contract({envelope: {extra_commands: [{argv, purpose: doel}]}}))), /niet toegestaan/, argv.join(' ') + ' als extra commando met doel ' + doel);
-    // en zelfs als het in een envelop zou zijn geraakt: classifyCommand weigert vlak vóór de uitvoering
     const c = contract(); c.envelope.extra_commands = [{argv, purpose: doel}];
-    assert.equal(classifyCommand(c, {id: 'x', argv, purpose: doel}).ok, false, argv.join(' ') + ' (' + doel + ')');
+    assert.equal(classifyCommand(c, {id: 'x', argv, purpose: doel}).ok, false, 'vlak vóór de uitvoering: ' + argv.join(' ') + ' (' + doel + ')');
   }
-  // het doel-label wijzigt nooit wat een programma kan: dezelfde weigering voor alle doelen, hier als gelijkheid van uitkomst
-  for (const argv of VERBODEN) assert.equal(new Set([...LOKAAL, ...ZWAAR].map(d => !!extraRefusal(argv, d))).size, 1, argv.join(' '));
 });
 test('RD02 merge en deploy accepteren helemaal geen extra commando\'s; samenvoegen en uitrollen lopen uitsluitend via hun capabilities en gates', () => {
-  for (const argv of [['node', 'scripts/x.mjs'], ['git', 'push', 'origin', 'w:main'], ['npm', 'run', 'build'], ['gh', 'pr', 'merge', '1'], ['vercel', '--prod']]) for (const doel of ['merge', 'deploy']) {
+  for (const argv of [['node', 'scripts/x.mjs'], ['git', 'push', 'origin', 'w:main'], ['npm', 'run', 'build'], ['gh', 'pr', 'merge', '1'], ['vercel', '--prod']]) for (const doel of ['merge', 'deploy', 'commit', 'push']) {
     assert.match(extraRefusal(argv, doel), /accepteert geen extra commando/, argv.join(' ') + ' (' + doel + ')');
     assert.throws(() => validateContract(structuredClone(contract({envelope: {extra_commands: [{argv, purpose: doel}]}}))), /accepteert geen extra commando/);
   }
-  // een deploy-commando in het plan bestaat niet meer; een merge alleen als git push origin <werkbranch>:<doel> binnen de merge-capability
   const env = {git: {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'trigger'}};
   const cmd = (id, argv, purpose) => ({id, argv, purpose, why: 'Een commando met doel ' + purpose + '.', watch: [], timeout_ms: 5000, max_runs: 1});
   const plan0 = contract().plan;
@@ -92,13 +48,16 @@ test('RD02 merge en deploy accepteren helemaal geen extra commando\'s; samenvoeg
   assert.throws(() => validateContract(structuredClone(contract({envelope: env, plan: {...plan0, commands: [...plan0.commands, cmd('sam', ['git', 'push', 'origin', 'claude/w:andere'], 'merge')]}}))), /Merge alleen als/);
   assert.doesNotThrow(() => validateContract(structuredClone(contract({envelope: env, plan: {...plan0, commands: [...plan0.commands, cmd('sam', ['git', 'push', 'origin', 'claude/w:main'], 'merge')]}}))));
 });
-test('RD02 gewone, zichtbare extra commando\'s blijven mogelijk; een installatie hoort bij doel install en onbekende tools starten niet via npx', () => {
-  for (const [argv, doel] of [[['node', 'scripts/bouw.mjs'], 'build'], [['node', 'scripts/bouw.mjs', '-c', 'cfg'], 'build'], [['node', 'scripts/check.mjs', 'http://localhost:3000'], 'test'], [['node', '--no-warnings', 'scripts/bouw.mjs'], 'build'], [['npm', 'install'], 'install'], [['npm', 'ci'], 'install'], [['pnpm', 'add', 'x'], 'install'], [['npm', 'run', 'build'], 'build'], [['npm', 'test'], 'test'],
-    [['git', 'checkout', '-b', 'x'], 'destructive'], [['git', 'clean', '-fd'], 'destructive'], [['rm', '-rf', 'dist'], 'destructive'], [['pip', 'install', 'x'], 'install'], [['node', 'scripts/inst.js'], 'install']]) assert.equal(extraRefusal(argv, doel), null, argv.join(' ') + ' (' + doel + ')');
-  assert.match(extraRefusal(['npm', 'install'], 'build'), /hoort bij doel install/); assert.match(extraRefusal(['npx', 'iets'], 'test'), /willekeurige pakketten/);
-  assert.ok(extraRefusal(['git', 'status'], 'build'), 'git status hoort bij de vaste lijst, niet bij een lokaal extra commando');
-  // elk doel is gedekt door dezelfde functie: een gewoon projectscript mag voor de lokale doelen en install/destructive, nooit voor merge, deploy, commit en push
-  for (const doel of PURPOSES) assert.equal(extraRefusal(['node', 'scripts/x.mjs'], doel) === null, [...LOKAAL, ...ZWAAR].includes(doel), doel);
+test('RE04 de toegestane lijst voor extra commando\'s is klein en eenduidig: alleen deze vormen bestaan, per doel; al het andere, ook een onbekend programma, wordt geweigerd', () => {
+  const toegestaan = [[['node', 'scripts/bouw.mjs'], [...LOKAAL, ...ZWAAR]], [['node', 'scripts/check.mjs', '-c', 'cfg', 'http://localhost:3000'], [...LOKAAL, ...ZWAAR]], [['node', '.claude/aae/runtime/visual.mjs', 'visual.json'], [...LOKAAL, ...ZWAAR]],
+    [['npm', 'run', 'build'], LOKAAL], [['pnpm', 'run', 'test:unit'], LOKAAL], [['npm', 'test'], LOKAAL], [['yarn', 'run', 'lint'], LOKAAL], [['npm', 'install'], ['install']], [['npm', 'ci'], ['install']], [['pnpm', 'add', '-D', '@types/node@^20.1.0'], ['install']],
+    [['git', 'checkout', '-b', 'claude/x'], ['destructive']], [['git', 'clean', '-fd'], ['destructive']], [['git', 'reset', '--hard', 'HEAD'], ['destructive']], [['rm', '-rf', 'dist'], ['destructive']], [['mv', 'a.txt', 'b.txt'], ['destructive']], [['mkdir', '-p', 'tmp/x'], ['build', 'destructive']]];
+  const alle = [...LOKAAL, ...ZWAAR];
+  for (const [argv, doelen] of toegestaan) for (const doel of alle) assert.equal(extraRefusal(argv, doel) === null, doelen.includes(doel), argv.join(' ') + ' (' + doel + ')');
+  // een steekproef van programma's die niet op de lijst staan (geen aparte regel per tool): alles buiten de lijst valt weg
+  for (const prog of ['python3', 'ruby', 'perl', 'deno', 'bun', 'make', 'docker', 'ssh', 'tar', 'cp', 'chmod', 'dd', 'ln', 'tee', 'sed', 'zip', 'openssl', 'unknownprog', 'NODE', 'node.exe']) for (const doel of alle) assert.ok(extraRefusal([prog, 'x'], doel), prog + ' (' + doel + ')');
+  for (const doel of PURPOSES) assert.equal(extraRefusal(['node', 'scripts/x.mjs'], doel) === null, alle.includes(doel), doel);
+  assert.match(extraRefusal(['npm', 'install'], 'build'), /hoort bij doel install/); assert.ok(extraRefusal([], 'build')); assert.ok(extraRefusal(['node', ''], 'build'));
 });
 
 // ---------------------------------------------------------------- RD03 (B3)
@@ -115,7 +74,7 @@ test('RD03 een GO-vrije analyse voert geen projectcode uit: npx vitest run, npx 
     const c = contract(ANALYSE()); assert.equal(classifyCommand(c, {id: 'p', argv, purpose: 'read'}).ok, false, 'vlak vóór de uitvoering');
     assert.equal(analysisFree(Object.assign(validateContract(structuredClone(contract(ANALYSE()))), {plan: {...contract().plan, commands: [LEES('p', argv)]}})), false, 'start zonder GO is uitgesloten: ' + argv.join(' '));
   }
-  // alleen-lezen git blijft kunnen en een analyse met alleen die commando's start zonder GO
+  // alleen-lezen git blijft kunnen en een analyse daarmee start zonder GO
   const toegestaan = [['git', 'status', '--porcelain'], ['git', 'log', '--oneline', '-n5'], ['git', 'diff', '--stat'], ['git', 'diff', '--name-only'], ['git', 'show', '--stat', 'HEAD'], ['git', 'rev-parse', 'HEAD'], ['git', 'merge-base', '--is-ancestor', 'HEAD', 'main']];
   for (const argv of toegestaan) assert.equal(analysisArgv(argv), true, argv.join(' '));
   const s = plan(root, ANALYSE(toegestaan.map((argv, i) => LEES('g' + i, argv))));
@@ -127,13 +86,11 @@ test('RD03 de bestaande bescherming blijft: git diff en git show tonen geen best
     assert.equal(safeLocalArgv(argv), false, argv.join(' ')); assert.equal(analysisArgv(argv), false, argv.join(' '));
     assert.throws(() => validateContract(structuredClone(contract(ANALYSE([LEES('p', argv)])))), /valt buiten de envelop/, argv.join(' '));
   }
-  // alleen de samenvatting (namen en aantallen) is toegestaan
   for (const argv of [['git', 'diff', '--stat'], ['git', 'diff', '--name-only'], ['git', 'show', '--stat', 'HEAD'], ['git', 'show', '--name-only', 'HEAD']]) assert.equal(analysisArgv(argv), true, argv.join(' '));
 });
 test('RD03 het runnerpad weigert projectcode in een analyse vóór de start: er wordt niets uitgevoerd (geen detectie achteraf)', met(async root => {
   const s = plan(root, ANALYSE([LEES('g0', ['git', 'status', '--porcelain'])]));
   assert.equal(s.status, 'EXECUTING');
-  // een test die een bestand zou schrijven als hij liep
   fs.writeFileSync(path.join(root, 'src/schrijf.test.mjs'), "import test from 'node:test';\nimport fs from 'node:fs';\ntest('x', () => { fs.writeFileSync('src/GESCHREVEN.txt', 'ja'); });\n");
   withLock(root, () => { const x = loadWork(root, 'W-A'); x.contract.plan.commands.push(LEES('vit', ['node', '--test', 'src/schrijf.test.mjs']), LEES('vitest', ['npx', 'vitest', 'run'], 'test')); saveWork(root, x); });
   assert.match(await amsg(runCommand(root, 'vit')), /valt buiten de envelop.*analyse zonder GO/i);
@@ -180,19 +137,16 @@ test('RD05 een onderbreking tussen schrijven en hernoemen laat nooit een halve s
   executing(root);
   const bestand = listSnapshots(root, 'W-T')[0]; assert.ok(bestand);
   const inhoud = fs.readFileSync(path.join(snapDir(root), bestand), 'utf8');
-  // simuleer: de snapshot is nog niet op schijf (het scenario van de review: schrijven direct naar de eindnaam)
   fs.unlinkSync(path.join(snapDir(root), bestand));
   const code = punt => 'import {writeSnapshot} from ' + JSON.stringify(SNAP) + '; import {loadWork} from ' + JSON.stringify(STATE) + '; const st = loadWork(' + JSON.stringify(root) + ', "W-T"); writeSnapshot(' + JSON.stringify(root) + ', st, "AAE GO", {crashAfter: ' + JSON.stringify(punt) + '});';
   const r1 = kind(root, code('temp'));
   assert.equal(r1.signal, 'SIGKILL', 'het kindproces is halverwege gestorven: ' + r1.stderr);
   assert.deepEqual(listSnapshots(root, 'W-T'), [], 'geen (halve) snapshot onder de echte naam');
   assert.ok(fs.readdirSync(snapDir(root)).some(n => TEMP_NAME.test(n)), 'er blijft alleen een tijdelijk restje achter');
-  // de keten is nog geldig (leeg) en de volgende schrijfactie ruimt het restje op en schrijft de snapshot
   const s = loadWork(root, 'W-T'); withLock(root, () => writeSnapshot(root, s, 'AAE GO'));
   assert.deepEqual(listSnapshots(root, 'W-T'), [bestand]); assert.equal(fs.readFileSync(path.join(snapDir(root), bestand), 'utf8'), inhoud, 'identiek aan het origineel');
   assert.deepEqual(fs.readdirSync(snapDir(root)), [bestand], 'geen restje meer');
   assert.doesNotThrow(() => verifyChain(root, 'W-T'));
-  // een onderbreking ná het hernoemen: de snapshot is volledig, het restje wordt genegeerd en opgeruimd
   fs.unlinkSync(path.join(snapDir(root), bestand));
   const r2 = kind(root, code('link')); assert.equal(r2.signal, 'SIGKILL');
   assert.deepEqual(listSnapshots(root, 'W-T'), [bestand], 'de snapshot staat er volledig');
@@ -203,7 +157,7 @@ test('RD05 een onderbreking tussen schrijven en hernoemen laat nooit een halve s
 test('RD05 recover ruimt het restje van een onderbroken snapshot-schrijfactie op en herstelt het pakket zonder handmatige actie', met(async root => {
   installRuntime(root);
   executing(root);
-  fs.writeFileSync(path.join(snapDir(root), '.tmp-999999-deadbeef-002-aaaaaaaaaaaa.json'), '{"half":'); // restje van een gestorven proces (pid bestaat niet)
+  fs.writeFileSync(path.join(snapDir(root), '.tmp-999999-deadbeef-002-aaaaaaaaaaaa.json'), '{"half":');
   assert.deepEqual(listSnapshots(root, 'W-T').length, 1, 'een restje telt niet als snapshot');
   const sh = (...a) => spawnSync('git', ['-c', 'user.email=t@t.nl', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...a], {cwd: root, encoding: 'utf8'});
   sh('init', '-q'); sh('add', '-A', '--', 'docs/aae/work/W-T/approved/001-' + loadWork(root, 'W-T').snapshot.hash.slice(0, 12) + '.json'); sh('commit', '-q', '-m', 'snapshot');

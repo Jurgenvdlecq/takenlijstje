@@ -1,5 +1,5 @@
 // AAE-V33-001C: regressietests voor de blokkerende bevindingen van de onafhankelijke review van commit 5e64919 (RB01-RB10).
-// RB08 (legacy-overname) staat in legacy.test.mjs en RB09 (installer) in tools/aae-v33/tests/installer.test.mjs.
+// RB01-RB04 (SQL) staan sinds 001E tabelgedreven in sql.test.mjs; RB08 (legacy-overname) staat in legacy.test.mjs en RB09 (installer) in tools/aae-v33/tests/installer.test.mjs.
 // Elke test reproduceert het scenario uit het reviewrapport (docs/aae/notes/review-5e64919.md) en toont wat vóór het herstel misging.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,6 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, put, installRuntime} from './helpers.mjs';
 import {validateContract, envelopeHash, extraRefusal, safeLocalArgv, clock} from '../runtime/core.mjs';
-import {classifyDb, classifySql, classifyExternalCall} from '../runtime/integrations.mjs';
 import {registerContract, loadWork, saveWork, withLock, proposalFile} from '../runtime/state.mjs';
 import {presentProposal} from '../runtime/commands.mjs';
 import {runCommand, reportTemplate} from '../runtime/runner.mjs';
@@ -21,8 +20,7 @@ import {trackedFingerprint} from '../runtime/gitops.mjs';
 const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
 const msg = fn => { const e = denies(fn); assert.ok(e, 'verwacht een weigering'); return e.message; };
 const amsg = async p => { try { await p; } catch (e) { return e.message; } assert.fail('verwacht een weigering'); };
-const k = s => classifyDb(s).klasse;
-const sh = (root, ...a) => spawnSync('git', ['-c', 'user.email=t@t.nl', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...a], {cwd: root, encoding: 'utf8'});
+const sh =(root, ...a) => spawnSync('git', ['-c', 'user.email=t@t.nl', '-c', 'user.name=T', '-c', 'commit.gpgsign=false', ...a], {cwd: root, encoding: 'utf8'});
 function gitFixture(root) { sh(root, 'init', '-q'); sh(root, 'add', '-A'); sh(root, 'commit', '-q', '-m', 'eerste'); sh(root, 'checkout', '-q', '-b', 'claude/w'); }
 const snapCommit = root => { sh(root, 'add', '-A', '--', 'docs/aae/work'); sh(root, 'commit', '-q', '-m', 'snapshot van de goedgekeurde envelop'); };
 const cliRun = (root, ...args) => spawnSync(process.execPath, [path.join(root, '.claude/aae/runtime/cli.mjs'), ...args], {cwd: root, encoding: 'utf8'});
@@ -37,73 +35,6 @@ const makeResult = (root, receipt, mutate) => {
   put(root, 'docs/aae/work/W-T/result.json', t); return t;
 };
 
-// ---------------------------------------------------------------- RB01
-test('RB01 U&-identifiers en het zoekpad omzeilen de SQL-regels niet (reviewscenario: U&"a\\0075th" en U&"d\\0062link_exec")', () => {
-  // INSERT werd A, UPDATE met WHERE werd B, en dblink verdween achter een placeholder.
-  for (const s of ['INSERT INTO U&"a\\0075th".users (id) VALUES (1)', 'UPDATE U&"a\\0075th".users SET x = 1 WHERE id = 1', "SELECT U&\"d\\0062link_exec\"('c', 'DROP TABLE x')", "SELECT U&'abc'", 'DELETE FROM U&"t"']) assert.equal(k(s), 'C', s);
-  // SELECT * FROM U&"a\0075th".users werd via execute_sql "read".
-  for (const s of ['SELECT * FROM U&"a\\0075th".users', "SELECT U&\"d\\0062link_exec\"('c', 'x')", 'SELECT u&"x" FROM t']) assert.equal(classifySql(s).level, 'change', s);
-  assert.equal(classifyExternalCall('mcp__supabase__execute_sql', {query: 'SELECT * FROM U&"a\\0075th".users'}).level, 'change');
-  // SET search_path = auth; INSERT INTO users … raakte auth zonder de naam "auth." en werd B.
-  for (const s of ['SET search_path = auth; INSERT INTO users (id) VALUES (1)', 'SET LOCAL search_path TO auth, public; UPDATE users SET a = 1 WHERE id = 1', "SELECT set_config('search_path', 'auth', false); INSERT INTO users (id) VALUES (1)"]) assert.equal(k(s), 'C', s);
-  assert.notEqual(classifySql("SELECT set_config('search_path','auth',false)").level, 'read');
-  // Een sleutelwoord als geciteerde identifier wordt nooit als sleutelwoord gelezen: UPDATE t AS "where" SET x=1 telde als "met WHERE" (B).
-  assert.equal(k('UPDATE t AS "where" SET x = 1'), 'C');
-  assert.equal(k('UPDATE t SET x = 1 WHERE id = 2'), 'B', 'een echte WHERE blijft B');
-  // Het zoekpad als functie-attribuut blijft gewoon toegestaan.
-  assert.equal(k("CREATE FUNCTION f() RETURNS int LANGUAGE sql SET search_path = '' AS $$ SELECT 1 $$;"), 'A');
-});
-
-// ---------------------------------------------------------------- RB02
-test('RB02 cron.schedule, net.http_* en vergelijkbare bijwerkingenfuncties gaan nooit als read-only door (ook niet vóór de GO); een functie buiten de allowlist is altijd een wijziging', met(root => {
-  const cron = "SELECT cron.schedule('j','* * * * *','DELETE FROM klanten')", net = "SELECT net.http_post(url := 'https://x.example', body := '{}'::jsonb)";
-  for (const s of [cron, net, "SELECT cron.unschedule('j')", "SELECT http_get('https://x.example')", 'SELECT supabase_functions.http_request()', 'SELECT pg_temp.f()', 'SELECT public.f()', 'SELECT version()', 'SELECT mijn_functie(1)'])
-    assert.equal(classifySql(s).level, 'change', s + ' was "read"');
-  // zuivere functies blijven gewoon alleen-lezen
-  for (const s of ['SELECT count(*) FROM t WHERE x > 1', 'SELECT lower(a), now(), coalesce(b, 0) FROM t ORDER BY 1', "SELECT jsonb_agg(x) FROM t WHERE y IN (1, 2)", 'SELECT * FROM (SELECT 1) AS s']) assert.equal(classifySql(s).level, 'read', s);
-  // in een migratie: HTTP vanuit de database en COPY naar een bestand zijn DB-C; een cron-job minimaal B en de opdracht telt mee
-  assert.equal(k(net), 'C'); assert.equal(k("SELECT http_post('https://x', 'a')"), 'C'); assert.equal(k("COPY klanten TO '/tmp/x.csv'"), 'C'); assert.equal(k("COPY klanten FROM '/tmp/x.csv'"), 'C');
-  assert.equal(k(cron), 'C', 'de cron-opdracht verwijdert permanent klanten');
-  assert.equal(k("SELECT cron.schedule('j','* * * * *','SELECT 1')"), 'B');
-  // het reviewscenario: dit mocht zelfs vóór de GO (PLANNING en WAITING_FOR_APPROVAL lieten reads toe)
-  const REF = 'abcdefghij';
-  plan(root, {envelope: {providers: {supabase: {project_ref: REF, tools: ['get_project_url', 'execute_sql'], max_calls: 4}}, db_max: 'A', budgets: BUDGET(4)}});
-  assert.equal(st(root).status, 'WAITING_FOR_APPROVAL');
-  assert.match(msg(() => pre(root, 'mcp__supabase__execute_sql', {query: cron, project_id: REF}, {tool_use_id: 'c1'})), /werkpakket in uitvoering|Muterende execute_sql/);
-  assert.match(msg(() => pre(root, 'mcp__supabase__execute_sql', {query: net, project_id: REF}, {tool_use_id: 'c2'})), /werkpakket in uitvoering|Muterende execute_sql/);
-}));
-
-// ---------------------------------------------------------------- RB03
-test('RB03 een functiebody met destructieve SQL plus een latere aanroep valt niet onder DB-A/B (reviewscenario: pg_temp.f() en de A-variant met public.f())', () => {
-  const f = 'CREATE FUNCTION pg_temp.f() RETURNS void LANGUAGE sql AS $$ DELETE FROM klanten $$;';
-  assert.equal(k(f), 'C', 'de functie zelf was A');
-  assert.equal(k(f + ' SELECT pg_temp.f();'), 'C', 'de aanroep was B; met db_max B werd de DELETE uitgevoerd');
-  assert.equal(classifyExternalCall('mcp__supabase__apply_migration', {name: 'x', query: f + ' SELECT pg_temp.f();'}).db, 'C');
-  assert.equal(k('SELECT pg_temp.f();'), 'B', 'een niet-herkende gebruikersfunctie is minimaal B');
-  // erft: trigger en cron-job die een functie met destructieve body aanroepen
-  const wis = 'CREATE FUNCTION wis() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN DELETE FROM log; RETURN NEW; END; $$;';
-  assert.equal(k(wis + ' CREATE TRIGGER t AFTER INSERT ON a FOR EACH ROW EXECUTE FUNCTION wis();'), 'C');
-  assert.equal(k(wis + " SELECT cron.schedule('j','* * * * *','SELECT wis()');"), 'C');
-  assert.equal(k("CREATE FUNCTION a1() RETURNS int LANGUAGE sql AS $$ SELECT net.http_get('https://x') $$;"), 'C', 'een body met netwerk');
-  assert.equal(k("CREATE FUNCTION a2() RETURNS void LANGUAGE plpgsql AS $$ BEGIN EXECUTE 'drop table x'; END; $$;"), 'C', 'dynamische SQL in een body');
-  assert.equal(k('CREATE FUNCTION a3() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE t SET a = 1; END; $$;'), 'C', 'UPDATE zonder WHERE in een body');
-  // de A-variant: een A-migratie maakt de functie en daarna draait execute_sql 'SELECT public.f()' als "read"
-  const veilig = 'CREATE FUNCTION public.f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;';
-  assert.equal(k(veilig), 'A'); assert.equal(classifySql('SELECT public.f()').level, 'change', 'een gebruikersfunctie is nooit read-only');
-  assert.equal(k('CREATE FUNCTION g() RETURNS void LANGUAGE plpgsql AS $$ BEGIN INSERT INTO log VALUES (now()); END; $$;'), 'A', 'een onschuldige body blijft A');
-  // een niet-herkende functie in een DEFAULT of AS SELECT voert code uit zonder dat een body te zien is: minimaal B
-  assert.equal(k('ALTER TABLE t ADD COLUMN x int DEFAULT public.vreemd();'), 'B'); assert.equal(k('CREATE TABLE t2 AS SELECT public.vreemd() AS x;'), 'B'); assert.equal(k('INSERT INTO a (b) SELECT public.vreemd()'), 'B');
-  assert.equal(k('ALTER TABLE t ADD COLUMN gemaakt timestamptz DEFAULT now();'), 'A'); assert.equal(k("CREATE TABLE t3 (id uuid DEFAULT gen_random_uuid(), tekst text DEFAULT 'a', n int DEFAULT (1 + 2));"), 'A');
-});
-
-// ---------------------------------------------------------------- RB04
-test('RB04 BYPASSRLS, SUPERUSER, NO FORCE ROW LEVEL SECURITY en vergelijkbare RLS- en auth-escalaties zijn DB-C', () => {
-  for (const s of ['ALTER ROLE authenticated BYPASSRLS', 'ALTER ROLE authenticator SUPERUSER', 'CREATE ROLE evil LOGIN BYPASSRLS', 'ALTER TABLE klanten NO FORCE ROW LEVEL SECURITY', 'CREATE ROLE x CREATEROLE', 'ALTER ROLE x REPLICATION', 'DROP ROLE x', 'CREATE USER u',
-    'SET ROLE postgres', 'SET SESSION AUTHORIZATION postgres', 'ALTER TABLE t OWNER TO postgres', 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon', 'GRANT postgres TO authenticated',
-    'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO anon', 'GRANT ALL ON t TO PUBLIC', 'CREATE POLICY p ON t FOR ALL TO anon USING (true) WITH CHECK (true)', 'ALTER POLICY p ON t USING (true)']) assert.equal(k(s), 'C', s + ' was B');
-  assert.equal(k('ALTER TABLE a ENABLE ROW LEVEL SECURITY;'), 'A'); assert.equal(k('GRANT SELECT ON a TO x;'), 'B'); assert.equal(k('CREATE POLICY p ON a FOR SELECT USING (b = current_user);'), 'B');
-});
-
 // ---------------------------------------------------------------- RB05
 test('RB05 extra_commands zijn volledig zichtbaar in het voorstel vóór de GO en kunnen publicatie of een gate niet omzeilen', met(async root => {
   const plan0 = contract().plan;
@@ -112,7 +43,7 @@ test('RB05 extra_commands zijn volledig zichtbaar in het voorstel vóór de GO e
   // het reviewscenario: lokale doelen (test, build, read, preview) zonder gate mochten elke argv hebben, en met doel deploy omzeilde git push de merge-gate
   for (const [purpose, argv] of [['test', ['npm', 'publish']], ['build', ['git', 'push', '--force', 'origin', 'main']], ['read', ['git', 'push', 'origin', 'main']], ['preview', ['npm', 'run', 'deploy']], ['build', ['curl', 'https://x.example']], ['test', ['vercel', '--prod']], ['build', ['gh', 'pr', 'merge', '1']], ['deploy', ['git', 'push', 'origin', 'w:main']], ['merge', ['git', 'commit', '-m', 'x']], ['install', ['git', 'tag', 'v1']]]) {
     assert.ok(extraRefusal(argv, purpose), argv.join(' ') + ' (' + purpose + ') hoort geweigerd te worden');
-    assert.throws(() => validateContract(structuredClone(mak(argv, purpose))), /git|publiceert|netwerk|publiceren|capabilit|lokaal/i, argv.join(' '));
+    assert.throws(() => validateContract(structuredClone(mak(argv, purpose))), /staat niet op de lijst|accepteert geen/i, argv.join(' '));
   }
   // legitieme extra's blijven kunnen, mits zichtbaar
   assert.equal(extraRefusal(['node', 'scripts/bouw.mjs'], 'build'), null); assert.equal(extraRefusal(['git', 'checkout', '-b', 'x'], 'destructive'), null);
