@@ -126,4 +126,9 @@ Eén GO (envelop-hash 01d07b3479d5), HIGH omdat de goedkeuringskern wordt aangep
 - **Eerdere uitspraak gecorrigeerd:** "19 falende tests, los van v3.3.1" was onjuist: 5 bestaand, 14 door v3.3.1 (nu hersteld). Geen reviewer ingezet: de fix is een versieconstante plus één testverwachting en raakt geen veiligheidscontrole.
 - **Voorstel voor A8 van AAE-V331-001 (nog niet doorgevoerd, eigen GO nodig):** "geen nieuwe failures in `eigen.test.mjs` ten opzichte van de bewezen baseline (parent c23ade2: dezelfde 5 bestaande failures)" in plaats van "de eigen suite slaagt".
 
+### AAE-V331-001 afgesloten als READY na de A8-correctie (2026-10-03)
+- A8 is op verzoek van Jurgen (nieuwe GO, envelop 3f01c3b5069e) gecorrigeerd naar "de volledige v3.3-suite slaagt en `eigen.test.mjs` voegt geen nieuwe failures toe ten opzichte van de bewezen baseline (parent c23ade2); de 5 bestaande failures blijven buiten scope". Bewijs: nulmeting AAE-V331-FIX (parent 5 falend, v3.3.1 dezelfde 5, 0 nieuwe).
+- Bewijs op de uiteindelijke bron: v3.3-suite 284/284 (run-14); onafhankelijke eindreview (aae-reviewer, code, 2 van 3 agentruns in totaal): VERDICT READY, geen blokkerend punt; twee kleine opmerkingen staan in `docs/aae/notes/verbeterpunten.md` (punt 4).
+- Niet geïnstalleerd; `main` en het live systeem onaangeroerd. Installatie (AAE-V331-002) is een apart werkpakket met eigen GO.
+
 Eerstvolgende stap: Jurgen start de nieuwe, aparte review op de nieuwe SHA (`tools/aae-v33/REVIEW-OPDRACHT.md`, strikt read-only, met de vaste releasecriteria) en plakt het rapport terug. Daarna werkpakket AAE-V33-002 met een eigen GO: bewijs van de review (gebonden aan de commit-sha), installatie (`tools/aae-v33/installer/install.mjs`), terugdraaicontrole, rooktest en de merge naar `main` met gate. W-03 afvalkalender blijft geparkeerd tot v3.3 live is. M8 ≈ 2026-10-29.
