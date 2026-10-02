@@ -2,7 +2,7 @@
  * Gebruikersopdrachten. Alleen exacte AAE-commando's veranderen een goedkeuring; elk ander bericht is een voortzetting
  * (continuation_event) en laat status en GO ongemoeid. Interne hook-meldingen raken dit pad nooit.
  */
-import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRefs, stable, envelopeHash, shortHash} from './core.mjs';
+import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRefs, stable, envelopeHash, shortHash, SHORT_HASH_LENGTH} from './core.mjs';
 import {
   withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
 } from './state.mjs';
@@ -11,7 +11,7 @@ import {runsArbitraryCode} from './core.mjs';
 import {liveRows, reconcile} from './reports.mjs';
 import {importLegacy} from './legacy.mjs';
 
-const CMD = /^AAE (GO|PAUZE|VERDER|STATUS|ANNULEER|BEVESTIG)(?: ([A-Za-z0-9_-]+))?(?: ([0-9a-f]{8}))?$/; // exacte tekst, hoofdletters; geen afgeleide of vermomde varianten. GO: AAE GO <id> <korte hash>.
+const CMD = /^AAE (GO|PAUZE|VERDER|STATUS|ANNULEER|BEVESTIG)(?: ([A-Za-z0-9_-]+))?(?: ([0-9a-f]{4,64}))?$/; // exacte tekst, hoofdletters; geen afgeleide of vermomde varianten. GO: AAE GO <id> <korte hash van exact 12 tekens>; een andere lengte wordt bij de GO met uitleg geweigerd.
 export const context = (event, msg) => ({hookSpecificOutput: {hookEventName: event, additionalContext: msg}});
 export const extraKey = m => digest({argv: m.argv, purpose: m.purpose});
 
@@ -153,6 +153,10 @@ export function handlePrompt(root, e) {
     if (!id || !korteHash) {
       eventLog(root, 'go_geweigerd', {reden: 'ID of hash ontbreekt'});
       return context('UserPromptSubmit', 'AAE: GO geweigerd: een GO heeft de vorm AAE GO <werkpakket-ID> <korte hash> en alleen voor een voorstel dat is getoond. Voer cli present <id> uit, toon de gebruiker ID en korte hash met de volledige inhoud, en wacht op de exacte GO-opdracht. Er is niets goedgekeurd.');
+    }
+    if (korteHash.length !== SHORT_HASH_LENGTH) {
+      eventLog(root, 'go_geweigerd', {id, reden: 'hashlengte ' + korteHash.length});
+      return context('UserPromptSubmit', 'AAE: GO geweigerd voor ' + id + ': de korte hash heeft ' + korteHash.length + ' tekens, een GO gebruikt er precies ' + SHORT_HASH_LENGTH + ' (AAE GO <werkpakket-ID> <' + SHORT_HASH_LENGTH + ' tekens>). Voer cli present ' + id + ' uit en gebruik de exacte GO-opdracht uit de uitvoer. Er is niets goedgekeurd.');
     }
     const st = kies(root, id, s => s.status === 'WAITING_FOR_APPROVAL' || s.status === 'PAUSED' || s.status === 'EXECUTING' || (s.status === 'NEEDS_HUMAN' && s.needs_human?.kind === 'material_change'), 'GO');
     if (!st) {

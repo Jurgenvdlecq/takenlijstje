@@ -18,6 +18,8 @@ const msg = async p => { try { await p; } catch (e) { return e.message; } assert
 const C = (id, argv, purpose = 'test', o = {}) => ({id, argv, purpose, why: 'Test van ' + id + '.', watch: [], timeout_ms: 60000, max_runs: 5, ...o});
 const metCmds = (cmds, extra = [], env = {}) => ({envelope: {extra_commands: extra, ...env}, plan: {...contract().plan, commands: [...contract().plan.commands, ...cmds]}});
 const ex = (argv, purpose = 'test') => ({argv, purpose});
+// Een klein projectscript als extra commando (een codevlag zoals node -e is sinds 001D nooit meer toegestaan als extra commando; zie RD02).
+const script = (root, naam, code, ...args) => { fs.mkdirSync(path.join(root, 'scripts'), {recursive: true}); fs.writeFileSync(path.join(root, 'scripts', naam), code); return ['node', 'scripts/' + naam, ...args]; };
 const makeResult = (root, receipt, mutate) => {
   const t = reportTemplate(root);
   t.status = 'READY'; t.summary = 'Alles bewezen en gecontroleerd binnen het gebied.';
@@ -54,19 +56,20 @@ test('R04 een wijziging in een script of configuratie maakt de goedkeuring van e
   assert.match(await msg(runCommand(root, 'inst')), /niet \(meer\) gelijk/);
 }));
 test('R05 het pakketmanifest zit in de vingerafdruk, ook als het niet in watch staat', met(async root => {
-  executing(root, metCmds([C('inst', ['node', '-e', '1'], 'install', {max_runs: 1})], [ex(['node', '-e', '1'], 'install')]));
+  const argv = script(root, 'niets.mjs', 'export {};\n');
+  executing(root, metCmds([C('inst', argv, 'install', {max_runs: 1})], [ex(argv, 'install')]));
   fs.writeFileSync(path.join(root, 'package.json'), '{"name":"fixture","private":true,"scripts":{"x":"y"}}\n');
   assert.match(await msg(runCommand(root, 'inst')), /niet \(meer\) gelijk/);
 }));
 test('R06 shell-metatekens zijn letterlijke argv-tekst en worden nooit uitgevoerd', met(async root => {
-  const argv = ['node', '-e', 'require("fs").writeFileSync("gelezen.txt", process.argv[1])', 'a;touch pwned'];
+  const argv = script(root, 'lit.mjs', 'import fs from "node:fs"; fs.writeFileSync("gelezen.txt", process.argv[2]);\n', 'a;touch pwned');
   executing(root, metCmds([C('lit', argv)], [ex(argv)]));
   assert.equal((await runCommand(root, 'lit')).exit_code, 0);
   assert.equal(fs.readFileSync(path.join(root, 'gelezen.txt'), 'utf8'), 'a;touch pwned');
   assert.equal(fs.existsSync(path.join(root, 'pwned')), false);
 }));
 test('R07 een time-out geeft een vastgelegde mislukte receipt', met(async root => {
-  const argv = ['node', '-e', 'setTimeout(() => {}, 60000)'];
+  const argv = script(root, 'traag.mjs', 'setTimeout(() => {}, 60000);\n');
   executing(root, metCmds([C('traag', argv, 'test', {timeout_ms: 1000})], [ex(argv)]));
   const r = await runCommand(root, 'traag');
   assert.equal(r.timed_out, true); assert.notEqual(r.exit_code, 0); assert.equal(st(root).command_running, null);
@@ -79,7 +82,7 @@ test('R08 een ontbrekend programma geeft een begrensde fout zonder vastgelopen r
   assert.equal(st(root).command_running, null);
 }));
 test('R09 grote uitvoer wordt lokaal en in het antwoord begrensd', met(async root => {
-  const argv = ['node', '-e', 'process.stdout.write("x".repeat(3 * 1024 * 1024))'];
+  const argv = script(root, 'groot.mjs', 'process.stdout.write("x".repeat(3 * 1024 * 1024));\n');
   executing(root, metCmds([C('groot', argv)], [ex(argv)]));
   const r = await runCommand(root, 'groot');
   assert.equal(r.log_truncated, true); assert.ok(fs.statSync(path.join(root, r.log_path)).size <= 1024 * 1024); assert.ok(r.tail.length <= 2500);
@@ -92,7 +95,7 @@ test('R10 twee gelijke mislukte pogingen zonder bronwijziging vragen een andere 
   assert.notEqual((await runCommand(root, 'rood')).exit_code, 0, 'na een bronwijziging mag het weer');
 }));
 test('R11 een gelijktijdige runneraanroep wordt geblokkeerd', met(async root => {
-  const argv = ['node', '-e', 'setTimeout(() => {}, 700)'];
+  const argv = script(root, 'lang.mjs', 'setTimeout(() => {}, 700);\n');
   executing(root, metCmds([C('lang', argv)], [ex(argv)]));
   const eerste = runCommand(root, 'lang');
   assert.match(await msg(runCommand(root, 't_ok')), /Geen commandoloop/);
@@ -109,14 +112,20 @@ test('R13 alleen lokale commando\'s van de allowlist draaien zonder extra goedke
   executing(root);
   assert.equal((await runCommand(root, 't_ok')).exit_code, 0);
 }));
-test('R14 deploy is een expliciete capability met bewijs: zonder capability of zonder READY-resultaat geen uitvoering', met(async root => {
-  const argv = ['node', '-e', '1'];
-  executing(root, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'verify'}}));
-  assert.match(await msg(runCommand(root, 'uitrol')), /Deploy starten is geen capability/);
+test('R14 deploy is een expliciete capability met bewijs (geen extra commando): zonder capability of zonder READY-resultaat geen uitvoering', met(async root => {
+  // Sinds 001D bestaat er geen los deploy-commando meer: een deploy-doel accepteert geen extra commando's; uitrollen loopt uitsluitend via de capability en haar gate.
+  const argv = script(root, 'uitrol.mjs', 'export {};\n');
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}})))), /accepteert geen extra commando/);
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}})))), /Een los deploy-commando bestaat niet/);
+  // de gate zelf blijft: zonder capability niet, met capability alleen met een READY-resultaat
+  executing(root, metCmds([], [], {git: {commit: false, push: [], merge: null, deploy: 'verify'}}));
+  const s = st(root);
+  assert.throws(() => assertGate(root, s, s.contract, 'deploy'), /Deploy starten is geen capability/);
   const root2 = fixture();
   try {
-    executing(root2, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}}));
-    assert.match(await msg(runCommand(root2, 'uitrol')), /result\.json ontbreekt/);
+    executing(root2, metCmds([], [], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}}));
+    const s2 = st(root2);
+    assert.throws(() => assertGate(root2, s2, s2.contract, 'deploy'), /result\.json ontbreekt/);
   } finally { cleanup(root2); }
 }));
 test('R15 een gepauzeerd werkpakket voert een eerder goedgekeurd commando niet uit', met(async root => {
@@ -162,7 +171,7 @@ test('R21 commandobewijs moet een echte, geslaagde en actuele receipt zijn', met
   assert.throws(() => closeTask(root), /actuele commandoreceipt/);
 }));
 test('R22 een script dat de bron wijzigt kan niet dienen als bewijs voor een ongewijzigde bron', met(async root => {
-  const argv = ['node', '-e', 'require("fs").writeFileSync("src/gen.js", String(Date.now()))'];
+  const argv = script(root, 'gen.mjs', 'import fs from "node:fs"; fs.writeFileSync("src/gen.js", String(Date.now()));\n');
   executing(root, metCmds([C('gen', argv)], [ex(argv)]));
   const r = await runCommand(root, 'gen');
   assert.notEqual(r.source_before, r.source_after);
@@ -271,19 +280,20 @@ test('R29 een wijziging in een bewaakt script binnen het gebied laat een lokaal 
   fs.writeFileSync(path.join(root, 'src/check.js'), 'console.log(2)');
   assert.equal((await runCommand(root, 'check')).exit_code, 0);
 }));
-test('R30 B4: een wijziging aan een bewaakt bestand binnen het gebied vraagt voor deploy-commando\'s een nieuwe GO', met(async root => {
-  fs.writeFileSync(path.join(root, 'src/deploy.js'), 'console.log(1)');
-  const argv = ['node', 'src/deploy.js'];
-  executing(root, metCmds([C('uitrol', argv, 'deploy', {max_runs: 1, watch: ['src/deploy.js']})], [ex(argv, 'deploy')], {git: {commit: false, push: [], merge: null, deploy: 'trigger'}}));
-  fs.writeFileSync(path.join(root, 'src/deploy.js'), 'console.log(2)');
-  assert.match(await msg(runCommand(root, 'uitrol')), /niet \(meer\) gelijk/);
+test('R30 B4: een wijziging aan een bewaakt bestand binnen het gebied vraagt voor een install-commando een nieuwe GO', met(async root => {
+  fs.writeFileSync(path.join(root, 'src/inst.js'), 'console.log(1)');
+  const argv = ['node', 'src/inst.js'];
+  executing(root, metCmds([C('inst', argv, 'install', {max_runs: 1, watch: ['src/inst.js']})], [ex(argv, 'install')]));
+  fs.writeFileSync(path.join(root, 'src/inst.js'), 'console.log(2)');
+  assert.match(await msg(runCommand(root, 'inst')), /niet \(meer\) gelijk/);
 }));
-test('R31 B4: ook een niet-git samenvoegcommando is aan zijn vingerafdruk gebonden', met(async root => {
-  fs.writeFileSync(path.join(root, 'src/merge.js'), 'console.log(1)');
-  const argv = ['node', 'src/merge.js'];
-  executing(root, metCmds([C('samenvoegen', argv, 'merge', {max_runs: 1, watch: ['src/merge.js']})], [ex(argv, 'merge')], mergeEnv));
-  fs.writeFileSync(path.join(root, 'src/merge.js'), 'console.log(2)');
-  assert.match(await msg(runCommand(root, 'samenvoegen')), /niet \(meer\) gelijk/);
+test('R31 B4: ook een destructief commando is aan zijn vingerafdruk gebonden; een merge accepteert geen extra commando meer', met(async root => {
+  fs.writeFileSync(path.join(root, 'src/wis.js'), 'console.log(1)');
+  const argv = ['node', 'src/wis.js'];
+  executing(root, metCmds([C('wissen', argv, 'destructive', {max_runs: 1, watch: ['src/wis.js']})], [ex(argv, 'destructive')]));
+  fs.writeFileSync(path.join(root, 'src/wis.js'), 'console.log(2)');
+  assert.match(await msg(runCommand(root, 'wissen')), /niet \(meer\) gelijk/);
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('samenvoegen', argv, 'merge', {max_runs: 1})], [ex(argv, 'merge')], mergeEnv)))), /accepteert geen extra commando/);
 }));
 test('R32 een binnen de envelop aangepast plan houdt goedgekeurde commando\'s uitvoerbaar zonder nieuwe GO', met(async root => {
   executing(root);
@@ -302,5 +312,5 @@ test('R33 een vervolgbericht laat de commandogoedkeuring intact', met(async root
 test('R34 herhalen binnen het goedgekeurde aantal runs mag voor lokale en git-commando\'s; gevoelige commando\'s zijn eenmalig en nooit vertrouwd', () => {
   const git = {commit: true, push: ['claude/w'], merge: null, deploy: 'none'};
   assert.doesNotThrow(() => validateContract(structuredClone(contract(metCmds([C('p', ['git', 'push', '-u', 'origin', 'claude/w'], 'push', {max_runs: 3})], [], {git})))));
-  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('d', ['node', '-e', '1'], 'deploy', {max_runs: 2})], [ex(['node', '-e', '1'], 'deploy')], {git: {...git, deploy: 'trigger'}})))), /Aantal uitvoeringen/);
+  assert.throws(() => validateContract(structuredClone(contract(metCmds([C('d', ['node', 'scripts/x.mjs'], 'install', {max_runs: 2})], [ex(['node', 'scripts/x.mjs'], 'install')], {git})))), /Aantal uitvoeringen/);
 });

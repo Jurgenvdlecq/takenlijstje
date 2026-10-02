@@ -238,28 +238,83 @@ function gitMergeOk(c, argv) {
   const x = /^([^:+]+):([^:+]+)$/.exec(argv[3]);
   return Boolean(x) && BRANCH.test(x[1]) && c.envelope.git.push.includes(x[1]) && x[2] === m.to && BRANCH.test(x[2]);
 }
-// Programma's die publiceren, uitrollen of het netwerk op gaan: nooit een "lokaal" extra commando, en git loopt nooit via een extra commando.
-const LOCAL_FORBIDDEN_PROGRAMS = new Set(['gh', 'curl', 'wget', 'ssh', 'scp', 'rsync', 'docker', 'podman', 'vercel', 'netlify', 'supabase', 'aws', 'gcloud', 'flyctl', 'fly', 'heroku', 'kubectl', 'terraform', 'ftp', 'sftp', 'nc', 'ncat']);
-const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'npx', 'pnpx', 'bunx']);
+// ---- inhoudelijke commandocontrole voor extra commando's (voor elk doel gelijk) ----
+// Programma's die publiceren, uitrollen, samenvoegen, de database of het netwerk raken: nooit een extra commando, ook niet met doel install of destructive.
+// Dat loopt uitsluitend via de eigen capabilities (git push/merge, providertools) en hun gates; het doel-label wijzigt dit nooit.
+const FORBIDDEN_PROGRAMS = new Set(['gh', 'hub', 'glab', 'curl', 'wget', 'http', 'https', 'xh', 'ssh', 'scp', 'sftp', 'ftp', 'rsync', 'nc', 'ncat', 'netcat', 'socat', 'telnet', 'docker', 'docker-compose', 'podman', 'kubectl', 'helm', 'terraform', 'pulumi', 'ansible', 'ansible-playbook',
+  'vercel', 'netlify', 'supabase', 'aws', 'az', 'gcloud', 'gsutil', 'bq', 'doctl', 'flyctl', 'fly', 'heroku', 'railway', 'render', 'wrangler', 'firebase', 'serverless', 'sls', 'sam', 'amplify', 'eas', 'psql', 'pg_dump', 'pg_restore', 'mysql', 'mysqldump', 'mongosh', 'mongo', 'redis-cli', 'sqlcmd']);
+// Wrappers en indirecte uitvoering: ze starten een ander programma zonder dat de controle het ziet (env git push …, sh script.sh, xargs curl).
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'csh', 'tcsh', 'fish', 'ash', 'busybox', 'pwsh', 'powershell', 'cmd', 'wsl', 'start']);
+const WRAPPERS = new Set(['env', 'xargs', 'sudo', 'doas', 'su', 'nohup', 'nice', 'ionice', 'timeout', 'time', 'stdbuf', 'command', 'exec', 'setsid', 'watch', 'flock', 'chroot', 'unshare', 'nsenter', 'strace', 'ltrace', 'script', 'parallel', 'at', 'batch', 'eval', 'source', 'taskset', 'chrt', 'runuser', 'caffeinate', 'builtin', 'xdg-open', 'open',
+  'awk', 'gawk', 'mawk', 'nawk']); // awk draagt zijn programma als gewoon argument (BEGIN{system(…)}): niet te onderscheiden van een bestand, dus nooit toegestaan
+const INTERPRETERS = new Set(['node', 'nodejs', 'deno', 'bun', 'python', 'python3', 'py', 'ruby', 'perl', 'php', 'lua', 'osascript']);
+const CODE_FLAGS = /^(-e|-E|--eval|-p|--print|-c|-C|-r|--require|--import|--loader|--experimental-loader|-x|-)$/;
+// Een codevlag ook als --eval=code of als gecombineerde korte vlaggen (-pe, -Sc): de vlag vóór een "=" telt, en een cluster van letters met e, E, p, c, C, r of x is een codevlag.
+const codeVlag = a => CODE_FLAGS.test(a.split('=')[0]) || (/^-[A-Za-z]{2,6}$/.test(a) && /[eEpcCrx]/.test(a));
+const PYTHON_MODULES = new Set(['pip', 'venv', 'pytest', 'unittest', 'compileall']);
+const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'npx', 'pnpx', 'bunx', 'corepack']);
+const PM_INSTALL = new Set(['install', 'i', 'ci', 'add', 'remove', 'rm', 'uninstall', 'update', 'upgrade', 'up', 'rebuild', 'dedupe', 'prune']);
+const PM_RUN = new Set(['run', 'run-script', 'test', 'start', 't', 'tst', 'build']);
+const PM_INFO = new Set(['ls', 'list', 'outdated', 'audit', 'why', 'explain', 'view', 'info', 'pack', 'help', 'version', '-v', '--version']);
+const PM_INDIRECT = new Set(['exec', 'x', 'dlx', 'create', 'init', 'link', 'unlink', 'config', 'set', 'get', 'login', 'logout', 'adduser', 'whoami', 'token', 'access', 'owner', 'team', 'org', 'profile', 'dist-tag', 'deprecate', 'unpublish', 'publish', 'deploy', 'release', 'cache', 'explore']);
+const RISKY_SCRIPT = /(publish|deploy|release|ship|upload|push|migrat|prod|rollout|provision|db[:_-]|sync[:_-]remote|merge)/i; // een scriptnaam die op uitrollen wijst; de inhoud van projectscripts blijft projectcode (geen sandbox)
 const PUBLISH_WORDS = /^(publish|deploy|release|login|adduser|unpublish|dist-tag|token)$/i;
 const GIT_VIA_CAPABILITY = new Set(['push', 'commit', 'merge', 'tag', 'rebase', 'cherry-pick', 'am', 'apply', 'remote', 'config', 'fetch', 'pull', 'update-ref', 'send-pack', 'bundle', 'notes', 'revert']);
+const GIT_EXTRA_OK = new Set(['status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'ls-tree', 'branch', 'checkout', 'switch', 'restore', 'reset', 'clean', 'stash', 'rm', 'mv']);
+const GIT_DANGEROUS_ARG = /^(-c|--config|--config-env|--exec-path|--upload-pack|--receive-pack|--exec|--ext-diff|--textconv|--output|--git-dir|--work-tree|-C|--namespace)(=|$)/;
 const programName = a => String(a || '').split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, '');
-/** Waarom een extra commando niet is toegestaan (null = toegestaan als het in de envelop staat). */
+const firstNonFlag = a => a.find(x => !String(x).startsWith('-'));
+/**
+ * Waarom een extra commando niet is toegestaan (null = toegestaan als het in de envelop staat). Dezelfde inhoudelijke controle voor elk doel
+ * (read, test, build, preview, install, destructive); merge en deploy accepteren helemaal geen extra commando's: samenvoegen en uitrollen
+ * lopen uitsluitend via hun eigen capabilities en gates. Een doel-label verandert nooit wat een programma kan.
+ */
 export function extraRefusal(argv, purpose) {
+  if (!Array.isArray(argv) || !argv.length || !argv.every(a => typeof a === 'string' && a.length)) return 'Een commando heeft een leeg of ongeldig argument.';
+  if (['merge', 'deploy'].includes(purpose)) return 'Doel ' + purpose + ' accepteert geen extra commando\'s: samenvoegen en uitrollen lopen uitsluitend via hun eigen capabilities en gates (git push/merge-capability, deploy-capability, providertools).';
+  if (['commit', 'push'].includes(purpose)) return 'Commit en push lopen nooit via een extra commando (' + purpose + ').';
   const prog = programName(argv[0]);
+  if (/[\\/]/.test(argv[0])) return 'Een commando met een pad (' + argv[0] + ') kan een willekeurig script zijn; gebruik de programmanaam (bijvoorbeeld node scripts/x.mjs) zodat de controle het kan beoordelen.';
+  if (FORBIDDEN_PROGRAMS.has(prog)) return prog + ' publiceert, rolt uit, raakt de database of gebruikt het netwerk en is nooit een extra commando (ook niet met doel ' + purpose + '): dat loopt uitsluitend via de eigen capabilities en gates.';
+  if (SHELLS.has(prog) || WRAPPERS.has(prog)) return prog + ' start indirect een ander programma en omzeilt daarmee de controle: niet toegestaan als commando (' + purpose + ').';
+  if (prog === 'find' && argv.some(a => /^-(exec|execdir|ok|okdir)$/.test(a))) return 'find met -exec/-execdir/-ok start indirect een ander programma: niet toegestaan.';
   if (prog === 'git') {
-    // Publiceren, vastleggen en samenvoegen alleen via de capabilities en hun gate; andere git-handelingen (bijvoorbeeld checkout als destructief commando) blijven zichtbaar toegestaan.
+    // Publiceren, vastleggen en samenvoegen alleen via de capabilities en hun gate; verder een vaste lijst zonder configuratie- of aliasingang.
     const a = argv.slice(1); let i = 0;
-    while (i < a.length && a[i].startsWith('-')) i += /^(-C|-c|--git-dir|--work-tree|--namespace)$/.test(a[i]) ? 2 : 1;
+    while (i < a.length && a[i].startsWith('-')) { if (!/^(--no-pager|-P)$/.test(a[i])) return 'git-opties vóór het subcommando (' + a[i] + ') zijn niet toegestaan: ze kunnen configuratie of uitvoerbare hulpprogramma\'s binnenhalen.'; i++; }
     const sub = String(a[i] || '').toLowerCase();
-    if (GIT_VIA_CAPABILITY.has(sub) || !sub) return 'git ' + (sub || '') + ' loopt nooit via een extra commando (ook niet met doel ' + purpose + '): commit, push en merge alleen via de capabilities en hun gate.';
+    if (!sub || GIT_VIA_CAPABILITY.has(sub)) return 'git ' + (sub || '') + ' loopt nooit via een extra commando (ook niet met doel ' + purpose + '): commit, push en merge alleen via de capabilities en hun gate.';
+    if (!GIT_EXTRA_OK.has(sub)) return 'git ' + sub + ' staat niet op de lijst van toegestane git-handelingen voor een extra commando (een onbekend subcommando kan een alias of extern programma zijn).';
+    if (a.slice(i + 1).some(x => GIT_DANGEROUS_ARG.test(x))) return 'git-argument niet toegestaan (configuratie, extern hulpprogramma of uitvoerbestand).';
     if (LOCAL.includes(purpose)) return 'git ' + sub + ' is geen lokaal extra commando (' + purpose + ').';
     return null;
   }
-  if (LOCAL.includes(purpose)) {
-    if (LOCAL_FORBIDDEN_PROGRAMS.has(prog)) return prog + ' publiceert of gebruikt het netwerk en is geen lokaal commando (' + purpose + ').';
-    if (PACKAGE_MANAGERS.has(prog) && argv.slice(1).some(a => PUBLISH_WORDS.test(a) || LOCAL_FORBIDDEN_PROGRAMS.has(programName(a)))) return 'publiceren of uitrollen via ' + prog + ' is geen lokaal commando (' + purpose + ').';
+  const rest = argv.slice(1);
+  if (INTERPRETERS.has(prog) && prog !== 'bun') {
+    const eerste = rest.findIndex(a => !a.startsWith('-') || a === '-'), opties = eerste < 0 ? rest : rest.slice(0, eerste + 1); // alleen de opties vóór het scriptbestand tellen; argumenten van het script zelf niet
+    if (opties.some(codeVlag)) return prog + ' met een codevlag (-e/-c/--eval/-p/-r/…) voert willekeurige code uit buiten de controle.';
+    if (prog === 'deno' && ['eval', 'repl', 'install', 'upgrade', 'publish', 'deploy'].includes(rest[0])) return 'deno ' + rest[0] + ' voert willekeurige code uit of publiceert en loopt niet via een extra commando.';
+    if ((prog === 'deno' ? rest : opties).some(a => /^[a-z][a-z0-9+.-]*:\/\//i.test(a))) return prog + ' met een URL als argument haalt code van het netwerk en loopt niet via een extra commando.';
+    if (/^python/.test(prog) || prog === 'py') { const mi = rest.indexOf('-m'); if (mi >= 0 && !PYTHON_MODULES.has(rest[mi + 1])) return 'python -m met een onbekende module kan alles starten.'; }
   }
+  if (PACKAGE_MANAGERS.has(prog)) {
+    if (['npx', 'pnpx', 'bunx'].includes(prog)) return prog + ' start willekeurige pakketten buiten de controle (alleen de vaste testprogramma\'s npx vitest/playwright/eslint/tsc staan op de lijst).';
+    if (rest.some(a => FORBIDDEN_PROGRAMS.has(programName(a)))) return 'publiceren of uitrollen via ' + prog + ' loopt niet via een extra commando.';
+    const sub = String(firstNonFlag(rest) || '').toLowerCase();
+    if (!sub) return prog + ' zonder subcommando is niet toegestaan.';
+    if (PM_INDIRECT.has(sub) || PUBLISH_WORDS.test(sub)) return prog + ' ' + sub + ' publiceert, rolt uit of start indirect andere pakketten en is nooit een extra commando (' + purpose + ').';
+    if (prog === 'bun' && sub === 'x') return 'bun x start willekeurige pakketten.';
+    if (PM_INSTALL.has(sub)) return purpose === 'install' ? null : prog + ' ' + sub + ' installeert pakketten en hoort bij doel install (niet ' + purpose + ').';
+    if (PM_RUN.has(sub)) {
+      const script = sub === 'run' || sub === 'run-script' ? rest.slice(rest.indexOf(sub) + 1).find(x => !x.startsWith('-')) : sub;
+      if (RISKY_SCRIPT.test(String(script || ''))) return 'Het script ' + script + ' wijst op publiceren of uitrollen en loopt niet via een extra commando.';
+      return null;
+    }
+    if (PM_INFO.has(sub)) return null;
+    return prog + ' ' + sub + ' staat niet op de lijst van toegestane pakketbeheer-handelingen.';
+  }
+  if (['make', 'just', 'task', 'gmake'].includes(prog)) { const t = firstNonFlag(rest); if (RISKY_SCRIPT.test(String(t || ''))) return prog + ' ' + t + ' wijst op publiceren of uitrollen en loopt niet via een extra commando.'; }
+  if (['pip', 'pip3'].includes(prog) && ['install', 'uninstall'].includes(rest[0]) && purpose !== 'install') return 'pip ' + rest[0] + ' installeert pakketten en hoort bij doel install (niet ' + purpose + ').';
   return null;
 }
 /** Voert dit extra commando willekeurige code uit (interpreter met -e/-c)? Alleen voor de zichtbaarheid in het voorstel. */
@@ -268,9 +323,13 @@ export const runsArbitraryCode = argv => {
   return (['node', 'nodejs', 'deno', 'bun'].includes(prog) && argv.slice(1).some(a => /^(-e|--eval|-p|--print)$/.test(a))) || (['python', 'python3', 'sh', 'bash', 'zsh', 'pwsh', 'powershell', 'cmd', 'ruby', 'perl'].includes(prog) && argv.slice(1).some(a => /^(-c|-e|-Command|\/c)$/i.test(a)));
 };
 /** Classificeert een commando tegen de envelop. ok=false betekent: niet toegestaan binnen deze GO. */
+/** Een GO-vrije analyse voert uitsluitend alleen-lezen git uit (status/log/diff/show met --stat of --name-only, rev-parse, merge-base): nooit projectcode zoals node --test, vitest, playwright, eslint of tsc. */
+export const analysisArgv = argv => Array.isArray(argv) && argv[0] === 'git' && safeLocalArgv(argv);
 export function classifyCommand(c, cmd) {
   const argv = cmd.argv, purpose = cmd.purpose;
   const extra = (c.envelope.extra_commands || []).some(x => x.purpose === purpose && sameArgv(x.argv, argv));
+  // Vooraf geweigerd, niet achteraf ontdekt: een analyse zonder GO mag geen projectcode starten (die kan gevolgde bestanden schrijven).
+  if (c.envelope.phase === 'analysis' && !(purpose === 'read' && analysisArgv(argv))) return {ok: false, reason: 'Een analyse zonder GO voert alleen alleen-lezen git-commando\'s uit (status, log, diff of show met --stat of --name-only, rev-parse, merge-base); geen tests, eslint, tsc of ander projectprogramma: dat kan gevolgde bestanden schrijven.'};
   if (LOCAL.includes(purpose)) {
     if (safeLocalArgv(argv)) return {ok: true, kind: 'lokaal'};
     if (!extra) return {ok: false, reason: 'Lokaal commando staat niet op de toegestane lijst en niet in de goedgekeurde extra commando\'s.'};
@@ -285,10 +344,11 @@ export function classifyCommand(c, cmd) {
     return gitPushOk(c, argv) ? {ok: true, kind: 'git-push'} : {ok: false, reason: 'Push alleen naar een branch uit envelop.git.push, nooit naar main, zonder force of refspec.'};
   }
   if (purpose === 'merge') {
-    if (argv[0] !== 'git') { const nee = extra ? extraRefusal(argv, purpose) : 'Merge-commando niet goedgekeurd.'; return nee ? {ok: false, reason: nee} : {ok: true, kind: 'extra'}; }
-    return gitMergeOk(c, argv) ? {ok: true, kind: 'git-merge'} : {ok: false, reason: 'Merge alleen als git push origin <werkbranch>:<doelbranch> met een doel uit envelop.git.merge.'};
+    // Samenvoegen loopt uitsluitend via de merge-capability (git push origin <werkbranch>:<doelbranch>) en haar gate; nooit via een extra commando.
+    return argv[0] === 'git' && gitMergeOk(c, argv) ? {ok: true, kind: 'git-merge'} : {ok: false, reason: 'Merge alleen als git push origin <werkbranch>:<doelbranch> met een doel uit envelop.git.merge; merge accepteert geen extra commando\'s.'};
   }
-  if (purpose === 'deploy' || purpose === 'install' || purpose === 'destructive') {
+  if (purpose === 'deploy') return {ok: false, reason: 'Een los deploy-commando bestaat niet: uitrollen loopt uitsluitend via de deploy-capability en de gate (bijvoorbeeld via de merge naar een automatisch uitrollende branch), nooit via een extra commando.'};
+  if (purpose === 'install' || purpose === 'destructive') {
     if (!extra) return {ok: false, reason: purpose + '-commando moet exact in de goedgekeurde extra commando\'s staan.'};
     const nee = extraRefusal(argv, purpose); return nee ? {ok: false, reason: nee} : {ok: true, kind: 'extra'};
   }
@@ -385,7 +445,12 @@ export function validateContract(c) {
   array(e.assumptions, 0, 8, 'Aannames'); for (const t of e.assumptions) text(t, 'Aanname', 300);
   array(e.decision_defaults, 0, 8, 'Beslisstandaarden'); for (const t of e.decision_defaults) text(t, 'Beslisstandaard', 300);
   array(e.extra_commands, 0, 10, 'Extra commando\'s');
-  for (const x of e.extra_commands) { keys(x, ['argv', 'purpose'], ['argv', 'purpose'], 'Extra commando'); array(x.argv, 1, 40, 'Argumenten'); choice(x.purpose, PURPOSES.filter(p => !['commit', 'push'].includes(p)), 'Doel'); }
+  for (const x of e.extra_commands) {
+    keys(x, ['argv', 'purpose'], ['argv', 'purpose'], 'Extra commando'); array(x.argv, 1, 40, 'Argumenten'); choice(x.purpose, PURPOSES, 'Doel');
+    // Dezelfde inhoudelijke controle voor elk doel, al bij de envelop zelf (niet pas als een plan-commando ernaar verwijst); merge en deploy accepteren geen extra commando's.
+    const nee = extraRefusal(x.argv, x.purpose); requireThat(!nee, 'Extra commando ' + x.argv.join(' ').slice(0, 80) + ' (' + x.purpose + ') is niet toegestaan: ' + nee);
+  }
+  if (e.phase === 'analysis') requireThat(e.extra_commands.length === 0, 'Een analyse heeft geen extra commando\'s: ze zou projectcode kunnen starten zonder GO.');
   const p = c.plan;
   keys(p, ['test_plan', 'agents', 'commands', 'read', 'open_product_questions', 'keep_raw', 'preflight'], ['test_plan'], 'Plan');
   p.agents ??= []; p.commands ??= []; p.read ??= []; p.open_product_questions ??= []; p.keep_raw ??= false;
@@ -445,7 +510,9 @@ export function envelopeOf(c) {
 }
 export const envelopeHash = c => digest(envelopeOf(c));
 /** Korte herkenning voor de gebruiker; intern telt alleen de volledige hash. */
-export const shortHash = h => String(h).slice(0, 8);
+/** De korte hash is alleen ter herkenning voor de gebruiker; 12 hextekens (48 bits) maken een per ongeluk of opzettelijk gelijke korte hash praktisch onmogelijk. Intern bindt alleen de volledige hash. */
+export const SHORT_HASH_LENGTH = 12;
+export const shortHash = h => String(h).slice(0, SHORT_HASH_LENGTH);
 const sub = (a, b) => a.every(x => b.includes(x));
 const sameSet = (a, b) => sub(a, b) && sub(b, a);
 /**

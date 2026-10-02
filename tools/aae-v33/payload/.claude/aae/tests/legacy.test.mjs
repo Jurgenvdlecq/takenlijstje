@@ -55,7 +55,7 @@ test('RB08 legacy: een actieve v3.2-route met kloppende digest en identiek TASK.
   const agent = s.agents['tu-oud']; assert.equal(agent.role, 'aae-reviewer'); assert.equal(agent.focus, 'security'); assert.equal(agent.reported_status, 'READY');
   assert.equal(s.receipts.length, 1);
   assert.equal(importLegacy(root), null, 'idempotent');
-  assert.match(JSON.stringify(prompt(root, 'AAE GO AAE-OUD-1 abcdef12')), /GO geweigerd/, 'een GO zonder getoond voorstel telt niet');
+  assert.match(JSON.stringify(prompt(root, 'AAE GO AAE-OUD-1 abcdef123456')), /GO geweigerd/, 'een GO zonder getoond voorstel telt niet');
   go(root, 'AAE-OUD-1'); assert.equal(st(root, 'AAE-OUD-1').status, 'EXECUTING', 'na present en de exacte GO start het pakket');
 }));
 test('RB08 legacy: een v3.2-route met apply_migration of sensitive_migrations wordt geen algemene B-vrijheid en een gevoelige migratie wordt niet overgenomen', () => {
@@ -64,6 +64,13 @@ test('RB08 legacy: een v3.2-route met apply_migration of sensitive_migrations wo
   const {contract, notes} = adaptLegacyContract(t);
   assert.equal(contract.envelope.db_max, 'A', 'nooit automatisch B');
   assert.ok(notes.some(x => /verwijder_oude_tabel/.test(x)), 'de gevoelige migratie is zichtbaar als niet overgenomen');
+});
+test('RD02 legacy: een v3.2-publicatie- of deploy-commando kan niet worden overgenomen (er bestaat geen los deploy-commando meer) en een extra commando met een wrapper wordt geweigerd', () => {
+  const publiceer = v32Task({commands: [cmd('t_local', ['node', '--test', 'src/ok.test.mjs'], 'test'), cmd('uitrol', ['npm', 'publish'], 'publish', {max_runs: 1})]});
+  assert.throws(() => adaptLegacyContract(publiceer), /kan niet worden overgenomen.*merge- en deploy-capabilities/);
+  const rommel = v32Task({commands: [cmd('t_local', ['node', '--test', 'src/ok.test.mjs'], 'test'), cmd('inst', ['env', 'git', 'push', 'origin', 'main'], 'install', {max_runs: 1})]});
+  const {contract} = adaptLegacyContract(rommel);
+  assert.throws(() => validateContract(structuredClone(contract)), /niet toegestaan/, 'de wrapper wordt bij het valideren van het overgenomen contract geweigerd');
 });
 test('legacy: de rollen worden afgebeeld op de drie nieuwe agents', () => {
   assert.deepEqual(mapRole('aae-security-reviewer'), ['aae-reviewer', 'security']);

@@ -174,12 +174,12 @@ test('G32 ook een LIGHT-pakket start niet zonder GO; een expliciete pauze wint d
 test('G34 een dubbele GO is idempotent: dezelfde goedkeuring, geen tweede start', met(root => {
   executing(root);
   const at = st(root).approved.at, h = st(root).approved.envelope_hash;
-  assert.match(JSON.stringify(prompt(root, 'AAE GO W-T ' + h.slice(0, 8))), /al geldig/);
+  assert.match(JSON.stringify(prompt(root, 'AAE GO W-T ' + h.slice(0, 12))), /al geldig/);
   assert.equal(st(root).approved.at, at); assert.equal(st(root).approved.envelope_hash, h);
 }));
 test('G36 een GO voor een ander werkpakket wordt geweigerd', met(root => {
   plan(root);
-  assert.match(msg(() => prompt(root, 'AAE GO W-ANDERS abcdef12')), /niet in een toestand voor GO/);
+  assert.match(msg(() => prompt(root, 'AAE GO W-ANDERS abcdef123456')), /niet in een toestand voor GO/);
   assert.equal(st(root).status, 'WAITING_FOR_APPROVAL');
 }));
 test('G40 na pauze en hervatten blijven de tellers behouden', met((root, cfg) => {

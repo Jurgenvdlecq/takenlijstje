@@ -7,6 +7,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {WORK, requireThat, safePath, digest, stable, now, envelopeHash, envelopeOf, shortHash, committedInHead} from './core.mjs';
 
 export const SNAPSHOT_SCHEMA = 1;
@@ -65,9 +66,48 @@ export function verifyChain(root, id, {committed = false} = {}) {
   });
   return {chain: keten, namen};
 }
+// ---- atomair en duurzaam schrijven ----
+// Een snapshot wordt eerst volledig naar een tijdelijk bestand in dezelfde map geschreven (exclusief aangemaakt, fsync) en dan atomair onder zijn echte naam gezet.
+// Zo bestaat de echte naam nooit half, en een bestaande snapshot wordt nooit overschreven. Het tijdelijke bestand begint met ".tmp-" en past dus nooit op het snapshotpatroon.
+export const TEMP_NAME = /^\.tmp-\d+-[0-9a-f]{8}-/;
+const fsyncDir = dir => { let fd; try { fd = fs.openSync(dir, 'r'); fs.fsyncSync(fd); } catch { /* sommige bestandssystemen kennen geen map-fsync */ } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* niets */ } } };
+/** Ruimt achtergebleven tijdelijke bestanden van een onderbroken schrijfactie op (alleen binnen de snapshotmap; altijd binnen de lock). */
+export function ruimTijdelijkeOp(root, id) {
+  const dir = path.join(fs.realpathSync(root), snapshotDir(id)); let n = 0;
+  if (!fs.existsSync(dir)) return n;
+  const levend = pid => { if (pid === process.pid) return false; try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } }; // een tijdelijk bestand van een nog lopend ander proces blijft staan
+  for (const naam of fs.readdirSync(dir)) if (TEMP_NAME.test(naam) && !levend(Number(naam.split('-')[1]))) { try { fs.unlinkSync(path.join(dir, naam)); n++; } catch { /* volgende keer */ } }
+  return n;
+}
+/**
+ * Maakt `f` atomair aan met `tekst`; een bestaand bestand wordt nooit overschreven (EEXIST). Volgorde: temp (wx) schrijven + fsync -> hardlink naar de echte naam
+ * (faalt als die al bestaat) -> temp verwijderen -> map synchroniseren. `crashAfter` ('temp' of 'link') is alleen voor tests: het proces sterft dan op dat punt.
+ */
+export function createFileAtomic(f, tekst, {crashAfter = null} = {}) {
+  const dir = path.dirname(f), tmp = path.join(dir, '.tmp-' + process.pid + '-' + crypto.randomBytes(4).toString('hex') + '-' + path.basename(f));
+  const sterf = punt => { if (crashAfter === punt) process.kill(process.pid, 'SIGKILL'); };
+  const fd = fs.openSync(tmp, 'wx', 0o644);
+  try { fs.writeSync(fd, tekst); fs.fsyncSync(fd); } catch (e) { try { fs.closeSync(fd); } catch { /* niets */ } try { fs.unlinkSync(tmp); } catch { /* niets */ } throw e; }
+  fs.closeSync(fd);
+  sterf('temp');
+  try {
+    try { fs.linkSync(tmp, f); }
+    catch (e) {
+      if (e.code === 'EEXIST') throw e;
+      // Bestandssysteem zonder hardlinks: bestaat de doelnaam al, dan nooit overschrijven; anders atomair hernoemen.
+      if (!['EPERM', 'ENOSYS', 'EXDEV', 'EOPNOTSUPP', 'EMLINK'].includes(e.code)) throw e;
+      if (fs.existsSync(f)) { const err = new Error('bestaat al'); err.code = 'EEXIST'; throw err; }
+      fs.renameSync(tmp, f);
+    }
+    sterf('link');
+  } finally { try { fs.unlinkSync(tmp); } catch { /* al hernoemd of weg */ } }
+  fsyncDir(dir);
+  fsyncDir(path.dirname(dir));
+}
 /** Schrijft de snapshot voor de goedgekeurde envelop van dit werkpakket (idempotent: bestaat hij al voor deze hash, dan gebeurt er niets). */
-export function writeSnapshot(root, st, source = 'AAE GO') {
+export function writeSnapshot(root, st, source = 'AAE GO', opts = {}) {
   requireThat(st.approved && st.approved.contract && st.approved.envelope_hash, 'Geen goedgekeurde envelop om vast te leggen.');
+  ruimTijdelijkeOp(root, st.id);
   const {chain} = verifyChain(root, st.id);
   const laatste = chain.at(-1);
   if (laatste && laatste.hash === st.approved.envelope_hash) { st.snapshot = {sequence: laatste.sequence, hash: laatste.hash, path: snapshotDir(st.id) + '/' + fileName(laatste.sequence, laatste.hash)}; return st.snapshot; }
@@ -75,8 +115,11 @@ export function writeSnapshot(root, st, source = 'AAE GO') {
   requireThat(s.hash === st.approved.envelope_hash, 'De goedgekeurde hash klopt niet met het goedgekeurde contract; snapshot niet geschreven.');
   const rel = snapshotDir(st.id) + '/' + fileName(s.sequence, s.hash), f = safePath(root, rel);
   fs.mkdirSync(path.dirname(f), {recursive: true});
-  try { fs.writeFileSync(f, JSON.stringify(s, null, 2) + '\n', {flag: 'wx', mode: 0o644}); } // exclusief: een bestaande snapshot wordt nooit overschreven
+  const tekst = JSON.stringify(s, null, 2) + '\n';
+  try { createFileAtomic(f, tekst, {crashAfter: opts.crashAfter || null}); } // temp + fsync + atomair onder de echte naam; een bestaande snapshot wordt nooit overschreven
   catch (e) { requireThat(false, 'Snapshot ' + rel + ' kon niet worden geschreven: ' + String(e.code || e.message)); }
+  // Durability-controle: wat op schijf staat is byte-voor-byte wat is bedoeld en klopt met zijn hash en keten.
+  requireThat(fs.readFileSync(f, 'utf8') === tekst, 'Snapshot ' + rel + ' is na het schrijven niet identiek aan wat is bedoeld.');
   verifySnapshot(readSnap(root, st.id, fileName(s.sequence, s.hash)), s.sequence, s.previous_hash, fileName(s.sequence, s.hash));
   st.snapshot = {sequence: s.sequence, hash: s.hash, path: rel};
   return st.snapshot;

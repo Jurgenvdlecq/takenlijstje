@@ -4,7 +4,7 @@ import path from 'node:path';
 import {ensureSnapshot} from './snapshot.mjs';
 import {
   WORK, STATE_DIR, requireThat, safePath, atomicJson, readJson, now, digest, sha, level,
-  validateContract, envelopeHash, materialChanges
+  validateContract, envelopeHash, materialChanges, analysisArgv
 } from './core.mjs';
 
 export const STATUSES = ['PLANNING', 'WAITING_FOR_APPROVAL', 'EXECUTING', 'NEEDS_HUMAN', 'PAUSED', 'READY', 'BLOCKED', 'CANCELLED'];
@@ -98,7 +98,7 @@ export function guardApproval(root, st) {
 export function analysisFree(c) {
   const e = c.envelope;
   return e.phase === 'analysis' && e.areas.length === 0 && e.db_max === 'none' && e.git.deploy === 'none' && !e.git.commit && e.git.push.length === 0 && e.git.merge === null &&
-    e.extra_commands.length === 0 && !e.providers.github && !(e.providers.supabase?.tools || []).some(t => ['apply_migration', 'execute_sql'].includes(t));
+    e.extra_commands.length === 0 && (c.plan.commands || []).every(m => m.purpose === 'read' && analysisArgv(m.argv)) && !e.providers.github && !(e.providers.supabase?.tools || []).some(t => ['apply_migration', 'execute_sql'].includes(t));
 }
 /**
  * Invariant bij elke bewakingshandeling: de opgeslagen goedgekeurde hash hoort bij het opgeslagen goedgekeurde contract en het huidige

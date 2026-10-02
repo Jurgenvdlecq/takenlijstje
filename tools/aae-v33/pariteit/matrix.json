@@ -116,7 +116,7 @@
     {"v32": "concurrent runner invocation is blocked", "status": "behouden", "v33": ["R11"]},
     {"v32": "runner refuses a changed TASK.json without reroute", "status": "aangepast", "v33": ["R12"], "toelichting": "De runner gebruikt het geregistreerde contract; een alleen op schijf gewijzigd contract wordt niet uitgevoerd."},
     {"v32": "trust only selected local command types", "status": "aangepast", "v33": ["R13"], "toelichting": "AAE VERTROUW vervalt: lokale allowlist-commando's draaien vrij, al het andere moet exact in de envelop staan en blijft aan zijn vingerafdruk gebonden."},
-    {"v32": "publish remains explicit, single-use and is not trusted", "status": "aangepast", "v33": ["R14", "G58"], "toelichting": "Deploy is een aparte capability en eenmalig (max_runs 1), met READY-bewijs en vingerafdruk."},
+    {"v32": "publish remains explicit, single-use and is not trusted", "status": "aangepast", "v33": ["R14", "G58"], "toelichting": "Deploy is een aparte capability met READY-bewijs (R14, G58); sinds 001D bestaat er geen los deploy-commando of extra commando voor deploy of merge meer (RD02): uitrollen en samenvoegen lopen uitsluitend via hun capabilities en gates."},
     {"v32": "paused workflow cannot execute a previously approved command", "status": "behouden", "v33": ["R15"]},
     {"v32": "command cannot run while a reviewer is active", "status": "behouden", "v33": ["R16"]},
     {"v32": "default report is PARTIAL and does not claim unrun tests", "status": "behouden", "v33": ["R17"]},
@@ -132,8 +132,8 @@
     {"v32": "R6: gate command waits for a READY result on the current source", "status": "behouden", "v33": ["R27"]},
     {"v32": "R6: gate refuses a READY result from an older source", "status": "behouden", "v33": ["R28"]},
     {"v32": "R12: in-scope change to a watched script keeps the command approved", "status": "behouden", "v33": ["R29"]},
-    {"v32": "B4: in-scope change to a watched file still needs a new GO for publish commands", "status": "aangepast", "v33": ["R30", "R04"], "toelichting": "Geldt nu voor deploy/install/destructieve en niet-git merge-commando's (vingerafdruk). git push en git merge zijn niet meer aan bronbestanden gebonden maar aan exacte argv-regels, het bewijs-gate en (merge) de commit van het rapport."},
-    {"v32": "B4: in-scope change to a watched file still needs a new GO for a local gate command", "status": "aangepast", "v33": ["R31"], "toelichting": "Het gate-commando is nu de merge-capability: git-merge is aan exacte argv-regels gebonden; een niet-git samenvoegcommando aan zijn vingerafdruk."},
+    {"v32": "B4: in-scope change to a watched file still needs a new GO for publish commands", "status": "aangepast", "v33": ["R30", "R04"], "toelichting": "Geldt nu voor install- en destructieve commando's (vingerafdruk; deploy- en niet-git merge-commando's bestaan sinds 001D niet meer). git push en git merge zijn niet meer aan bronbestanden gebonden maar aan exacte argv-regels, het bewijs-gate en (merge) de commit van het rapport."},
+    {"v32": "B4: in-scope change to a watched file still needs a new GO for a local gate command", "status": "aangepast", "v33": ["R31"], "toelichting": "Het gate-commando is nu de merge-capability: git-merge is aan exacte argv-regels gebonden; een destructief commando blijft aan zijn vingerafdruk gebonden en een merge accepteert sinds 001D geen extra commando meer."},
     {"v32": "R4: amended route keeps approved commands runnable without a new GO", "status": "behouden", "v33": ["R32"]},
     {"v32": "R3: follow-up prompt keeps command approval", "status": "behouden", "v33": ["R33"]},
     {"v32": "R5: publish can repeat within its approved run limit but is never trusted", "status": "aangepast", "v33": ["R34"], "toelichting": "Herhalen binnen het aantal runs mag voor lokale en git-push-commando's; gevoelige commando's zijn eenmalig."},
@@ -151,6 +151,17 @@
     "B4": {"omschrijving": "Een wijziging aan een bewaakt bestand binnen het gebied vraagt voor publicatie een nieuwe GO.", "v33": ["R30", "R31", "R04"]},
     "B5": {"omschrijving": "Een READY-gate (nu: de merge-gate) verdwijnt niet stil.", "v33": ["B5 behouden", "R27", "R28", "T11"]},
     "B6": {"omschrijving": "node --test accepteert alleen concrete testbestanden, nooit mappen of scripts.", "v33": ["B6 behouden"]}
+  },
+  "wijzigingen_001d": {
+    "bron": "Onafhankelijke rereview van commit 5ba1e59 (VERDICT: BLOCKED, 3 blokkerende punten, bewaard als docs/aae/notes/review-5ba1e59.md) en de hardeningpunten daarbij.",
+    "regels": {
+      "B1 niet-ASCII functienamen en geciteerde namen": ["RD01"],
+      "B2 extra_commands omzeilen geen gate; merge en deploy accepteren geen extra commando's": ["RD02"],
+      "B3 analyse zonder GO voert geen projectcode uit (vooraf geweigerd)": ["RD03"],
+      "korte GO-hash van 12 tekens": ["RD04"],
+      "atomaire, crash-safe snapshot": ["RD05"],
+      "atomaire installerwrites": ["RD06"]
+    }
   },
   "wijzigingen_001c": {
     "bron": "Onafhankelijke review van commit 5e64919 (VERDICT: BLOCKED, bewaard als docs/aae/notes/review-5e64919.md) en besluiten van Jurgen (verplichte AAE GO <id> <korte hash>, read-allowlist, herstel als PAUSED met AAE VERDER, duurzame snapshot).",

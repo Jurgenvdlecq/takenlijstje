@@ -37,6 +37,8 @@ export function adaptLegacyContract(t) {
     } else if (purpose === 'publish') { purpose = 'deploy'; extra.push({argv: a, purpose}); }
     else if (['install', 'destructive'].includes(purpose)) extra.push({argv: a, purpose});
     else if (LOCAL.includes(purpose) && !safeLocalArgv(a)) extra.push({argv: a, purpose});
+    // Een los publicatie- of deploy-commando uit v3.2 bestaat in v3.3 niet meer: uitrollen en samenvoegen lopen uitsluitend via hun eigen capabilities en gates.
+    if (purpose === 'deploy') throw new Error('Het v3.2-commando ' + m.id + ' (publiceren of uitrollen) kan niet worden overgenomen: in v3.3 lopen samenvoegen en uitrollen uitsluitend via de merge- en deploy-capabilities en hun gates, nooit via een extra commando.');
     // Een v3.2-gate ("ready") bestaat in v3.3 alleen als merge-capability; elders zou de overname de gate stil laten vervallen.
     if (m.gate === 'ready' && purpose !== 'merge') throw new Error('Het v3.2-gatecommando ' + m.id + ' (gate "ready") kan niet als merge-capability worden overgenomen.');
     const eenmalig = ['merge', 'deploy', 'install', 'destructive'].includes(purpose);

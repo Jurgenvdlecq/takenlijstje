@@ -7,7 +7,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath, pathToFileURL} from 'node:url';
-import {planInstall, apply, planRollback, rollback, payloadFiles, VERSION} from '../installer/install.mjs';
+import {planInstall, apply, planRollback, rollback, payloadFiles, atomicWrite, VERSION} from '../installer/install.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
@@ -91,7 +91,7 @@ test('overgang: een lopende v3.2-route wacht na installatie op een expliciete GO
   assert.match(JSON.parse(status.stdout).hookSpecificOutput.additionalContext, /AAE-OUD-1 wacht op jouw GO/);
   const schrijf = () => hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't1', tool_input: {file_path: path.join(dir, 'src/nieuw.js'), content: 'x'}});
   assert.equal(schrijf().status, 2, 'de v3.2-GO telt niet: zonder nieuwe GO geen schrijfrechten');
-  assert.equal(hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: 'AAE GO AAE-OUD-1 12345678'}).status, 0);
+  assert.equal(hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: 'AAE GO AAE-OUD-1 123456789abc'}).status, 0);
   assert.equal(schrijf().status, 2, 'een GO zonder getoond voorstel keurt niets goed');
   const toon = spawnSync(process.execPath, [path.join(dir, '.claude/aae/runtime/cli.mjs'), 'present', 'AAE-OUD-1'], {cwd: dir, encoding: 'utf8'});
   assert.equal(toon.status, 0, toon.stderr);
@@ -252,6 +252,72 @@ test('RB09 een geslinkte .claude (of .gitignore) wordt als wortel geweigerd; een
   // downgrade
   const r2 = apply(dir), mf = path.join(dir, '.claude/aae/managed.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8')); m.version = '3.9.0'; fs.writeFileSync(mf, JSON.stringify(m, null, 2) + '\n');
   assert.match(planInstall(dir).conflicts.join(' | '), /downgrade/); assert.ok(r2.backup);
+}));
+// ---- RD06 (001D): elke schrijfactie van de installer is atomair ----
+const INSTALLER = pathToFileURL(path.join(here, '../installer/install.mjs')).href;
+const kindApply = (dir, cfg) => spawnSync(process.execPath, ['--input-type=module', '-e', "import('" + INSTALLER + "').then(m => m.apply(" + JSON.stringify(dir) + ", " + JSON.stringify(cfg) + "))"], {encoding: 'utf8'});
+const kindRollback = (dir, rel, cfg) => spawnSync(process.execPath, ['--input-type=module', '-e', "import('" + INSTALLER + "').then(m => m.rollback(" + JSON.stringify(dir) + ", " + JSON.stringify(rel) + ", " + JSON.stringify(cfg) + "))"], {encoding: 'utf8'});
+const tmpRestjes = dir => alles(dir).filter(p => /(^|\/)\.aae-tmp-[0-9a-f]{8}-/.test(p));
+const geenHalveBestanden = (dir, voor) => { for (const [rel, f] of payloadFiles()) { const p = path.join(dir, rel); if (!fs.existsSync(p)) continue; const h = sha(fs.readFileSync(p)); assert.ok(h === f.sha || h === voor[rel], 'een half of onbekend bestand op een doelpad: ' + rel); } };
+test('RD06 een kill midden in een bestand (voor of na het hernoemen) is altijd terug te draaien naar de oorspronkelijke staat, zonder half bestand of tijdelijk restje', metProject(dir => {
+  const voor = boom(dir); let midden = 0, gedood = 0;
+  for (const punt of ['temp', 'rename']) for (const na of [0, 1, 2, 3, 5, 8, 13, 21, 40, 70, 110, 160, 230, 320]) {
+    const kill = kindApply(dir, {crashInWrite: {na, punt}});
+    if (kill.signal === 'SIGKILL') { gedood++; if (tmpRestjes(dir).length) midden++; } else assert.equal(kill.status, 0, kill.stderr);
+    geenHalveBestanden(dir, voor);
+    const rel = backups(dir).sort().at(-1);
+    if (!rel ||!fs.existsSync(path.join(dir, rel, 'RESTORE.json'))) { assert.deepEqual(boom(dir), voor, 'nog niets gemuteerd (' + punt + ' ' + na + ')'); continue; }
+    const plan = planRollback(dir, rel); assert.deepEqual(plan.conflicts, [], punt + ' ' + na + ': ' + plan.conflicts.join('; '));
+    rollback(dir, rel);
+    assert.deepEqual(boom(dir), voor, 'volledig terug in de v3.2-toestand na een kill (' + punt + ' ' + na + ')'); assert.deepEqual(tmpRestjes(dir), []);
+  }
+  assert.ok(gedood > 10, 'de meeste runs zijn echt gedood halverwege: ' + gedood); assert.ok(midden > 0, 'er is minstens één keer midden in een bestand gedood (er bleef een tijdelijk restje)');
+  assert.equal(planInstall(dir).conflicts.length, 0, 'daarna kan gewoon opnieuw worden geïnstalleerd'); apply(dir);
+}));
+test('RD06 een kill tijdens het terugzetten laat nooit een half bestand achter en het terugdraaien is daarna gewoon te herhalen', metProject(dir => {
+  const voor = boom(dir), r = apply(dir), na0 = boom(dir);
+  let gedood = 0;
+  for (const punt of ['temp', 'rename']) for (const na of [0, 1, 2, 4, 7, 12]) {
+    const kill = kindRollback(dir, r.backup, {crashInWrite: {na, punt}});
+    if (kill.signal !== 'SIGKILL') { // minder schrijfacties dan `na`: het terugdraaien is gewoon klaar
+      assert.equal(kill.status, 0, kill.stderr); assert.deepEqual(boom(dir), voor); assert.equal(manifestVan(dir, r.backup).status, 'rolled_back');
+      apply(dir); Object.assign(r, {backup: backups(dir).sort().at(-1)}); continue;
+    }
+    gedood++;
+    const plan = planRollback(dir, r.backup); assert.deepEqual(plan.conflicts, [], punt + ' ' + na + ': ' + plan.conflicts.join('; '));
+    geenHalveBestanden(dir, voor);
+    // het manifest staat nog open en het terugdraaien kan gewoon opnieuw
+    assert.notEqual(manifestVan(dir, r.backup).status, 'rolled_back');
+    rollback(dir, r.backup);
+    assert.deepEqual(boom(dir), voor, 'volledig terug na een kill tijdens het terugzetten (' + punt + ' ' + na + ')'); assert.deepEqual(tmpRestjes(dir), []);
+    apply(dir); // opnieuw installeren voor de volgende ronde; de vorige back-up is al teruggedraaid
+    Object.assign(r, {backup: backups(dir).sort().at(-1)});
+  }
+  assert.ok(gedood > 0, 'minstens één rollback is echt gedood halverwege'); assert.ok(Object.keys(na0).length > 0);
+}));
+test('RD06 de schrijfactie vervangt een symlink op de doelplek en volgt hem nooit; een symlink in het AAE-gebied is bovendien een conflict', metProject(dir => {
+  const buiten = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33victim-')));
+  try {
+    const slachtoffer = path.join(buiten, 'geheim.txt'); fs.writeFileSync(slachtoffer, 'ORIGINEEL');
+    const doel = path.join(dir, 'link-doel.txt'); fs.symlinkSync(slachtoffer, doel);
+    atomicWrite(doel, 'NIEUW', 0o644);
+    assert.equal(fs.readFileSync(slachtoffer, 'utf8'), 'ORIGINEEL', 'het bestand achter de symlink is niet overschreven');
+    assert.equal(fs.lstatSync(doel).isSymbolicLink(), false, 'de symlink is vervangen'); assert.equal(fs.readFileSync(doel, 'utf8'), 'NIEUW'); assert.equal(fs.statSync(doel).mode & 0o777, 0o644);
+    assert.deepEqual(fs.readdirSync(dir).filter(n => n.startsWith('.aae-tmp-')), [], 'geen restje');
+    // een symlink op een bestand binnen het AAE-gebied: de installatie weigert en schrijft niets
+    const voor = boom(dir), eerste = alles(dir, '.claude/aae')[0] || alles(dir, '.claude')[0];
+    const p = path.join(dir, eerste); fs.rmSync(p); fs.symlinkSync(slachtoffer, p);
+    assert.throws(() => apply(dir), /Conflicten[\s\S]*Symbolische link/);
+    assert.equal(fs.readFileSync(slachtoffer, 'utf8'), 'ORIGINEEL'); assert.ok(voor && fs.lstatSync(p).isSymbolicLink());
+  } finally { fs.rmSync(buiten, {recursive: true, force: true}); }
+}));
+test('RD06 het terugdraaimanifest en de blobs gaan ook atomair: een kill vóór het eerste manifest laat niets gemuteerd achter en een nieuwe installatie werkt', metProject(dir => {
+  const voor = boom(dir);
+  const kill = kindApply(dir, {crashInWrite: {na: 0, punt: 'temp'}});
+  assert.equal(kill.signal, 'SIGKILL', kill.stderr);
+  assert.deepEqual(boom(dir), voor, 'niets gemuteerd');
+  assert.equal(planInstall(dir).conflicts.length, 0, 'geen onafgemaakte installatie die eerst teruggedraaid moet worden: ' + planInstall(dir).conflicts.join('; '));
+  apply(dir);
 }));
 test('overgang (echte state): een kopie van de echte lopende route wordt overgenomen en blijft werken', async t => {
   const taakBron = path.join(repo, 'docs/aae/TASK.json'), staatBron = path.join(repo, '.claude/aae/state/local.json');

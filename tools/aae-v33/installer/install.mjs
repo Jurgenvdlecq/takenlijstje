@@ -19,7 +19,7 @@ export const VERSION = '3.3.0';
 export const MANAGED = '.claude/aae/managed.json';
 const GITIGNORE = '.gitignore';
 const MARK_START = '# >>> AAE 3.3 (beheerd blok) >>>', MARK_END = '# <<< AAE 3.3 <<<';
-const IGNORE_LINES = ['/.claude/aae/state/', '/.claude/aae/private/', '/.aae-backups/', '/docs/aae/work/*/state.json', '/docs/aae/work/*/state.json.tmp-*', '/docs/aae/work/*/state.json.beschadigd-*', '/docs/aae/work/*/result.json', '/docs/aae/work/*/proposal.json', '/docs/aae/work/*/proposal.json.tmp-*', '/docs/aae/work/*/raw/', '/docs/aae/evidence/', '/docs/aae/notes/', '/docs/aae/RESULT.json', '/docs/aae/TASK.json'];
+const IGNORE_LINES = ['/.claude/aae/state/', '/.claude/aae/private/', '/.aae-backups/', '/docs/aae/work/*/state.json', '/docs/aae/work/*/state.json.tmp-*', '/docs/aae/work/*/state.json.beschadigd-*', '/docs/aae/work/*/result.json', '/docs/aae/work/*/proposal.json', '/docs/aae/work/*/proposal.json.tmp-*', '/docs/aae/work/*/raw/', '/docs/aae/work/*/approved/.tmp-*', '/docs/aae/evidence/', '/docs/aae/notes/', '/docs/aae/RESULT.json', '/docs/aae/TASK.json'];
 // Het beheerde blok wordt ook herkend zonder afsluitende newline (een handmatig bewerkt .gitignore).
 const BLOCK_RE = /\n?# >>> AAE 3\.3 \(beheerd blok\) >>>\r?\n[\s\S]*?# <<< AAE 3\.3 <<<(?:\r?\n|$)/;
 const IGNORE_BLOCK = [MARK_START, ...IGNORE_LINES, MARK_END].join('\n');
@@ -36,12 +36,28 @@ const exists = f => { try { fs.lstatSync(f); return true; } catch { return false
 const isLink = f => { try { return fs.lstatSync(f).isSymbolicLink(); } catch { return false; } };
 const hashOf = f => exists(f) ? sha(fs.readFileSync(f)) : null;
 const cmpVersion = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; };
-/** Atomisch en duurzaam: schrijf naar een tijdelijk bestand, fsync, hernoem. Een onderbreking laat altijd het oude of het nieuwe bestand achter, nooit een half bestand. */
-function atomicWrite(f, tekst, mode = 0o600) {
-  fs.mkdirSync(path.dirname(f), {recursive: true});
-  const tmp = f + '.tmp-' + crypto.randomBytes(4).toString('hex'), fd = fs.openSync(tmp, 'w', mode);
-  try { fs.writeSync(fd, tekst); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  fs.renameSync(tmp, f);
+// Elke schrijfactie van de installer (programmabestanden, back-upblobs, manifest, .gitignore, terugzetten) is atomair: tijdelijk bestand in dezelfde map
+// (exclusief aangemaakt, met de beoogde rechten), fsync, hernoemen, map-fsync. Een onderbreking laat daardoor het oude of het nieuwe bestand achter, nooit
+// een half bestand. Een symlink op de doelplek wordt vervangen en niet gevolgd. Achtergebleven tijdelijke bestanden (.aae-tmp-*) worden bij rollback opgeruimd.
+const TMP_RE = /^\.aae-tmp-[0-9a-f]{8}-/;
+const testState = {cfg: null, teller: 0}; // alleen voor tests: testState.cfg = {na, punt} laat het proces sterven bij de (na+1)-ste schrijfactie op dat punt
+const testPunt = punt => { const c = testState.cfg; if (c && c.punt === punt && ++testState.teller > c.na) process.kill(process.pid, 'SIGKILL'); };
+const fsyncDir = d => { let fd; try { fd = fs.openSync(d, 'r'); fs.fsyncSync(fd); } catch { /* geen map-fsync mogelijk */ } finally { if (fd !== undefined) try { fs.closeSync(fd); } catch { /* niets */ } } };
+export function atomicWrite(f, data, mode = 0o600) {
+  const dir = path.dirname(f); fs.mkdirSync(dir, {recursive: true});
+  const tmp = path.join(dir, '.aae-tmp-' + crypto.randomBytes(4).toString('hex') + '-' + path.basename(f)), fd = fs.openSync(tmp, 'wx', mode);
+  try { fs.writeSync(fd, data); fs.fchmodSync(fd, mode); fs.fsyncSync(fd); } catch (e) { try { fs.closeSync(fd); } catch { /* niets */ } try { fs.unlinkSync(tmp); } catch { /* niets */ } throw e; }
+  fs.closeSync(fd);
+  testPunt('temp');
+  try { fs.renameSync(tmp, f); } catch (e) { try { fs.unlinkSync(tmp); } catch { /* niets */ } throw e; }
+  testPunt('rename');
+  fsyncDir(dir);
+}
+/** Ruimt achtergebleven tijdelijke bestanden op in de mappen van de genoemde paden en in de back-upmap zelf. */
+function veegTemp(base, rels, backupRel) {
+  const mappen = new Set(rels.map(p => path.dirname(abs(base, p))));
+  if (backupRel) { mappen.add(abs(base, backupRel)); mappen.add(abs(base, backupRel + '/blobs')); }
+  for (const d of mappen) { if (!exists(d) || isLink(d)) continue; for (const n of fs.readdirSync(d)) if (TMP_RE.test(n)) { try { fs.unlinkSync(path.join(d, n)); } catch { /* volgende keer */ } } }
 }
 
 /** Alle gewone bestanden onder dir (posix-relatief). Symlinks zijn een harde fout. */
@@ -163,10 +179,10 @@ function herstelEen(base, backupRel, e) {
   const f = abs(base, e.path);
   if (e.path === GITIGNORE && hashOf(f) !== e.after && hashOf(f) !== e.before) { // alleen het beheerde blok eruit; eigen regels blijven
     const rest = fs.readFileSync(f, 'utf8').replace(BLOCK_RE, '');
-    if (!rest.trim() && !e.before) fs.rmSync(f, {force: true}); else fs.writeFileSync(f, rest);
+    if (!rest.trim() && !e.before) fs.rmSync(f, {force: true}); else atomicWrite(f, rest, fs.statSync(f).mode & 0o777);
     return;
   }
-  if (e.before) { fs.mkdirSync(path.dirname(f), {recursive: true}); fs.writeFileSync(f, fs.readFileSync(abs(base, backupRel + '/blobs/' + e.before)), {mode: parseInt(e.mode, 8)}); fs.chmodSync(f, parseInt(e.mode, 8)); }
+  if (e.before) atomicWrite(f, fs.readFileSync(abs(base, backupRel + '/blobs/' + e.before)), parseInt(e.mode, 8));
   else fs.rmSync(f, {force: true});
 }
 /** Controle na het terugzetten: alle bestanden staan op de toestand van vóór de installatie. Geeft de afwijkingen terug. */
@@ -201,13 +217,17 @@ export function apply(project, opts = {}) {
   const files = Object.fromEntries([...payload.values()].sort((a, b) => a.rel.localeCompare(b.rel)).map(f => [f.rel, f.sha]));
   doelen.push({rel: MANAGED, buf: Buffer.from(JSON.stringify({version: VERSION, files}, null, 2) + '\n'), mode: 0o644});
   const entries = [], dirs = new Set();
+  fs.mkdirSync(backup, {recursive: true, mode: 0o700});
+  testState.cfg = opts.crashInWrite || null; testState.teller = 0;
+  // Eerst een leeg manifest (in_progress, nog niets gemuteerd): een onderbreking tijdens het klaarzetten van de blobs is dan ook met --rollback af te handelen.
+  schrijfManifest(backup, {schema: 1, status: 'in_progress', created: new Date().toISOString(), from: plan.from, to: VERSION, archive: plan.actions.archief, dirs_created: [], files: []});
   fs.mkdirSync(path.join(backup, 'blobs'), {recursive: true, mode: 0o700});
   for (const d of doelen) {
     const f = abs(base, d.rel); let before = null, mode = null;
     if (exists(f)) {
       const buf = fs.readFileSync(f); before = sha(buf); mode = (fs.statSync(f).mode & 0o777).toString(8);
       const blob = path.join(backup, 'blobs', before);
-      if (!exists(blob)) fs.writeFileSync(blob, buf, {mode: 0o600});
+      if (!exists(blob)) atomicWrite(blob, buf, 0o600);
     }
     if (d.buf === null && before === null) continue; // niets te verwijderen
     entries.push({path: d.rel, before, after: d.buf === null ? null : sha(d.buf), mode});
@@ -224,8 +244,7 @@ export function apply(project, opts = {}) {
       tick();
       const f = abs(base, d.rel);
       if (d.buf === null) { fs.rmSync(f, {force: true}); continue; }
-      fs.mkdirSync(path.dirname(f), {recursive: true});
-      fs.writeFileSync(f, d.buf, {mode: d.mode}); fs.chmodSync(f, d.mode);
+      atomicWrite(f, d.buf, d.mode);
     }
     // 3. opruimen van lege mappen van verwijderde bestanden
     for (const p of plan.actions.verwijderen) { let d = path.dirname(abs(base, p)); while (d.startsWith(base + path.sep) && d !== base && exists(d) && !fs.readdirSync(d).length) { fs.rmdirSync(d); d = path.dirname(d); } }
@@ -236,12 +255,14 @@ export function apply(project, opts = {}) {
     if (doc.status !== 0) fail('doctor faalde: ' + (doc.stderr || doc.stdout || '').slice(0, 400));
     const dr = JSON.parse(doc.stdout), aandacht = dr.checks.filter(c => c.status !== 'PASS');
     if (aandacht.length) fail('doctor meldt aandachtspunten: ' + aandacht.map(c => c.name + ' (' + c.detail + ')').join('; '));
+    testState.cfg = null;
     schrijfManifest(backup, {...manifest, status: 'applied', applied: new Date().toISOString()});
     return {id, backup: backupRel, plan, geschreven: entries.length};
   } catch (e) {
     // Ongedaan maken: elke stap onafhankelijk. De back-up verdwijnt alleen als alles aantoonbaar terug is; anders blijft hij staan (undo_failed).
     const fouten = [];
     let k = 0;
+    testState.cfg = null; veegTemp(base, entries.map(x => x.path));
     for (const en of [...entries].reverse()) { try { if (opts.failUndoAfter != null && ++k > opts.failUndoAfter) fail('Gesimuleerde fout in het ongedaan maken (test).'); herstelEen(base, backupRel, en); } catch (err) { fouten.push(en.path + ': ' + err.message); } }
     ruimMappenOp(base, manifest);
     fouten.push(...controleerHersteld(base, manifest));
@@ -277,8 +298,10 @@ export function rollback(project, backupRel, opts = {}) {
   const plan = planRollback(project, backupRel);
   if (plan.conflicts.length) fail('Conflicten; niets teruggedraaid:\n- ' + plan.conflicts.join('\n- '));
   const base = plan.project, r = plan.restore;
+  veegTemp(base, r.files.map(e => e.path), backupRel); // restjes van een onderbroken installatie of terugdraaiactie
   const bewaard = r.files.map(e => ({e, nu: exists(abs(base, e.path)) ? fs.readFileSync(abs(base, e.path)) : null, mode: exists(abs(base, e.path)) ? fs.statSync(abs(base, e.path)).mode & 0o777 : null}));
   let n = 0;
+  testState.cfg = opts.crashInWrite || null; testState.teller = 0;
   try {
     for (const e of [...r.files].reverse()) {
       if (opts.failAfter != null && ++n > opts.failAfter) fail('Gesimuleerde fout (test).');
@@ -290,9 +313,10 @@ export function rollback(project, backupRel, opts = {}) {
     return {backup: backupRel, hersteld: r.files.length, plan};
   } catch (err) {
     // Het manifest blijft ongewijzigd (in_progress/undo_failed/applied): het terugdraaien is gewoon te herhalen.
-    for (const {e, nu, mode} of bewaard.reverse()) { try { const f = abs(base, e.path); if (nu === null) fs.rmSync(f, {force: true}); else { fs.mkdirSync(path.dirname(f), {recursive: true}); fs.writeFileSync(f, nu, {mode}); } } catch { /* best effort */ } }
+    testState.cfg = null;
+    for (const {e, nu, mode} of bewaard.reverse()) { try { const f = abs(base, e.path); if (nu === null) fs.rmSync(f, {force: true}); else atomicWrite(f, nu, mode); } catch { /* best effort */ } }
     throw err;
-  }
+  } finally { testState.cfg = null; }
 }
 
 // ---- opdrachtregel ----

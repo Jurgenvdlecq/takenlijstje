@@ -94,7 +94,7 @@ test('GB07 JSON-volgorde, witruimte en niet-semantische opmaak geven dezelfde ha
   const b = JSON.parse(JSON.stringify(sleutels(omgekeerd), null, 7));
   assert.equal(envelopeHash(validateContract(b)), envelopeHash(a));
   assert.deepEqual(materialChanges(a, validateContract(structuredClone(b))), []);
-  assert.match(envelopeHash(a), /^[0-9a-f]{64}$/); assert.equal(shortHash(envelopeHash(a)).length, 8);
+  assert.match(envelopeHash(a), /^[0-9a-f]{64}$/); assert.equal(shortHash(envelopeHash(a)).length, 12);
 });
 test('GB08 zachte budgetten wijzigen de hash niet; een hoger hard budget wel en vraagt een nieuwe GO', met(root => {
   assert.equal(h({envelope: {budgets: budget(1, 4)}}), h({envelope: {budgets: budget(3, 4)}}));
@@ -175,7 +175,7 @@ test('GB11 de GO-melding noemt werkpakket-ID en korte hash; `present` toont deze
   assert.equal(p.id, 'W-T'); assert.equal(p.short_hash, shortHash(h({}))); assert.match(p.vraag, new RegExp('AAE GO W-T.*' + p.short_hash));
   assert.ok(p.samenvatting.some(r => /^Doel: /.test(r)) && p.samenvatting.some(r => /Mag wijzigen: src/.test(r)));
   assert.equal(p.exacte_go, 'AAE GO W-T ' + p.short_hash);
-  assert.match(tekst(prompt(root, 'AAE GO W-T 00000000')), /hoort niet bij het huidige voorstel/, 'een verkeerde hash telt niet');
+  assert.match(tekst(prompt(root, 'AAE GO W-T 000000000000')), /hoort niet bij het huidige voorstel/, 'een verkeerde hash telt niet');
   assert.ok(denies(() => prompt(root, 'AAE GO W-ANDERS ' + p.short_hash)), 'een verkeerd ID telt niet');
   assert.equal(st(root).approved, null);
   const r = prompt(root, p.exacte_go);

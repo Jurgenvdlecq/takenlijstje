@@ -7,13 +7,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {WORK, requireThat, now, shortHash, safePath} from './core.mjs';
 import {withLock, loadWork, saveWork, newState, log, eventLog} from './state.mjs';
-import {verifyChain, contractFromSnapshot, snapshotDir} from './snapshot.mjs';
+import {verifyChain, contractFromSnapshot, snapshotDir, ruimTijdelijkeOp} from './snapshot.mjs';
 
 export function recoverWork(root, id) {
   return withLock(root, () => {
     let bestaand = null, beschadigd = false;
     try { bestaand = loadWork(root, id); } catch { beschadigd = true; }
     requireThat(!bestaand, 'Werkpakket ' + id + ' heeft nog een geldige lokale status; herstel is alleen voor verloren of beschadigde status.');
+    ruimTijdelijkeOp(root, id); // restjes van een onderbroken snapshot-schrijfactie (nooit een echte snapshot)
     const {chain} = verifyChain(root, id, {committed: true});
     requireThat(chain.length > 0, 'Geen snapshot gevonden voor ' + id + ' (' + snapshotDir(id) + '); er is niets om uit te herstellen.');
     const laatste = chain.at(-1), c = contractFromSnapshot(laatste);

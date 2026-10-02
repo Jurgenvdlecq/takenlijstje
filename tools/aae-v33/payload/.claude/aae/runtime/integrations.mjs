@@ -30,15 +30,25 @@ export const READ_FUNCTIONS = Object.freeze(new Set([
 ]));
 // Woorden die direct voor een haakje kunnen staan zonder een functieaanroep te zijn.
 const NOT_A_CALL = new Set(['and', 'or', 'not', 'in', 'any', 'all', 'some', 'exists', 'values', 'from', 'join', 'on', 'using', 'where', 'select', 'as', 'case', 'when', 'then', 'else', 'end', 'over', 'filter', 'within', 'between', 'like', 'ilike', 'similar', 'set', 'into', 'returning', 'by', 'partition', 'order', 'group', 'having', 'limit', 'offset', 'union', 'intersect', 'except', 'array', 'row', 'lateral', 'distinct', 'with', 'table', 'only', 'is', 'null', 'true', 'false', 'unique', 'primary', 'key', 'references', 'check', 'default', 'constraint', 'index', 'view', 'rows', 'range', 'groups', 'recursive', 'materialized', 'asc', 'desc', 'nulls', 'collate', 'at', 'to', 'for', 'if', 'conflict', 'do', 'nothing', 'update', 'insert', 'delete']);
-/** Functieaanroepen in (gestripte) SQL die niet op de allowlist staan. Een geciteerde of schema-gekwalificeerde naam is nooit toegestaan. */
-export function unsafeCalls(text, extra = new Set()) {
+// Postgres staat in identifiers elk teken buiten ASCII toe (letters, accenten, Cyrillisch, CJK): elk teken vanaf U+0080 telt als identifierteken, zodat een naam als é of 日本 nooit onzichtbaar blijft.
+// De privégebied-tekens U+E000/U+E001 zijn gereserveerd voor de plaatsvervangers van weggehaalde tekst (zie scanSql) en zijn dus nooit een identifierteken; staan ze in de invoer zelf, dan is de SQL niet betrouwbaar te lezen.
+const ID_START = 'A-Za-z_\\u0080-\\uDFFF\\uE002-\\u{10FFFF}', ID_CONT = ID_START + '0-9$';
+const NAAM = '[' + ID_START + '][' + ID_CONT + ']*';
+const ASCII_NAAM = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+/** Conservatieve sleutel voor "is dit dezelfde functie": Unicode-genormaliseerd en zonder hoofdletters; meer treffers is hier veiliger (een hogere klasse wordt geërfd). */
+export const funcSleutel = naam => String(naam).normalize('NFKC').toLowerCase();
+/** Functieaanroepen in (gestripte) SQL die niet op de allowlist staan. Een geciteerde, niet-ASCII of schema-gekwalificeerde naam is nooit toegestaan; alleen een kale ASCII-naam uit de lijst is alleen-lezen. */
+export function unsafeCalls(text, extra = new Set(), geciteerd = new Set()) {
   const uit = [];
-  for (const m of String(text || '').matchAll(/((?:[A-Za-z_][\w$]*\s*\.\s*)*)([A-Za-z_][\w$]*)\s*\(/g)) {
-    const schema = m[1].replace(/\s+/g, '').replace(/\.$/, '').toLowerCase(), naam = m[2].toLowerCase();
-    if (!schema && NOT_A_CALL.has(naam)) continue;
-    if (schema === 'pg_catalog' && READ_FUNCTIONS.has(naam)) continue;
-    if (!schema && (READ_FUNCTIONS.has(naam) || extra.has(naam))) continue;
-    uit.push((schema ? schema + '.' : '') + naam);
+  for (const m of String(text || '').matchAll(new RegExp('((?:' + NAAM + '\\s*\\.\\s*)*)(' + NAAM + ')\\s*\\(', 'gu'))) {
+    const schema = m[1].replace(/\s+/g, '').replace(/\.$/, ''), ruw = m[2], sleutel = funcSleutel(ruw);
+    const kaal = ASCII_NAAM.test(ruw), schemaLaag = schema.toLowerCase();
+    // Een naam die ergens als "naam"( is geciteerd is een eigen functie (hoofdlettergevoelig), nooit het ingebouwde sleutelwoord of de ingebouwde functie.
+    if (geciteerd.has(sleutel)) { if (!schema && extra.has(sleutel)) continue; uit.push((schema ? schema + '.' : '') + ruw); continue; }
+    if (!schema && kaal && NOT_A_CALL.has(ruw.toLowerCase())) continue;
+    if (schemaLaag === 'pg_catalog' && kaal && READ_FUNCTIONS.has(ruw.toLowerCase())) continue;
+    if (!schema && ((kaal && READ_FUNCTIONS.has(ruw.toLowerCase())) || extra.has(sleutel))) continue;
+    uit.push((schema ? schema + '.' : '') + ruw);
   }
   return uit;
 }
@@ -58,13 +68,24 @@ export function identifyExternalTool(name) {
 }
 // Sleutelwoorden die als geciteerde identifier ("where") nooit als sleutelwoord gelezen mogen worden.
 const RESERVED_QUOTED = /^(select|from|where|set|insert|update|delete|into|values|drop|truncate|alter|create|grant|revoke|union|join|on|and|or|not|as|with|returning|using|table|only|do|execute|call|copy|merge|conflict|group|order|having|limit|offset|case|when|then|else|end|in|is|null|like|between|exists|all|any|distinct|default|cascade|restrict|function|procedure|trigger|policy|role|user|schema|view|index|extension)$/i;
+/** Staat er vanaf positie i (na witruimte en commentaar, ook geneste blokcommentaar) een openingshaakje? Zo verbergt "Max" /* x *\/ (1) zich niet achter commentaar. */
+function volgtHaakje(s, i) {
+  const n = s.length;
+  while (i < n) {
+    if (/\s/.test(s[i])) { i++; continue; }
+    if (s[i] === '-' && s[i + 1] === '-') { while (i < n && s[i] !== '\n' && s[i] !== '\r') i++; continue; }
+    if (s[i] === '/' && s[i + 1] === '*') { let d = 1; i += 2; while (i < n && d) { if (s[i] === '/' && s[i + 1] === '*') { d++; i += 2; } else if (s[i] === '*' && s[i + 1] === '/') { d--; i += 2; } else i++; } continue; }
+    return s[i] === '(';
+  }
+  return false;
+}
 /**
  * Eén doorlopende scan op volgorde van voorkomen (commentaar, geneste blokcommentaar, $tag$-blokken, E'..', '..', "..", U&"..").
  * Zo kan een string het begin van commentaar niet nabootsen of andersom. ok=false: iets is niet afgesloten of niet te lezen (ook U&-notatie),
- * dus niet betrouwbaar. Tekst tussen aanhalingstekens verdwijnt uit de tekst maar blijft beschikbaar in literals (referentie ' §n§ ').
+ * dus niet betrouwbaar. Tekst tussen aanhalingstekens verdwijnt uit de tekst maar blijft beschikbaar in literals (referentie: een plaatsvervanger van privégebied-tekens met het volgnummer).
  */
 export function scanSql(sql) {
-  const s = String(sql || ''), n = s.length; let uit = '', i = 0, ok = true; const literals = [];
+  const s = String(sql || ''), n = s.length; let uit = '', i = 0, ok = true; const literals = [], geciteerd = new Set();
   // Postgres staat in identifiers en $-tags ook letters buiten ASCII toe; elk niet-ASCII teken telt hier als identifierteken.
   const ident = ch => /[A-Za-z0-9_$]/.test(ch || '') || /[^\x00-\x7F]/.test(ch || '');
   const tekst = (sluit, esc) => { // i staat net na het openingsteken
@@ -75,7 +96,8 @@ export function scanSql(sql) {
     }
     return false;
   };
-  const lit = (kind, body) => { literals.push({kind, body}); return ' §' + (literals.length - 1) + '§ '; };
+  if (/[]/.test(s)) ok = false; // gereserveerde plaatsvervangertekens in de invoer: niet betrouwbaar te lezen
+  const lit = (kind, body) => { literals.push({kind, body}); return ' ' + (literals.length - 1) + ' '; };
   while (i < n) {
     const c = s[i], d = s[i + 1], vorige = uit.slice(-1);
     if (c === '-' && d === '-') { while (i < n && s[i] !== '\n' && s[i] !== '\r') i++; uit += ' '; continue; }
@@ -99,11 +121,16 @@ export function scanSql(sql) {
     if (c === '"') { // een geciteerde identifier blijft zichtbaar (anders verbergt "dblink_exec"(...) of "auth"."users" zich voor de regels); een sleutelwoord of een bijzondere naam wordt een neutrale placeholder
       const start = i; i++; if (!tekst('"', false)) ok = false;
       const inhoud = s.slice(start + 1, i - 1);
-      uit += /^[A-Za-z_][A-Za-z0-9_$]*$/.test(inhoud) && !RESERVED_QUOTED.test(inhoud) ? ' ' + inhoud + ' ' : ' _Q_ '; continue;
+      // Een naam met een bijzonder teken (é, 日本) blijft leesbaar zodat functiedefinities en -aanroepen elkaar vinden; alleen een echt onleesbare naam (spaties, leestekens) of een sleutelwoord wordt een neutrale placeholder.
+      const leesbaar = new RegExp('^[' + ID_START + '][' + ID_CONT + ']*$', 'u').test(inhoud) && !RESERVED_QUOTED.test(inhoud);
+      uit += leesbaar ? ' ' + inhoud + ' ' : ' _Q_ ';
+      // "naam"( : een geciteerde functienaam is hoofdlettergevoelig en dus nooit het ingebouwde max/count/…
+      if (leesbaar && volgtHaakje(s, i)) geciteerd.add(funcSleutel(inhoud));
+      continue;
     }
     uit += c; i++;
   }
-  return {text: uit, ok, literals};
+  return {text: uit, ok, literals, geciteerd};
 }
 export const stripSql = sql => scanSql(sql).text;
 /** Staat er een WHERE op haakjesdiepte 0? Een WHERE in een subquery beperkt de UPDATE zelf niet. */
@@ -133,7 +160,7 @@ export function classifySql(sql) {
   if (st.length !== 1) return {level: 'sensitive', reason: 'Meerdere SQL-statements in een execute_sql-call zijn niet toegestaan.'};
   const tokens = (st[0].match(/[A-Za-z_][A-Za-z0-9_$]*/g) || []).map(x => x.toUpperCase());
   if (readStart.has(tokens[0] || '') && !tokens.some(t => forbiddenReadTokens.has(t)) && !readOnlyPhrases.some(r => r.test(st[0])) && !NETWORK_FN.test(st[0]) && !/\bauth\s*\./i.test(st[0]) && !/\bvault\s*\.\s*decrypted_secrets\b/i.test(st[0]) && !/\bvault\s*\.\s*secrets\b[\s\S]*\bsecret\b/i.test(st[0]) && !/\b_Q_\s*[.(]/.test(st[0])) {
-    const vreemd = unsafeCalls(st[0]);
+    const vreemd = unsafeCalls(st[0], new Set(), sc.geciteerd);
     if (vreemd.length) return {level: 'change', reason: 'Functie buiten de alleen-lezen-allowlist (' + [...new Set(vreemd)].slice(0, 4).join(', ') + '): behandeld als wijziging; gebruik een benoemde apply_migration.'};
     return {level: 'read', reason: 'Conservatief als read-only SQL herkend.'};
   }
@@ -155,14 +182,16 @@ const ESCALATIE = [
   [/^GRANT\b.*\bALL( PRIVILEGES)?\b.*\bTO\b.*\b(ANON|AUTHENTICATED|PUBLIC)\b/, 'alle rechten toekennen aan anon/authenticated/public'],
   [/^(CREATE|ALTER) POLICY\b.*\b(USING|WITH CHECK)\s*\(\s*TRUE\s*\)/, 'beleid dat alles toestaat (USING/WITH CHECK (true))']
 ];
-const FN_DEF = /^CREATE (?:OR REPLACE )?(?:FUNCTION|PROCEDURE)\s+((?:[A-Z_][\w$]*\s*\.\s*)*)([A-Z_][\w$]*)\s*\(/i;
-const funcSleutel = naam => String(naam).toLowerCase();
-const verwijzingen = (t, literals) => [...String(t).matchAll(/§(\d+)§/g)].map(m => literals[Number(m[1])]).filter(Boolean);
-const roept = (tekst, sleutel) => new RegExp('(?<![\\w$])' + sleutel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\(', 'i').test(tekst);
+const FN_DEF = new RegExp('^CREATE (?:OR REPLACE )?(?:FUNCTION|PROCEDURE)\\s+((?:' + NAAM + '\\s*\\.\\s*)*)(' + NAAM + ')\\s*\\(', 'iu');
+/** Begint dit statement als een functie- of procedure-definitie? (Ook als FN_DEF de naam niet kan lezen: dat is dan onbetrouwbaar en telt als DB-C.) */
+const IS_FN_DEF = /^CREATE (?:OR REPLACE )?(?:FUNCTION|PROCEDURE)\b/i;
+const verwijzingen = (t, literals) => [...String(t).matchAll(/(\d+)/g)].map(m => literals[Number(m[1])]).filter(Boolean);
+// Roept deze tekst de functie met deze (genormaliseerde) naam aan? Ruim bedoeld: een naam die een stukje van een andere naam is, matcht niet, maar een andere schrijfwijze van dezelfde naam wel.
+const roept = (tekst, sleutel) => new RegExp('(?<![' + ID_CONT + '])' + sleutel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\(', 'iu').test(String(tekst).normalize('NFKC'));
 
 /** Klasse van één statement. In een functiebody (inBody) is een onbekend of procedureel stuk gewoon A. */
 function klasseStatement(U, raw, ctx) {
-  const {inBody, literals, fns} = ctx;
+  const {inBody, literals, fns} = ctx, geciteerd = ctx.geciteerd || new Set();
   const r = (k, t) => ({k, r: t});
   if (/^(DO|CALL)\b/.test(U) || /\bEXECUTE\b(?!\s+(FUNCTION|PROCEDURE)\b)/.test(U) || /\bCOPY\b.*\bPROGRAM\b/.test(U) || /^ALTER SYSTEM\b/.test(U)) return r('C', 'voert willekeurige code uit (DO/CALL/EXECUTE/COPY PROGRAM/ALTER SYSTEM)');
   if (/^COPY\b/.test(U)) return r('C', 'COPY leest of schrijft bestanden of invoer buiten de tabelgegevens');
@@ -198,14 +227,14 @@ function klasseStatement(U, raw, ctx) {
   if (/^INSERT INTO\b/.test(U)) {
     // Een INSERT die een niet-herkende functie aanroept, voert code uit die hier niet te classificeren is: minimaal B.
     const zonderDoel = String(raw).replace(/^\s*INSERT\s+INTO\s+[^\s(]+(?:\s*\([^)]*\))?/i, '');
-    const vreemd = unsafeCalls(zonderDoel, new Set([...(fns ? fns.keys() : [])]));
+    const vreemd = unsafeCalls(zonderDoel, new Set([...(fns ? fns.keys() : [])]), geciteerd);
     if (vreemd.length) return r('B', 'roept een niet-herkende functie aan (' + [...new Set(vreemd)].slice(0, 3).join(', ') + ')');
   }
   if (/^CREATE (OR REPLACE )?(UNIQUE )?(INDEX|VIEW|TABLE|TYPE|SEQUENCE|POLICY|FUNCTION|PROCEDURE|SCHEMA)\b/.test(U) || /^CREATE (TEMP |TEMPORARY )?TABLE\b/.test(U) || /ADD COLUMN\b/.test(U) || /ENABLE ROW LEVEL SECURITY/.test(U) || /^COMMENT ON\b/.test(U) || /^INSERT INTO\b/.test(U)) {
     // Een DEFAULT of een AS SELECT die een niet-herkende functie aanroept, voert die functie uit (of laat haar later uitvoeren): minimaal B.
     if (!/^(INSERT INTO|COMMENT ON|CREATE (OR REPLACE )?(FUNCTION|PROCEDURE))\b/.test(U)) {
       const stukken = [...String(raw).matchAll(/\bDEFAULT\b((?:[^,();]|\([^()]*\))*)/gi)].map(m => m[1]).join(' ') + ' ' + (/\bAS\s+((?:SELECT|WITH|VALUES)\b[\s\S]*)$/i.exec(String(raw))?.[1] || '');
-      const vreemd = unsafeCalls(stukken, new Set([...(fns ? fns.keys() : [])]));
+      const vreemd = unsafeCalls(stukken, new Set([...(fns ? fns.keys() : [])]), geciteerd);
       if (vreemd.length) return r('B', 'DEFAULT of AS SELECT roept een niet-herkende functie aan (' + [...new Set(vreemd)].slice(0, 3).join(', ') + ')');
     }
     return r('A', 'additief');
@@ -230,7 +259,7 @@ function bodyKlasse(tekst, fns, diepte = 0) {
   let hoogste = 'A', reden = 'alleen additieve of procedurele stappen uitvoert';
   for (const stuk of sc.text.split(';')) {
     const p = stripControl(stuk); const U = p.replace(/\s+/g, ' ').trim().toUpperCase(); if (!U) continue;
-    let k = klasseStatement(U, p, {inBody: true, literals: sc.literals, fns, diepte});
+    let k = klasseStatement(U, p, {inBody: true, literals: sc.literals, fns, diepte, geciteerd: sc.geciteerd});
     if (fns) for (const [naam, f] of fns) if (roept(p, naam) && RANG[f.k] > RANG[k.k]) k = {k: f.k, r: 'functie ' + naam + ' aanroept die ' + f.r};
     if (RANG[k.k] > RANG[hoogste]) { hoogste = k.k; reden = k.r; }
   }
@@ -254,8 +283,9 @@ export function classifyDb(sql) {
   // Eerst de functies die in deze migratie worden gemaakt (hun body bepaalt wat een latere aanroep doet).
   const fns = new Map();
   for (const s of lijst) {
-    const m = FN_DEF.exec(s.replace(/\s+/g, ' ').replace(/^CREATE (OR REPLACE )?/i, 'CREATE $1'));
-    if (!m) continue;
+    const plat = s.replace(/\s+/g, ' ').replace(/^CREATE (OR REPLACE )?/i, 'CREATE $1');
+    const m = FN_DEF.exec(plat);
+    if (!m) { if (IS_FN_DEF.test(plat)) { zet('C', 'functie- of procedure-definitie waarvan de naam niet te lezen is: de body kan niet betrouwbaar worden beoordeeld'); } continue; }
     let k = 'A', t = 'alleen additieve of procedurele stappen uitvoert';
     for (const l of verwijzingen(s, sc.literals)) { const b = bodyKlasse(l.body, fns, 1); if (RANG[b.k] > RANG[k]) { k = b.k; t = b.r; } }
     fns.set(funcSleutel(m[2]), {k, r: t});
@@ -267,7 +297,7 @@ export function classifyDb(sql) {
       const f = fns.get(eigen);
       if (RANG[f.k] >= RANG.B) { zet(f.k, 'functie ' + eigen + ' voert uit: ' + f.r); continue; }
     }
-    let k = klasseStatement(U, s, {inBody: false, literals: sc.literals, fns});
+    let k = klasseStatement(U, s, {inBody: false, literals: sc.literals, fns, geciteerd: sc.geciteerd});
     // Een latere aanroep van een in deze migratie gemaakte functie (of een trigger of cron-job die haar aanroept) erft de klasse van de body.
     for (const [naam, f] of fns) if (naam !== eigen && roept(s, naam) && RANG[f.k] >= RANG[k.k]) k = {k: max(f.k, 'B'), r: 'roept functie ' + naam + ' aan, die ' + f.r};
     zet(k.k, k.r);

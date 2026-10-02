@@ -118,11 +118,11 @@ test('RB05 extra_commands zijn volledig zichtbaar in het voorstel vóór de GO e
   assert.equal(extraRefusal(['node', 'scripts/bouw.mjs'], 'build'), null); assert.equal(extraRefusal(['git', 'checkout', '-b', 'x'], 'destructive'), null);
   // present toont alles: extra commando's (gemarkeerd), criteria, ondersteunende categorieën en providers
   installRuntime(root);
-  const c = mak(['node', '-e', 'console.log(1)'], 'build');
+  const c = mak(['node', 'scripts/bouw.mjs'], 'build');
   plan(root, {envelope: c.envelope, plan: c.plan});
   const toon = cliRun(root, 'present', 'W-T'); assert.equal(toon.status, 0, toon.stderr);
   const uit = JSON.parse(toon.stdout), tekst = uit.samenvatting.join('\n');
-  assert.match(tekst, /Extra commando's buiten de standaardlijst \(1\):/); assert.match(tekst, /\[build\] node -e console\.log\(1\)/); assert.match(tekst, /BUITEN de standaardlijst en voert willekeurige code uit/); assert.match(tekst, /reden: Een extra commando dat de gebruiker moet kunnen zien/);
+  assert.match(tekst, /Extra commando's buiten de standaardlijst \(1\):/); assert.match(tekst, /\[build\] node scripts\/bouw\.mjs/); assert.match(tekst, /BUITEN de standaardlijst/); assert.match(tekst, /reden: Een extra commando dat de gebruiker moet kunnen zien/);
   assert.match(tekst, /AC1: De wijziging werkt zoals afgesproken\./); assert.match(tekst, /ondersteunend: tests/);
   // het echte GO-pad: de opdracht zoals die is getoond, niet via een helper die present zelf aanroept
   assert.equal(uit.exacte_go, 'AAE GO W-T ' + uit.short_hash); assert.equal(st(root).approved, null);
