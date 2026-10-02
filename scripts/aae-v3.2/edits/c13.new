@@ -1,0 +1,1 @@
+for(const cmd of c.commands)t.approved_commands[cmd.id]=approveCommand(root,cmd);

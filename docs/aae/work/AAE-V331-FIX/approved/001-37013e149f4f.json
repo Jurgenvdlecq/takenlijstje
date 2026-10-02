@@ -1,0 +1,182 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V331-FIX",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-02T21:46:41.902Z",
+  "source": "AAE GO",
+  "hash": "37013e149f4f2df70cc4075b96e580e447bc7bb338523f009814cab654ef1115",
+  "short_hash": "37013e149f4f",
+  "envelope": {
+    "id": "AAE-V331-FIX",
+    "goal": "Vaststellen waarom 14 installer-, rollback- en overgangstests van eigen.test.mjs op de parent c23ade2 slaagden en na a0aa3d4 (v3.3.1) falen, en alleen de daadwerkelijke v3.3.1-regressie(s) herstellen (binnen tools/aae-v33, zonder veiligheidscontroles voor rollback, atomiciteit, corruptie, symlinks en onderbroken installaties af te zwakken), en daarna dezelfde retrospectieve vergelijking opnieuw doen: parent c23ade2 tegen de definitieve v3.3.1-bron. Eindstand: v3.3.1 voegt geen nieuwe failures toe aan eigen.test.mjs; de 5 failures die al op de parent bestonden blijven en worden als bestaand onderhoud genoteerd. Geen live installatie, geen main, geen nieuwe functionaliteit, geen nieuwe testinfrastructuur, geen zijprojecten.",
+    "phase": "implementation",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "F1",
+        "text": "De oorzaak van de 14 nieuwe failures is vastgesteld met bewijs (de foutmeldingen van de eerste en van de overige falende tests) en benoemd als: (1) een echte runtime- of installerregressie, (2) een test die door het bewust gewijzigde v3.3.1-contract terecht aangepast moet worden, of (3) één technische oorzaak waardoor meerdere tests tegelijk falen. De 14 worden als één probleem behandeld."
+      },
+      {
+        "id": "F2",
+        "text": "Alleen de daadwerkelijke v3.3.1-regressie(s) zijn hersteld. Een test is alleen aangepast als aangetoond is dat het verwachte gedrag bewust en correct is veranderd (met reden in het rapport). De veiligheidscontroles voor rollback, atomiciteit, corruptie, symlinks en onderbroken installaties zijn niet afgezwakt, en de 5 tests die al op de parent faalden en de verouderde v3.2-tests zijn niet gewijzigd."
+      },
+      {
+        "id": "F3",
+        "text": "Retrospectieve vergelijking opnieuw gedaan in tijdelijke worktrees: parent c23ade2 tegen de definitieve v3.3.1-commit. Elke test die op de definitieve v3.3.1-bron faalt, faalt ook op de parent (geen nieuwe failures). De 5 bestaande baseline-failures staan als bestaand onderhoud genoteerd in docs/aae/notes/verbeterpunten.md en docs/aae/PROGRESS.md."
+      },
+      {
+        "id": "F4",
+        "text": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt volledig op de definitieve bron; de twee pariteitsbestanden zijn niet gewijzigd; tijdelijke worktrees en het meetscript zijn verwijderd; de fix is gecommit en gepusht naar de werkbranch."
+      },
+      {
+        "id": "F5",
+        "text": "Afbakening: geen installatie op het live systeem, geen main, geen nieuwe functionaliteit of testinfrastructuur, geen schone-kloon-audit, geen zijprojecten. Er is hoogstens één onafhankelijke Reviewer aan het einde gebruikt, alleen als dat aantoonbaar waarde toevoegt; een bevinding binnen deze scope is zonder nieuwe GO hersteld."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/README.md",
+      "tools/aae-v33/installer",
+      "tools/aae-v33/pariteit",
+      "tools/aae-v33/payload",
+      "tools/aae-v33/tests"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v33-001-gxlax8"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 2,
+      "command_runs": 60,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Installeren op het live systeem en samenvoegen met main zijn aparte werkpakketten met eigen GO.",
+      "Stop en leg aan Jurgen voor als de oorzaak buiten de genoemde gebieden ligt (bijvoorbeeld het live systeem) of een oplossing nieuwe functionaliteit vraagt.",
+      "Stop en leg aan Jurgen voor als herstel alleen kan door een rollback-, atomiciteits-, corruptie-, symlink- of onderbroken-installatiecontrole af te zwakken."
+    ],
+    "decision_defaults": [
+      "Een reviewbevinding binnen dezelfde gebieden wordt hersteld zonder nieuwe GO.",
+      "Geen zijprojecten: de 5 baseline-failures en de verouderde v3.2-tests worden niet gerepareerd, alleen genoteerd.",
+      "Technische keuzes (diagnoseroute, fixvorm, scriptopzet, volgorde) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "Herstel de nieuwe failures van eigen.test.mjs door v3.3.1",
+    "goal": "Vaststellen waarom 14 installer-, rollback- en overgangstests van eigen.test.mjs op de parent c23ade2 slaagden en na a0aa3d4 (v3.3.1) falen, en alleen de daadwerkelijke v3.3.1-regressie(s) herstellen (binnen tools/aae-v33, zonder veiligheidscontroles voor rollback, atomiciteit, corruptie, symlinks en onderbroken installaties af te zwakken), en daarna dezelfde retrospectieve vergelijking opnieuw doen: parent c23ade2 tegen de definitieve v3.3.1-bron. Eindstand: v3.3.1 voegt geen nieuwe failures toe aan eigen.test.mjs; de 5 failures die al op de parent bestonden blijven en worden als bestaand onderhoud genoteerd. Geen live installatie, geen main, geen nieuwe functionaliteit, geen nieuwe testinfrastructuur, geen zijprojecten.",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.3.1 bron, installer, tests en meetscript",
+          "write": [
+            "tools/aae-v33/payload",
+            "tools/aae-v33/installer",
+            "tools/aae-v33/tests",
+            "tools/aae-v33/pariteit",
+            "tools/aae-v33/README.md"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v33-001-gxlax8"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "agent_calls": {
+          "soft": 1,
+          "hard": 2
+        },
+        "command_runs": 60,
+        "external_calls": 0,
+        "max_parallel": 1
+      },
+      "acceptance": [
+        {
+          "id": "F1",
+          "text": "De oorzaak van de 14 nieuwe failures is vastgesteld met bewijs (de foutmeldingen van de eerste en van de overige falende tests) en benoemd als: (1) een echte runtime- of installerregressie, (2) een test die door het bewust gewijzigde v3.3.1-contract terecht aangepast moet worden, of (3) één technische oorzaak waardoor meerdere tests tegelijk falen. De 14 worden als één probleem behandeld."
+        },
+        {
+          "id": "F2",
+          "text": "Alleen de daadwerkelijke v3.3.1-regressie(s) zijn hersteld. Een test is alleen aangepast als aangetoond is dat het verwachte gedrag bewust en correct is veranderd (met reden in het rapport). De veiligheidscontroles voor rollback, atomiciteit, corruptie, symlinks en onderbroken installaties zijn niet afgezwakt, en de 5 tests die al op de parent faalden en de verouderde v3.2-tests zijn niet gewijzigd."
+        },
+        {
+          "id": "F3",
+          "text": "Retrospectieve vergelijking opnieuw gedaan in tijdelijke worktrees: parent c23ade2 tegen de definitieve v3.3.1-commit. Elke test die op de definitieve v3.3.1-bron faalt, faalt ook op de parent (geen nieuwe failures). De 5 bestaande baseline-failures staan als bestaand onderhoud genoteerd in docs/aae/notes/verbeterpunten.md en docs/aae/PROGRESS.md."
+        },
+        {
+          "id": "F4",
+          "text": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt volledig op de definitieve bron; de twee pariteitsbestanden zijn niet gewijzigd; tijdelijke worktrees en het meetscript zijn verwijderd; de fix is gecommit en gepusht naar de werkbranch."
+        },
+        {
+          "id": "F5",
+          "text": "Afbakening: geen installatie op het live systeem, geen main, geen nieuwe functionaliteit of testinfrastructuur, geen schone-kloon-audit, geen zijprojecten. Er is hoogstens één onafhankelijke Reviewer aan het einde gebruikt, alleen als dat aantoonbaar waarde toevoegt; een bevinding binnen deze scope is zonder nieuwe GO hersteld."
+        }
+      ],
+      "assumptions": [
+        "Eerste vermoeden, nog niet vastgesteld: installer/install.mjs heeft VERSION 3.3.0 terwijl de payload sinds v3.3.1 3.3.1 meldt, waardoor apply en de rollback-tests tegelijk falen. De diagnose bevestigt of weerlegt dit.",
+        "Tijdens dit werkpakket draait AAE 3.3.0 live; de oude regels gelden dus nog (onder meer: bewijsomschrijvingen in het plan mogen niet veranderen).",
+        "Het meetscript is een tijdelijk projectscript (node) in tools/aae-v33/pariteit: alleen git worktree add/remove, node --test in die kopieën en de twee pariteitsbestanden uit HEAD terugzetten. Niet gecommit; verwijdert zichzelf na de eindmeting.",
+        "eigen.test.mjs draait alleen in tijdelijke worktrees, nooit in de gewone werkmap, omdat de pariteit-test daar gevolgde bestanden overschrijft."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (diagnoseroute, fixvorm, scriptopzet, volgorde) beslist de hoofdsessie zelf.",
+        "Een reviewbevinding binnen dezelfde gebieden wordt hersteld zonder nieuwe GO.",
+        "Geen zijprojecten: de 5 baseline-failures en de verouderde v3.2-tests worden niet gerepareerd, alleen genoteerd."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als herstel alleen kan door een rollback-, atomiciteits-, corruptie-, symlink- of onderbroken-installatiecontrole af te zwakken.",
+        "Stop en leg aan Jurgen voor als de oorzaak buiten de genoemde gebieden ligt (bijvoorbeeld het live systeem) of een oplossing nieuwe functionaliteit vraagt.",
+        "Installeren op het live systeem en samenvoegen met main zijn aparte werkpakketten met eigen GO."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat tonen alleen wijzigingen in de genoemde gebieden en de voortgangs- en notitieregels; het live systeem, main, de verouderde tests en de pariteitsbestanden zijn niet gewijzigd; worktrees en meetscript zijn weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De retrospectieve meting (parent c23ade2 tegen de definitieve v3.3.1-commit) toont dat alle falende tests op v3.3.1 ook op de parent faalden, en de installertests slagen op de definitieve bron."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt volledig op de definitieve bron."
+    }
+  ],
+  "snapshot_digest": "562af87f82f0f0401befad0903e03f1e84849c836748198266a65273e74bc432"
+}

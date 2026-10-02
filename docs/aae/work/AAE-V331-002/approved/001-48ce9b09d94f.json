@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V331-002",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-02T22:20:08.113Z",
+  "source": "AAE GO",
+  "hash": "48ce9b09d94f68943c80876407df99a32a322bf0650b56e9e07381b27a043af6",
+  "short_hash": "48ce9b09d94f",
+  "envelope": {
+    "id": "AAE-V331-002",
+    "goal": "AAE v3.3.1 (bron commit 7981d30, door Jurgen gereviewd: READY) op het live systeem van dit project installeren met de bestaande installer, met vooraf een terugdraaicontrole op een tijdelijke kopie en achteraf een terugdraaiplan (alleen lezen), een rooktest met doctor, het opnieuw registreren van werkpakketten waar nodig, en de correctie van de onjuiste READY-regel van AAE-V331-001 in docs/aae/PROGRESS.md. Geen merge naar main, geen deploy, geen REPORT_CONFLICT-oplossing, geen extra review en geen zijprojecten.",
+    "phase": "implementation",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "I1",
+        "text": "Vooraf: het installatieplan (installer zonder --apply) op het live project toont 3.3.0 naar 3.3.1 zonder conflicten en schrijft niets."
+      },
+      {
+        "id": "I2",
+        "text": "Terugdraaicontrole op een tijdelijke kopie (in de genegeerde map .claude/aae/state/installcontrole) van de live .claude, CLAUDE.md en .gitignore: installeren 3.3.0 naar 3.3.1 lukt, terugdraaien zet alles byte-exact terug naar 3.3.0, en opnieuw installeren lukt. De kopie is daarna verwijderd."
+      },
+      {
+        "id": "I3",
+        "text": "Live installatie: de installer met --apply slaagt inclusief zijn eigen hash- en doctor-controle; er is een back-up in .aae-backups met RESTORE.json (status applied) en een archief van 3.3.0 in docs/archief/aae-3.3.0. .claude/settings.json, CLAUDE.md en .claude/aae/state blijven ongemoeid."
+      },
+      {
+        "id": "I4",
+        "text": "Terugdraaicontrole live zonder terug te draaien: het terugdraaiplan voor de nieuwe back-up meldt geen conflicten en alle back-upblobs zijn intact. Het exacte terugdraaicommando staat in het resultaat en in docs/aae/PROGRESS.md."
+      },
+      {
+        "id": "I5",
+        "text": "Rooktest: cli doctor meldt alle controles PASS, met versie 3.3.1 en managed_integrity; de geïnstalleerde v3.3.1-tests (.claude/aae/tests/v331.test.mjs) slagen; dit werkpakket is onder v3.3.1 opnieuw geregistreerd met dezelfde goedgekeurde hash en zonder NEEDS_HUMAN. Andere werkpakketten zijn alleen opnieuw geregistreerd als ze nog lopen; de afgesloten of geblokkeerde pakketten zijn ongemoeid gelaten en dat staat in het resultaat."
+      },
+      {
+        "id": "I6",
+        "text": "De onjuiste READY-regel van AAE-V331-001 in docs/aae/PROGRESS.md is gecorrigeerd: AAE-V331-001 is PARTIAL (formeel geen erkend reviewer-READY door REPORT_CONFLICT); de eigen review van Jurgen op commit 7981d30 gaf READY. Deze correctie is gecommit en gepusht naar de werkbranch."
+      },
+      {
+        "id": "I7",
+        "text": "Afbakening: geen merge naar main, geen deploy, geen wijziging aan REPORT_CONFLICT, geen extra review, geen zijprojecten. De door de installer gewijzigde systeembestanden (.claude en docs/archief/aae-3.3.0) worden niet door AAE gecommit; die commit doet Jurgen zelf bij zijn latere merge. Het tijdelijke controlescript is aan het eind verwijderd."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/installer/installcontrole.mjs"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v33-001-gxlax8"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 2,
+      "command_runs": 40,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Samenvoegen met main en het committen van de geïnstalleerde systeembestanden doet Jurgen zelf, buiten AAE.",
+      "Stop en leg aan Jurgen voor als de live installatie of de rooktest faalt; terugdraaien op het live systeem is dan zijn besluit (het terugdraaicommando staat klaar).",
+      "Stop en leg aan Jurgen voor als het installatieplan conflicten toont of de terugdraaicontrole op de kopie niet byte-exact is: dan wordt er niets live geïnstalleerd."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: verbeterpunten uit de review gaan naar docs/aae/notes/verbeterpunten.md.",
+      "Technische keuzes (scriptopzet, volgorde, uitvoerformaat) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/install.mjs\",\"--project\",\".\",\"--apply\"],\"purpose\":\"install\"}",
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/install.mjs\",\"--project\",\".\"],\"purpose\":\"read\"}",
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/installcontrole.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "AAE v3.3.1 installeren met terugdraaicontrole en rooktest",
+    "goal": "AAE v3.3.1 (bron commit 7981d30, door Jurgen gereviewd: READY) op het live systeem van dit project installeren met de bestaande installer, met vooraf een terugdraaicontrole op een tijdelijke kopie en achteraf een terugdraaiplan (alleen lezen), een rooktest met doctor, het opnieuw registreren van werkpakketten waar nodig, en de correctie van de onjuiste READY-regel van AAE-V331-001 in docs/aae/PROGRESS.md. Geen merge naar main, geen deploy, geen REPORT_CONFLICT-oplossing, geen extra review en geen zijprojecten.",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "Tijdelijk controlescript bij de installer",
+          "write": [
+            "tools/aae-v33/installer/installcontrole.mjs"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v33-001-gxlax8"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "agent_calls": {
+          "soft": 1,
+          "hard": 2
+        },
+        "command_runs": 40,
+        "external_calls": 0,
+        "max_parallel": 1
+      },
+      "acceptance": [
+        {
+          "id": "I1",
+          "text": "Vooraf: het installatieplan (installer zonder --apply) op het live project toont 3.3.0 naar 3.3.1 zonder conflicten en schrijft niets."
+        },
+        {
+          "id": "I2",
+          "text": "Terugdraaicontrole op een tijdelijke kopie (in de genegeerde map .claude/aae/state/installcontrole) van de live .claude, CLAUDE.md en .gitignore: installeren 3.3.0 naar 3.3.1 lukt, terugdraaien zet alles byte-exact terug naar 3.3.0, en opnieuw installeren lukt. De kopie is daarna verwijderd."
+        },
+        {
+          "id": "I3",
+          "text": "Live installatie: de installer met --apply slaagt inclusief zijn eigen hash- en doctor-controle; er is een back-up in .aae-backups met RESTORE.json (status applied) en een archief van 3.3.0 in docs/archief/aae-3.3.0. .claude/settings.json, CLAUDE.md en .claude/aae/state blijven ongemoeid."
+        },
+        {
+          "id": "I4",
+          "text": "Terugdraaicontrole live zonder terug te draaien: het terugdraaiplan voor de nieuwe back-up meldt geen conflicten en alle back-upblobs zijn intact. Het exacte terugdraaicommando staat in het resultaat en in docs/aae/PROGRESS.md."
+        },
+        {
+          "id": "I5",
+          "text": "Rooktest: cli doctor meldt alle controles PASS, met versie 3.3.1 en managed_integrity; de geïnstalleerde v3.3.1-tests (.claude/aae/tests/v331.test.mjs) slagen; dit werkpakket is onder v3.3.1 opnieuw geregistreerd met dezelfde goedgekeurde hash en zonder NEEDS_HUMAN. Andere werkpakketten zijn alleen opnieuw geregistreerd als ze nog lopen; de afgesloten of geblokkeerde pakketten zijn ongemoeid gelaten en dat staat in het resultaat."
+        },
+        {
+          "id": "I6",
+          "text": "De onjuiste READY-regel van AAE-V331-001 in docs/aae/PROGRESS.md is gecorrigeerd: AAE-V331-001 is PARTIAL (formeel geen erkend reviewer-READY door REPORT_CONFLICT); de eigen review van Jurgen op commit 7981d30 gaf READY. Deze correctie is gecommit en gepusht naar de werkbranch."
+        },
+        {
+          "id": "I7",
+          "text": "Afbakening: geen merge naar main, geen deploy, geen wijziging aan REPORT_CONFLICT, geen extra review, geen zijprojecten. De door de installer gewijzigde systeembestanden (.claude en docs/archief/aae-3.3.0) worden niet door AAE gecommit; die commit doet Jurgen zelf bij zijn latere merge. Het tijdelijke controlescript is aan het eind verwijderd."
+        }
+      ],
+      "assumptions": [
+        "De installer schrijft .claude, docs/archief/aae-3.3.0 en .aae-backups; AAE mag die systeempaden niet zelf committen, dus ze blijven als wijziging in de werkmap staan voor Jurgens eigen commit en merge.",
+        "STANDARD omdat de installatie volledig terug te draaien is (back-up met RESTORE.json) en er geen merge, deploy of database bij hoort; een HIGH-reviewer-gate is door REPORT_CONFLICT nu niet haalbaar.",
+        "Na de installatie draaien de hooks van deze sessie met v3.3.1; de status van werkpakketten (versie 4) blijft geldig.",
+        "Het controlescript is tijdelijk, wordt niet gecommit en verwijdert zichzelf na de controle op het live systeem."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (scriptopzet, volgorde, uitvoerformaat) beslist de hoofdsessie zelf.",
+        "Geen zijprojecten: verbeterpunten uit de review gaan naar docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als het installatieplan conflicten toont of de terugdraaicontrole op de kopie niet byte-exact is: dan wordt er niets live geïnstalleerd.",
+        "Stop en leg aan Jurgen voor als de live installatie of de rooktest faalt; terugdraaien op het live systeem is dan zijn besluit (het terugdraaicommando staat klaar).",
+        "Samenvoegen met main en het committen van de geïnstalleerde systeembestanden doet Jurgen zelf, buiten AAE."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/install.mjs",
+            "--project",
+            "."
+          ],
+          "purpose": "read"
+        },
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/install.mjs",
+            "--project",
+            ".",
+            "--apply"
+          ],
+          "purpose": "install"
+        },
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/installcontrole.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status na afloop: alleen de door de installer verwachte paden (.claude, docs/archief/aae-3.3.0), docs/aae/PROGRESS.md en de eigen werkpakketmap; geen main, geen merge, geen deploy; het controlescript en de tijdelijke kopie zijn weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "Het controlescript bevestigt vooraf de byte-exacte terugdraaiing op een kopie en achteraf een conflictvrij terugdraaiplan met intacte back-upblobs op het live systeem."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De geïnstalleerde v3.3.1-tests (.claude/aae/tests/v331.test.mjs) slagen en cli doctor meldt alle controles PASS."
+    }
+  ],
+  "snapshot_digest": "a012beadba6c356019129135e211e6e6fb1ad4f4b635e9601025364ddeea7350"
+}

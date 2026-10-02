@@ -1,0 +1,3 @@
+    if(s.task){s.task.approval=null;s.task.sensitive_approval=null;/* old snapshot is not bound to this request */}
+    log(s,'user_request',{session});
+    return context('UserPromptSubmit','AAE v3.1: nieuwe vraag. Eerst lichte routing; hergebruik context. Geen oude bouwtoestemming. Gesprek mag zonder route. Een kleine duidelijke taak heeft geen aparte supervisor nodig.');

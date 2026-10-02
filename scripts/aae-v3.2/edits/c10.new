@@ -1,0 +1,19 @@
+    // v3.2-local (R4): een gewijzigd contract van een goedgekeurde, actieve route blijft binnen de envelop actief.
+    const wasApproved=same&&old.status==='active'&&old.approval?.digest===old.digest&&old.approval.request_key===s.request.key;
+    const envelope=wasApproved&&old.digest!==d?envelopeChanges(old.contract,c):null;
+    const amended=Boolean(envelope&&envelope.length===0);
+    const approved=same&&old.digest===d&&old.approval?.digest===d&&old.approval.request_key===s.request.key||amended;
+    const required=amended?false:needsApproval(root,s,c,same?old:null);
+    const approved_commands=approved?old.approved_commands:{};
+    if(amended){
+      for(const id of Object.keys(approved_commands))if(!c.commands.some(x=>x.id===id))delete approved_commands[id];
+      for(const cmd of c.commands){const rec=approved_commands[cmd.id];if(!(rec&&(typeof rec==='string'||rec.shape===commandShape(cmd))))approved_commands[cmd.id]=approveCommand(root,cmd);}
+    } else if(!required)for(const cmd of c.commands)approved_commands[cmd.id]=approveCommand(root,cmd);
+    const approval=amended?{...old.approval,digest:d,amended_from:old.digest,amended_at:now()}:approved?old.approval:null;
+    s.task={id:c.id,digest:d,contract:c,status:required&&!approved?'pending':'active',owner:s.request.session,request_key:s.request.key,approval,approved_commands,
+      usage,calls:same?old.calls:{},command_counts:same?old.command_counts:{},command_receipts:same?old.command_receipts:[],command_running:null,
+      external_calls:same?(old.external_calls||{}):{},external_receipts:same?(old.external_receipts||[]):[],sensitive_approval:approved&&!amended?(old.sensitive_approval||null):null,denials:0};
+    s.request.task_id=c.id;
+    // v3.2-local (R10): een projectverificatie uit deze gebruikersvraag geldt voor de taak die nu wordt gerouteerd.
+    const sv=s.integrations?.supabase;if(sv?.verified_ref&&sv.verified_request_key===s.request.key)sv.verified_task=c.id;
+    log(s,amended?'route_amended':'route',{task:c.id,digest:d,status:s.task.status,...(envelope&&envelope.length?{envelope_changes:envelope}:{})});

@@ -1,0 +1,72 @@
+const LEVELS={low:0,normal:1,high:2}, level=x=>LEVELS[x]??9;
+/**
+ * v3.2-local (R4, review B1/B3): een nieuw of gewijzigd lokaal commando valt alleen binnen de envelop als zijn argv
+ * volledig op een toegestane lijst staat: een bekend testprogramma als begin, daarna uitsluitend expliciet toegestane
+ * opties of eenvoudige relatieve paden/refs (geen opties als --fix, --output, --import, geen absolute paden, geen '..',
+ * geen ':' of '='). Het opgegeven doel ("test") alleen is geen bewijs.
+ */
+// Review B6: node --test voert elk expliciet opgegeven bestand uit; daarom alleen testbestanden of bekende testmappen.
+const nodeTestOperand=a=>{const last=a.split('/').pop();return /\.(test|spec)\.[cm]?[jt]sx?$/.test(last)||['tests','test','__tests__','spec','src'].includes(last);};
+const SAFE_LOCAL_ARGV=[
+  {prefix:['node','--test'],flags:[],operand:nodeTestOperand},
+  {prefix:['npx','vitest','run'],flags:[]},
+  {prefix:['npx','tsc','--noEmit'],flags:['--pretty']},
+  {prefix:['npx','eslint'],flags:['--max-warnings=0']},
+  {prefix:['npx','playwright','test'],flags:[]},
+  {prefix:['git','status'],flags:['--porcelain','--short','--branch']},
+  {prefix:['git','diff'],flags:['--stat','--name-only','--cached','--check']},
+  {prefix:['git','log'],flags:['--oneline','--stat'],pattern:/^(-n\d{1,4}|--max-count=\d{1,4})$/},
+  {prefix:['git','show'],flags:['--stat','--name-only']},
+  {prefix:['git','rev-parse'],flags:['--abbrev-ref','--short']},
+  {prefix:['git','merge-base'],flags:['--is-ancestor']}
+];
+const SAFE_OPERAND=/^(?![-\/])(?!.*(^|\/)\.\.(\/|$))[A-Za-z0-9_.\/@^~-]{1,200}$/;
+export function safeLocalArgv(argv){
+  if(!Array.isArray(argv)||!argv.every(a=>typeof a==='string'))return false;
+  const rule=SAFE_LOCAL_ARGV.find(r=>argv.length>=r.prefix.length&&r.prefix.every((x,i)=>argv[i]===x));
+  if(!rule)return false;
+  return argv.slice(rule.prefix.length).every(a=>rule.flags.includes(a)||Boolean(rule.pattern?.test(a))||SAFE_OPERAND.test(a)&&(!rule.operand||rule.operand(a)));
+}
+/**
+ * v3.2-local (R4): redenen waarom een gewijzigd contract buiten de goedgekeurde envelop valt.
+ * Lege lijst = amendement: de route blijft actief en de bestaande GO blijft geldig.
+ * Materieel (nieuwe GO): ander ID of fase; andere modus; hoger risico of hogere onzekerheid; andere risicovlaggen;
+ * bredere schrijfscope; andere goedkeuringsvlaggen; verwijderde beslisgrens; verwijderd of gewijzigd acceptatiecriterium;
+ * verwijderde of gewijzigde controle in het bewijsplan; nieuwe, verwijderde of gewijzigde agent (vraag, resultaat,
+ * stopcriterium, model, minder bestanden, meer aanroepen); hoger agent-/extern budget of meer parallelisme; ander doel van
+ * een commando; nieuw of gewijzigd niet-lokaal commando of meer runs daarvan; nieuw of gewijzigd lokaal commando buiten de
+ * toegestane argv-lijst; bredere integratie (ander project, extra tools of calls, nieuwe gevoelige SQL/migraties, andere
+ * PR-base/head). Het commandobudget mag omhoog (R12, herstelrondes) tot het schemamaximum.
+ * Review B2: bewijs en READY-eisen mogen niet stil lichter worden, anders wordt ook een gate-merge lichter.
+ */
+export function envelopeChanges(o,c){
+  const why=[],sub=(a,b)=>a.every(x=>b.includes(x)),same=(a,b)=>sub(a,b)&&sub(b,a);
+  if(c.id!==o.id)why.push('taak-ID');
+  if(c.phase!==o.phase)why.push('fase');
+  if(c.mode!==o.mode)why.push('modus');
+  if(level(c.risk)>level(o.risk))why.push('risico');
+  if(level(c.uncertainty)>level(o.uncertainty))why.push('onzekerheid');
+  if(!same(c.risk_flags,o.risk_flags))why.push('risicovlaggen');
+  if(!c.scope.write.every(p=>scopeContains(o.scope.write,relName(p))))why.push('schrijfscope');
+  if(c.approval_required!==o.approval_required||c.design_freeze!==o.design_freeze)why.push('goedkeuringsvlaggen');
+  if(!sub(o.decision_points||[],c.decision_points||[]))why.push('beslisgrenzen');
+  if(!o.acceptance.every(a=>c.acceptance.some(b=>b.id===a.id&&b.text===a.text)))why.push('acceptatiecriteria');
+  if(!o.test_plan.every(a=>c.test_plan.some(b=>b.kind===a.kind&&b.method===a.method&&b.description===a.description)))why.push('bewijsplan');
+  for(const a of c.agents){const b=o.agents.find(x=>x.name===a.name);if(!b||a.max_calls>b.max_calls||a.model!==b.model||a.question!==b.question||a.deliverable!==b.deliverable||a.stop_when!==b.stop_when||!sub(b.files,a.files))why.push('agent '+a.name);}
+  for(const b of o.agents)if(!c.agents.some(a=>a.name===b.name))why.push('agent verwijderd '+b.name);
+  if(c.budget.agent_calls>o.budget.agent_calls||c.budget.max_parallel>o.budget.max_parallel||(c.budget.external_calls||0)>(o.budget.external_calls||0))why.push('budget');
+  for(const x of c.commands){
+    const y=o.commands.find(k=>k.id===x.id);
+    if(y&&y.purpose!==x.purpose){why.push('commando-doel '+x.id);continue;}
+    // Review B5: een READY-gate mag niet stil verdwijnen (bewijs niet lichter).
+    if(y&&(y.gate||'none')==='ready'&&(x.gate||'none')!=='ready'){why.push('commando-gate '+x.id);continue;}
+    if(y&&commandShape(y)===commandShape(x)){if(!LOCAL_PURPOSES.includes(x.purpose)&&x.max_runs>y.max_runs)why.push('commando-runs '+x.id);continue;}
+    if(!LOCAL_PURPOSES.includes(x.purpose)||!safeLocalArgv(x.argv))why.push('commando '+x.id);
+  }
+  const oi=o.integrations||{},ci=c.integrations||{};
+  if(ci.supabase){const a=ci.supabase,b=oi.supabase;if(!b||a.project_ref!==b.project_ref||!sub(a.tools,b.tools)||a.max_calls>b.max_calls||!sub(a.sensitive_migrations||[],b.sensitive_migrations||[])||!sub(a.dangerous_sql||[],b.dangerous_sql||[]))why.push('supabase');}
+  if(ci.github){const a=ci.github,b=oi.github;if(!b||a.base!==b.base||a.head!==b.head||!sub(a.tools,b.tools)||a.max_calls>b.max_calls)why.push('github');}
+  return why;
+}
+function assertCommandsApproved(root,s,t) {
+  for(const c of t.contract.commands) requireThat(commandApproved(root,t,c)||s.trusted_commands[commandFingerprint(root,c)],'Commando '+c.id+' of diens bronnen zijn gewijzigd. Vraag een nieuwe gerichte GO.');

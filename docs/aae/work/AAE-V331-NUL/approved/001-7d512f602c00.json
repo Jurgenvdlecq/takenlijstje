@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V331-NUL",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-02T21:34:48.584Z",
+  "source": "AAE GO",
+  "hash": "7d512f602c00125c173408003c40eb43d5ef899b982c782ac30f69de74dcc44d",
+  "short_hash": "7d512f602c00",
+  "envelope": {
+    "id": "AAE-V331-NUL",
+    "goal": "Retrospectief vaststellen of de 19 falende tests van eigen.test.mjs ook al faalden vóór de v3.3.1-wijziging, door die suite in geïsoleerde tijdelijke kopieën (git-worktree) te draaien op de parent van commit a0aa3d4 en op a0aa3d4 zelf, de falende testnamen exact te vergelijken, en de twee door die suite overschreven bestanden in tools/aae-v33/pariteit terug te zetten naar de gecommitte versie. Geen wijziging aan de oude bron of aan de v3.3.1-code, geen agents, geen review, geen aanpak van de verouderde tests.",
+    "phase": "implementation",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "N1",
+        "text": "De falende testnamen van eigen.test.mjs zijn vastgesteld in een tijdelijke worktree van de parent van commit a0aa3d4 (de bron van direct vóór v3.3.1) en in een tijdelijke worktree van a0aa3d4 zelf. Beide lijsten staan exact (naam voor naam) in het resultaat en in docs/aae/PROGRESS.md."
+      },
+      {
+        "id": "N2",
+        "text": "Het resultaat zegt ondubbelzinnig of de twee lijsten exact gelijk zijn. Zijn ze gelijk: dat is vastgelegd als bewijs dat eigen.test.mjs geen regressie door v3.3.1 aantoont, en het pakket stelt alleen de kleinste correcte aanpassing van criterium A8 van AAE-V331-001 voor (geen regressie ten opzichte van de bewezen baseline), zonder die door te voeren. Verschillen ze: het pakket stopt en laat alleen het verschil zien, zonder voorstel."
+      },
+      {
+        "id": "N3",
+        "text": "De bestanden tools/aae-v33/pariteit/v32-tests.json en tools/aae-v33/pariteit/samenvatting.json zijn teruggezet naar de gecommitte versie (git status toont ze niet meer als gewijzigd)."
+      },
+      {
+        "id": "N4",
+        "text": "Afbakening: de tijdelijke worktrees en het tijdelijke meetscript zijn aan het eind verwijderd; de bron van de parent en van a0aa3d4, de huidige branchinhoud (behalve de twee herstelde bestanden en de voortgangsregel) en het live systeem zijn niet gewijzigd; er zijn geen agents gestart; de verouderde v3.2-tests zijn niet aangepast."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/pariteit"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v33-001-gxlax8"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 0,
+      "command_runs": 30,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Een wijziging van criterium A8 van AAE-V331-001 is een apart besluit met een eigen GO.",
+      "Stop en laat alleen het verschil zien als de falende lijsten van de parent en van a0aa3d4 niet exact gelijk zijn.",
+      "Stop en leg aan Jurgen voor als iets buiten tools/aae-v33/pariteit of buiten de genoemde tijdelijke map moet worden gewijzigd."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: de verouderde eigen suite wordt niet gerepareerd.",
+      "Technische keuzes (scriptopzet, volgorde, naamgeving van uitvoerbestanden) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "Nulmeting eigen suite voor v3.3.1 en herstel pariteitsbestanden",
+    "goal": "Retrospectief vaststellen of de 19 falende tests van eigen.test.mjs ook al faalden vóór de v3.3.1-wijziging, door die suite in geïsoleerde tijdelijke kopieën (git-worktree) te draaien op de parent van commit a0aa3d4 en op a0aa3d4 zelf, de falende testnamen exact te vergelijken, en de twee door die suite overschreven bestanden in tools/aae-v33/pariteit terug te zetten naar de gecommitte versie. Geen wijziging aan de oude bron of aan de v3.3.1-code, geen agents, geen review, geen aanpak van de verouderde tests.",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "Pariteitsmap (herstel en tijdelijk meetscript)",
+          "write": [
+            "tools/aae-v33/pariteit"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v33-001-gxlax8"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "agent_calls": {
+          "soft": 0,
+          "hard": 0
+        },
+        "command_runs": 30,
+        "external_calls": 0,
+        "max_parallel": 1
+      },
+      "acceptance": [
+        {
+          "id": "N1",
+          "text": "De falende testnamen van eigen.test.mjs zijn vastgesteld in een tijdelijke worktree van de parent van commit a0aa3d4 (de bron van direct vóór v3.3.1) en in een tijdelijke worktree van a0aa3d4 zelf. Beide lijsten staan exact (naam voor naam) in het resultaat en in docs/aae/PROGRESS.md."
+        },
+        {
+          "id": "N2",
+          "text": "Het resultaat zegt ondubbelzinnig of de twee lijsten exact gelijk zijn. Zijn ze gelijk: dat is vastgelegd als bewijs dat eigen.test.mjs geen regressie door v3.3.1 aantoont, en het pakket stelt alleen de kleinste correcte aanpassing van criterium A8 van AAE-V331-001 voor (geen regressie ten opzichte van de bewezen baseline), zonder die door te voeren. Verschillen ze: het pakket stopt en laat alleen het verschil zien, zonder voorstel."
+        },
+        {
+          "id": "N3",
+          "text": "De bestanden tools/aae-v33/pariteit/v32-tests.json en tools/aae-v33/pariteit/samenvatting.json zijn teruggezet naar de gecommitte versie (git status toont ze niet meer als gewijzigd)."
+        },
+        {
+          "id": "N4",
+          "text": "Afbakening: de tijdelijke worktrees en het tijdelijke meetscript zijn aan het eind verwijderd; de bron van de parent en van a0aa3d4, de huidige branchinhoud (behalve de twee herstelde bestanden en de voortgangsregel) en het live systeem zijn niet gewijzigd; er zijn geen agents gestart; de verouderde v3.2-tests zijn niet aangepast."
+        }
+      ],
+      "assumptions": [
+        "Het meetscript is een klein, tijdelijk projectscript (node) dat alleen git worktree add/remove en node --test op de tijdelijke kopieën uitvoert en de twee pariteitsbestanden uit HEAD terugzet; het wordt niet gecommit en aan het eind verwijderd.",
+        "Een formele classificatie als destructief commando zou HIGH met een agent-review vragen; Jurgen heeft agents en een extra review voor deze stap uitgesloten, het herstel betreft twee gegenereerde bestanden die dit pakket zelf per ongeluk heeft overschreven.",
+        "De tijdelijke worktrees staan binnen het project in de genegeerde map .claude/aae/state/nulmeting, niet daarbuiten."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (scriptopzet, volgorde, naamgeving van uitvoerbestanden) beslist de hoofdsessie zelf.",
+        "Geen zijprojecten: de verouderde eigen suite wordt niet gerepareerd."
+      ],
+      "decision_points": [
+        "Stop en laat alleen het verschil zien als de falende lijsten van de parent en van a0aa3d4 niet exact gelijk zijn.",
+        "Stop en leg aan Jurgen voor als iets buiten tools/aae-v33/pariteit of buiten de genoemde tijdelijke map moet worden gewijzigd.",
+        "Een wijziging van criterium A8 van AAE-V331-001 is een apart besluit met een eigen GO."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat tonen na afloop alleen de teruggezette pariteitsbestanden (schoon) en de voortgangsregel; worktrees en meetscript zijn weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "Het meetscript draait volledig: twee lijsten van falende testnamen, een exacte vergelijking en het herstel van de twee bestanden."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt nog steeds volledig."
+    }
+  ],
+  "snapshot_digest": "8f1cebb60d69b71f5b424ba6fa1cef720692bb8be4ea83f465f46f2c75e34d05"
+}

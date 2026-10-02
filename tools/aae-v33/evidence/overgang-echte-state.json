@@ -1,0 +1,14 @@
+{
+  "schema": 2,
+  "bron": "kopie van docs/aae/TASK.json en .claude/aae/state/local.json van de werkmap (alleen gelezen, in een wegwerpkopie)",
+  "route_overgenomen": "AAE-V33-001F",
+  "status_na_overgang": "WAITING_FOR_APPROVAL",
+  "go_stil_overgenomen": false,
+  "expliciete_go_nodig_na_migratie": true,
+  "verbruik_overgenomen": true,
+  "schrijven_zonder_nieuwe_go_geweigerd": true,
+  "schrijven_in_gebied_na_go_toegestaan": true,
+  "schrijven_buiten_gebied_geweigerd": true,
+  "v32_bestanden_onaangeroerd": true,
+  "terugdraaien_getest": true
+}

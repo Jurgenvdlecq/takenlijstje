@@ -1,0 +1,1 @@
+      else {s.integrations??={};const bound=Boolean(s.task&&s.request&&s.task.request_key===s.request.key&&['pending','active'].includes(s.task.status));s.integrations.supabase={verified_ref:ref,verified_at:now(),verified_request_key:s.request?.key||null,verified_task:bound?s.task.id:null};log(s,'supabase_project_verified',{project_ref:ref});}

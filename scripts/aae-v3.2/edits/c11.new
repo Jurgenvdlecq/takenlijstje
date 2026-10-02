@@ -1,0 +1,2 @@
+      amended,envelope_changes:envelope||[],
+      next:s.task.status==='pending'?(envelope&&envelope.length?'Materiele wijziging buiten de goedgekeurde envelop ('+envelope.join(', ')+'). Vat samen en wacht op AAE GO.':'Vat scope, commands en gevolgen samen. Wacht op de gebruiker: AAE GO.'):amended?'Amendement binnen de goedgekeurde envelop; de GO blijft geldig. Werk zelfstandig verder.':'Voer uitsluitend deze route uit.'};

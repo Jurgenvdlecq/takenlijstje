@@ -1,0 +1,375 @@
+{
+  "schema": 1,
+  "v31_commit": "572d2635002043bba6370713f246a217a341f7c4",
+  "v32_commit": "f9bf1200a9aedfc5e551be3780978f83cda99a64",
+  "aantal_gewijzigd_in_claude": 14,
+  "verschillen_claude": [
+    {
+      "pad": ".claude/aae/ENTRY.md",
+      "status": "M",
+      "sha256_v31": "dd0a00899481af62ba6316f3708d0fee973a956cc726c3fdf09b9a2e603135f2",
+      "sha256_v32": "552bccaa0799743d90b956c10b9c11aef3a810bed8c39e645d2b5b7e105d774b"
+    },
+    {
+      "pad": ".claude/aae/docs/COMMANDS_AND_LIMITS.md",
+      "status": "M",
+      "sha256_v31": "f1eadb76f8144da4ee82131e607c34a143f0ab7dbf0411b0ba0d908fe2c36da0",
+      "sha256_v32": "3e17003ac2e0fd31945f42c8128a8f1bc91372ea11582c53d6b5651ada2ae9ca"
+    },
+    {
+      "pad": ".claude/aae/docs/INTEGRATIONS.md",
+      "status": "M",
+      "sha256_v31": "fbc83dec4004cd1374429a3f3773c3e7382b445661430d7fdda6d98c1b79d770",
+      "sha256_v32": "c9325f8f11a01a219d96c6048751e5b29c347224cb6ab56c901522da65e3f461"
+    },
+    {
+      "pad": ".claude/aae/docs/LOCAL_CHANGES.md",
+      "status": "A",
+      "sha256_v31": null,
+      "sha256_v32": "0110eb82788fd48bc055860b8fc46363988e0b3429674008f0e5bab3e42f4ce7"
+    },
+    {
+      "pad": ".claude/aae/docs/WORKFLOW.md",
+      "status": "M",
+      "sha256_v31": "6bfbfcbcdd66b4f44533c807f9dc01f7c11a822e8b2de14e593035cc57a1dabd",
+      "sha256_v32": "a995c9f7b96cbba9143c40de1b1b19b1c3f15b2dcb1d0f4f22fc5deb320f4261"
+    },
+    {
+      "pad": ".claude/aae/examples/06-werkpakket-met-merge.json",
+      "status": "A",
+      "sha256_v31": null,
+      "sha256_v32": "d3e755aee89b916005c2746ee08a17100d05f6b625ed33d450fd9250592d1de4"
+    },
+    {
+      "pad": ".claude/aae/managed.json",
+      "status": "M",
+      "sha256_v31": "9f8b868db26fdabda3f9bfb22017512bf3c6541eea08331d572e4acdd85d0f81",
+      "sha256_v32": "65046cedfa6f1f737df2703f5809615c0a642686bef57f35aac7c7b33cef9c00"
+    },
+    {
+      "pad": ".claude/aae/runtime/core.mjs",
+      "status": "M",
+      "sha256_v31": "d84d476615e6dc864321167bde81b825e09b6993303c44830355174bb01ae0d1",
+      "sha256_v32": "73178ce133c2ad23dee878ac3d2ebc663b48c7f61a1890ee3724f0a9cf24d94a"
+    },
+    {
+      "pad": ".claude/aae/runtime/events.mjs",
+      "status": "M",
+      "sha256_v31": "2fac899e4a8c5b4fef1ae0ffcffc779cfe91e2d2fdcb0eb3cf4787ca8f828855",
+      "sha256_v32": "10049576577b2f22b11e75e60b2a8671c62be671105dd447c78a86b6aed30b4d"
+    },
+    {
+      "pad": ".claude/aae/runtime/runner.mjs",
+      "status": "M",
+      "sha256_v31": "5b27577542ff2c56c196f8c21b211f90a9877907f879504994ca446553cd2263",
+      "sha256_v32": "3f8d333a6abf1429f5e11443d0c7f16b6ee5bcab0393774979000da2d5088861"
+    },
+    {
+      "pad": ".claude/aae/templates/TASK.template.json",
+      "status": "M",
+      "sha256_v31": "8f115638d4158c5879690ee07df1674e2600ab8b97ee414264e9dd7ca0ac485c",
+      "sha256_v32": "e0523641704c37c2c7c70ec717a5442e898053df2c87373a072810ec96b3a39d"
+    },
+    {
+      "pad": ".claude/aae/tests/guard.test.mjs",
+      "status": "M",
+      "sha256_v31": "b0874864b3fa5c9a7e62b1ee32eba4f688f05d8e30d89bc8d572b9f6b3512102",
+      "sha256_v32": "1b3965319fec1c36ba40e2215325da9f7a6fdb4c495ec77096e66b4e34b45195"
+    },
+    {
+      "pad": ".claude/aae/tests/integrations.test.mjs",
+      "status": "M",
+      "sha256_v31": "b95a51193c9f4c221612a682dad0514b6f9bb347ce0eb590d0a44fe3af95e85b",
+      "sha256_v32": "e3bc27fdcb418d08ec62c1b0da9cdd2d3c3f6026682e4e6a73b73b07f7ada4c8"
+    },
+    {
+      "pad": ".claude/aae/tests/runner.test.mjs",
+      "status": "M",
+      "sha256_v31": "96a9e029c3e79e6ae3c7d26cbdc12abfbe7170931aa2af40c0b72ea570bb711b",
+      "sha256_v32": "b9561e365109ef1798186a7ae173895ed667213afa1999508e7a35282083d7f6"
+    }
+  ],
+  "overige_verschillen": [
+    {
+      "pad": "docs/PROGRESS.md",
+      "status": "M"
+    },
+    {
+      "pad": "docs/aae/PROGRESS.md",
+      "status": "M"
+    },
+    {
+      "pad": "scripts/aae-v3.2/README.md",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/apply.mjs",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits.json",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c02.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c02.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c03.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c03.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c04.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c04.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c05.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c05.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c06.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c06.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c07.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c07.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c08.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c08.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c09.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c09.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c10.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c10.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c11.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c11.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c12.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c12.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c13.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c13.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c14.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/c14.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e02.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e02.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e03.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/e03.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g02.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g02.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g03.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g03.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/g04.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/i01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/i01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/i02.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/k01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/k01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/k02.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/n01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/n01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/n02.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r02.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r02.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r03.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/r03.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/rt01.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/t01.new",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/t01.old",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/edits/w01.txt",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/files/06-werkpakket-met-merge.json",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/files/ENTRY.md",
+      "status": "A"
+    },
+    {
+      "pad": "scripts/aae-v3.2/files/LOCAL_CHANGES.md",
+      "status": "A"
+    }
+  ],
+  "onveranderd_gebleven": [
+    ".claude/settings.json",
+    "hook.mjs",
+    "cli.mjs",
+    "integrations.mjs",
+    "visual.mjs",
+    "CATALOG.md",
+    "alle 13 agentdefinities"
+  ]
+}

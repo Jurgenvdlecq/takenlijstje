@@ -1,0 +1,1 @@
+    requireThat(t.approved_commands[id]===fingerprint||['read','test','build','preview'].includes(c.purpose)&&s.trusted_commands[fingerprint], 'Commando/bronnen niet goedgekeurd. Presenteer het commando en vraag AAE GO.');

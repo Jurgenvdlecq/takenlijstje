@@ -1,0 +1,3 @@
+export const HIGH_FLAGS = ['authorization','financial','sensitive_data'];
+/** v3.2-local (R5/R12): lokale commando's mogen vaker draaien en mogen binnen de envelop worden toegevoegd. */
+export const LOCAL_PURPOSES = ['read','test','build','preview'];

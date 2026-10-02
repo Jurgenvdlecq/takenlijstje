@@ -1,0 +1,12 @@
+
+## v3.2-local: runs, gate en git
+- Maximum runs per commando: read/test/build/preview 20, publish 10, install en destructive 1. Totaal commandobudget per route maximaal 80, maximaal 20 commando's.
+- Binnen een amendement mag een nieuw of gewijzigd lokaal commando alleen een bekend testprogramma zijn (zie `docs/WORKFLOW.md`, GO-envelop); een ander doel of andere argv vraagt een nieuwe GO. Zet eigen scripts dus vooraf in het contract.
+- Een goedgekeurd commando blijft goedgekeurd zolang argv, doel, timeout, gate en watchlijst gelijk zijn. Voor lokale commando's zonder gate geldt: verandert een bewaakt bestand binnen de schrijfscope van de taak (eigen werk), dan blijft de goedkeuring staan; buiten de schrijfscope (bijvoorbeeld `package.json` als die niet in het pakket hoort) is een nieuwe GO nodig. Voor publish/install/destructive en gate-commando's moeten alle bewaakte bestanden (inclusief de automatisch bewaakte `package.json` en lockbestanden) ongewijzigd blijven; anders een nieuwe GO.
+- `"gate": "ready"` (optioneel, standaard `"none"`): het commando draait pas als `docs/aae/RESULT.json` READY is op de actuele route en bron. Bedoeld voor vooraf goedgekeurde merge/deploy.
+- Git met vaste argv zodat herhalen kan zonder contractwijziging:
+  - `["git","add","--","<pad-1>","<pad-2>"]` met precies de paden uit de schrijfscope en de voortgangsdocumenten;
+  - `["git","commit","-m","<vaste boodschap met werkpakket-ID>"]` of `["git","commit","-F","docs/aae/notes/COMMIT_MSG.md"]` (een controledocument dat je per commit bijwerkt);
+  - `["git","push","origin","<werkbranch>"]`;
+  - merge: `["git","push","origin","<werkbranch>:main"]` met `"gate":"ready"`; alleen fast-forward, nooit `--force`.
+- Publish-commando's worden nooit via `AAE VERTROUW` over routes heen herbruikbaar.

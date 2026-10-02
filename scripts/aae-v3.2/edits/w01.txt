@@ -1,0 +1,26 @@
+
+## GO-envelop (v3.2-local)
+Eén `AAE GO` keurt het hele werkpakket uit het contract goed. Na GO voert de hoofdsessie de route zelfstandig uit, inclusief herstelrondes, commits, pushes, PR en een vooraf goedgekeurde merge/deploy. Vervolgberichten van de gebruiker laten de GO staan; alleen `AAE PAUZE` trekt hem in.
+
+Een gewijzigd contract blijft binnen de envelop (route blijft `active`, GO blijft geldig) als alles hieronder geldt:
+- zelfde taak-ID, fase en modus; risico en onzekerheid gelijk of lager; dezelfde risicovlaggen;
+- schrijfscope binnen de goedgekeurde schrijfscope (leesscope mag ruimer);
+- `approval_required` en `design_freeze` ongewijzigd; geen beslisgrens verwijderd;
+- bewijs niet lichter: elk bestaand acceptatiecriterium blijft letterlijk staan (toevoegen mag) en elke bestaande controle blijft met dezelfde methode en omschrijving in het bewijsplan (toevoegen mag);
+- dezelfde agents (geen nieuwe, geen verwijderde), met dezelfde vraag, hetzelfde resultaat en stopcriterium, hetzelfde model, minstens dezelfde bestanden en gelijke of lagere `max_calls`;
+- agentbudget, extern budget en parallelisme niet hoger (het commandobudget mag omhoog tot het schemamaximum);
+- een commando houdt hetzelfde doel; een `"gate": "ready"` op een commando (ook een lokaal commando) mag niet vervallen; publish/install/destructive-commando's blijven ongewijzigd (argv, timeout, gate, watch) en draaien niet vaker;
+- een nieuw of gewijzigd lokaal commando (read/test/build/preview) moet volledig op de toegestane lijst staan (`safeLocalArgv` in `runtime/core.mjs`): begin `node --test`, `npx vitest run`, `npx tsc --noEmit`, `npx eslint`, `npx playwright test`, of `git status|diff|log|show|rev-parse|merge-base`; daarna alleen de per programma toegestane opties (bijvoorbeeld `--porcelain`, `--stat`, `--max-warnings=0`) en eenvoudige relatieve paden of git-refs (geen absolute paden, geen `..`, geen `:` of `=`). Bij `node --test` alleen testbestanden (`.test.`/`.spec.`) of de mappen `tests`, `test`, `__tests__`, `spec`, `src`. Andere argv (ook een eigen script of opties als `--fix`, `--import`, `--outputFile`) is materieel; zet die vooraf in het contract. Alleen-lezende git-operanden worden niet tegen de leesscope gehouden (bewust: ze lezen alleen de eigen repository);
+- integraties niet breder: zelfde Supabase-project, geen extra tools of calls, geen nieuwe gevoelige migraties/SQL, zelfde PR-base en -head.
+
+Alles daarbuiten is materieel: `route` zet de taak op `pending` en noemt de reden in `envelope_changes`. Vraag dan één nieuwe GO met een korte uitleg.
+
+Wat altijd bij de gebruiker terugkomt, ook binnen de envelop: een databasehandeling die niet vooraf was goedgekeurd én materieel meer risico geeft; destructieve of moeilijk omkeerbare databasewijzigingen of het verwijderen/onherstelbaar wijzigen van productiegegevens (`AAE GEVOELIG GO`); onverwachte wijzigingen aan authenticatie, autorisatie, security of secrets; werk buiten het pakket; een oplossing met duidelijk hoger risico; een punt uit `decision_points`; twijfel bij een vooraf goedgekeurde merge/deploy.
+
+Een vooraf beschreven, niet-destructieve migratie valt onder de ene GO, ook als die na een fout opnieuw of gecorrigeerd moet worden binnen hetzelfde doel.
+
+## Herstelrondes (v3.2-local)
+Een mislukte test, review, build, migratie of implementatiepoging vraagt geen nieuwe GO. De hoofdsessie analyseert, herstelt binnen de scope, test en reviewt opnieuw en commit/pusht opnieuw tot de acceptatiecriteria gehaald zijn of het budget op is. Plan budgetten daarom met ruimte voor herstel. De bestaande rem blijft: na twee identieke mislukkingen zonder bronwijziging eerst de hypothese veranderen.
+
+## Vooraf goedgekeurde merge/deploy (v3.2-local)
+Neem merge/deploy naar main, als dat bij het pakket hoort, vooraf op als commando met `"gate": "ready"` (bijvoorbeeld `git push origin <werkbranch>:main`). De runner voert het alleen uit als `docs/aae/RESULT.json` READY is op de actuele route en bron, met alle criteria en controles aantoonbaar geslaagd. Formuleer acceptatiecriteria zo dat ze vóór de merge bewezen kunnen worden; de nacontrole van de uitrol (bijvoorbeeld de deployment en een rooktest) komt in het eindrapport. Bij twijfel of een afwijking: stoppen en de gebruiker vragen.

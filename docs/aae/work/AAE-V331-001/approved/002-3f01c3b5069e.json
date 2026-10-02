@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V331-001",
+  "sequence": 2,
+  "previous_hash": "01d07b3479d5ffd45cc989c1b58285e3e42b4285d2a9a51795aa8cd9a3b51f22",
+  "approved_at": "2026-10-02T21:59:33.086Z",
+  "source": "AAE GO (envelopewijziging)",
+  "hash": "3f01c3b5069e95f70b79f1d13c268776b87f27d15cb9ac3a721532c4473df261",
+  "short_hash": "3f01c3b5069e",
+  "envelope": {
+    "id": "AAE-V331-001",
+    "goal": "AAE v3.3.1 maakt de bestaande werkstroom lichter zonder de harde veiligheidsgrenzen te verzwakken: de GO-binding let alleen nog op doel, acceptatiecriteria, schrijfgebieden, risicoverhoging en bevoegdheden (niet op plan-, bewijs-, aannames- of administratieve tekst, en niet op een risicoverlaging); agentplafonds zijn intern en hangen aan het niveau (LIGHT 1, NORMAL 2, HIGH 3); een reviewbevinding met herstel of een noodzakelijke extra review binnen dat plafond vraagt nooit een nieuwe GO; de snapshot hoeft niet meer vóór de eerste bronwijziging in een commit te staan maar moet lokaal kloppen vóór READY; een blijvende snapshotfout geeft BLOCKED in plaats van NEEDS_HUMAN; niveaus LIGHT/NORMAL/HIGH krijgen vaste risicoregels met een nieuwe HIGH-vlag voor klantgerichte claims; en nieuwe testinfrastructuur of tooling wordt nooit automatisch een zijproject. Alleen in tools/aae-v33; geen installatie op het live systeem.",
+    "phase": "implementation",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "A1",
+        "text": "GO-binding (materialChanges en envelopeOf): plan-, bewijs-, aannames-, beslisstandaard- en administratieve tekst en het aantal agentruns veranderen de GO-binding niet meer. Een risicoverlaging (lagere klasse of minder vlaggen) vraagt nooit een nieuwe GO: het pakket loopt gewoon door onder de bestaande goedkeuring. Doel, acceptatiecriteria, schrijfgebieden en ondersteunende categorieen, een risicoverhoging (hogere klasse of extra vlaggen), database, providers, git/merge/deploy, extra commando's, harde commando-/extern-/parallelbudgetten en beslisgrenzen blijven wezenlijk. Een goedgekeurde controlesoort blijft aanwezig en de bewijsmethode wordt niet zwakker (command, inspection, manual); alleen de omschrijving is vrij."
+      },
+      {
+        "id": "A2",
+        "text": "Agentplafond per niveau, intern in de code en niet in de GO: LIGHT hard 1 (normaal 0), NORMAL hard 2 (normaal 1), HIGH hard 3 (normaal review en eindreview). Een run boven het plafond wordt geweigerd met een duidelijke melding; tot het plafond is geen nieuwe GO nodig. Een zacht-plafond-overschrijding wordt alleen gelogd en nooit aan Jurgen voorgelegd."
+      },
+      {
+        "id": "A3",
+        "text": "Eindscenario in de testsuite: een HIGH-werkpakket met een review die een bevinding meldt, een herstel binnen dezelfde gebieden en een tweede review die READY meldt, loopt af met precies een GO, ongewijzigde goedgekeurde hash en zonder NEEDS_HUMAN."
+      },
+      {
+        "id": "A4",
+        "text": "Snapshot: de eis dat de snapshot vóór de eerste bronwijziging in HEAD staat vervalt. READY vereist een lokaal geldige, ongewijzigde snapshotketen die bij de goedgekeurde envelop hoort; de merge-gate houdt de eis dat de snapshot in HEAD staat. Een snapshotfout wordt eerst automatisch herprobeerd; een blijvende technische fout zet het pakket op BLOCKED met een korte reden en geeft geen NEEDS_HUMAN. De bestaande hervatting (AAE VERDER) werkt vanuit die toestand. Hash- en snapshotcompatibiliteit met bestaande GO's en snapshots lost de hoofdsessie zelfstandig op binnen de gebieden, zonder hun betekenis of veiligheid te verzwakken."
+      },
+      {
+        "id": "A5",
+        "text": "NEEDS_HUMAN blijft alleen voor een echte beslissing of handeling van Jurgen: wezenlijke envelopwijziging, scope-change, productvraag, handeling die alleen hij kan doen (preflight), AAE BEVESTIG voor een destructieve database-actie. ENTRY.md noemt die lijst letterlijk en zegt dat interne administratie, snapshotfouten en technische uitvoering er nooit toe leiden."
+      },
+      {
+        "id": "A6",
+        "text": "Niveauregels in validateContract: LIGHT staat geen providers, database, merge, deploy, extra commando's of andere risicovlaggen dan ui toe. HIGH is verplicht bij de vlaggen authorization, financial, sensitive_data, migration en de nieuwe vlag customer_claims, en bij database, supabase-provider, merge, deploy of een destructief extra commando. customer_claims is smal: klantgerichte claims over prijs, dekking, rechten en plichten, financiele voorwaarden of compliance; gewone commerciele tekst valt er niet onder. De vlag heeft een eigen verplichte controle (claims-review)."
+      },
+      {
+        "id": "A7",
+        "text": "ENTRY.md, REFERENTIE.md en het sjabloon beschrijven het beslisschema LIGHT/NORMAL/HIGH, wanneer wel en niet een nieuwe GO nodig is, het vaste agentplafond, de NEEDS_HUMAN-regel en de zijprojectregel: nieuwe testinfrastructuur, tooling of refactoring alleen als het in het oorspronkelijke doel staat of zonder dat een concreet HIGH-risico niet te controleren is; anders een regel in docs/aae/notes/verbeterpunten.md en het werk gaat door. ENTRY.md blijft kort."
+      },
+      {
+        "id": "A8",
+        "text": "Harde grenzen ongewijzigd en bewezen: de volledige v3.3-suite slaagt en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van de bewezen baseline (parent c23ade2); de 5 bestaande failures blijven buiten scope. Elke bestaande test die om een bewust gewijzigd gedrag wordt aangepast, staat met reden in het eindrapport; geen test is verwijderd of verzwakt zonder benoemde vervanger. Voor elke blijvende blokkade uit A1 (breder gebied, risicoverhoging, meer database, git, provider, budget, criteria, beslisgrenzen, lichter bewijs) en voor elke gate (merge, deploy, geheimen, scope, database default-deny) bestaat een test die nog steeds blokkeert."
+      },
+      {
+        "id": "A9",
+        "text": "Reviewroute en afbakening: een onafhankelijke Reviewer geeft een actueel READY-oordeel op de uiteindelijke bron (HIGH). Het live systeem (.claude, CLAUDE.md, instellingen, hooks), main en de installer zijn niet gewijzigd en niets is geinstalleerd; installatie is een apart werkpakket met eigen GO na review en akkoord van Jurgen."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/README.md",
+      "tools/aae-v33/REVIEW-OPDRACHT.md",
+      "tools/aae-v33/pariteit",
+      "tools/aae-v33/payload",
+      "tools/aae-v33/tests"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v33-001-gxlax8"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 3,
+      "command_runs": 60,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Installeren op het live systeem is een apart werkpakket met eigen GO.",
+      "Stop en leg aan Jurgen voor als de wijziging buiten de genoemde gebieden moet, zoals de installer of het live systeem.",
+      "Stop en leg aan Jurgen voor als een harde veiligheidsgrens (GO-binding, schrijfgebied, geheimen, database default-deny, destructieve gates, merge/deploy-gates, padbewaking, snapshot als rollback) verzwakt zou moeten worden.",
+      "Stop en leg aan Jurgen voor als hash- of snapshotcompatibiliteit alleen op te lossen is door de betekenis of veiligheid van bestaande GO's of snapshots te verzwakken."
+    ],
+    "decision_defaults": [
+      "Nieuwe tooling of testinfrastructuur alleen als het in het doel staat; anders een verbeterpunt in docs/aae/notes/verbeterpunten.md.",
+      "Reviewbevindingen binnen deze gebieden worden hersteld zonder nieuwe GO.",
+      "Technische keuzes (naamgeving, bestandsindeling, testopzet, hash- en snapshotcompatibiliteit, volgorde) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": []
+  },
+  "contract": {
+    "title": "AAE v3.3.1: minder overhead bij kleine wijzigingen",
+    "goal": "AAE v3.3.1 maakt de bestaande werkstroom lichter zonder de harde veiligheidsgrenzen te verzwakken: de GO-binding let alleen nog op doel, acceptatiecriteria, schrijfgebieden, risicoverhoging en bevoegdheden (niet op plan-, bewijs-, aannames- of administratieve tekst, en niet op een risicoverlaging); agentplafonds zijn intern en hangen aan het niveau (LIGHT 1, NORMAL 2, HIGH 3); een reviewbevinding met herstel of een noodzakelijke extra review binnen dat plafond vraagt nooit een nieuwe GO; de snapshot hoeft niet meer vóór de eerste bronwijziging in een commit te staan maar moet lokaal kloppen vóór READY; een blijvende snapshotfout geeft BLOCKED in plaats van NEEDS_HUMAN; niveaus LIGHT/NORMAL/HIGH krijgen vaste risicoregels met een nieuwe HIGH-vlag voor klantgerichte claims; en nieuwe testinfrastructuur of tooling wordt nooit automatisch een zijproject. Alleen in tools/aae-v33; geen installatie op het live systeem.",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.3.1 bron en tests",
+          "write": [
+            "tools/aae-v33/payload",
+            "tools/aae-v33/tests",
+            "tools/aae-v33/pariteit",
+            "tools/aae-v33/README.md",
+            "tools/aae-v33/REVIEW-OPDRACHT.md"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v33-001-gxlax8"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "agent_calls": {
+          "soft": 2,
+          "hard": 3
+        },
+        "command_runs": 60,
+        "external_calls": 0,
+        "max_parallel": 1
+      },
+      "acceptance": [
+        {
+          "id": "A1",
+          "text": "GO-binding (materialChanges en envelopeOf): plan-, bewijs-, aannames-, beslisstandaard- en administratieve tekst en het aantal agentruns veranderen de GO-binding niet meer. Een risicoverlaging (lagere klasse of minder vlaggen) vraagt nooit een nieuwe GO: het pakket loopt gewoon door onder de bestaande goedkeuring. Doel, acceptatiecriteria, schrijfgebieden en ondersteunende categorieen, een risicoverhoging (hogere klasse of extra vlaggen), database, providers, git/merge/deploy, extra commando's, harde commando-/extern-/parallelbudgetten en beslisgrenzen blijven wezenlijk. Een goedgekeurde controlesoort blijft aanwezig en de bewijsmethode wordt niet zwakker (command, inspection, manual); alleen de omschrijving is vrij."
+        },
+        {
+          "id": "A2",
+          "text": "Agentplafond per niveau, intern in de code en niet in de GO: LIGHT hard 1 (normaal 0), NORMAL hard 2 (normaal 1), HIGH hard 3 (normaal review en eindreview). Een run boven het plafond wordt geweigerd met een duidelijke melding; tot het plafond is geen nieuwe GO nodig. Een zacht-plafond-overschrijding wordt alleen gelogd en nooit aan Jurgen voorgelegd."
+        },
+        {
+          "id": "A3",
+          "text": "Eindscenario in de testsuite: een HIGH-werkpakket met een review die een bevinding meldt, een herstel binnen dezelfde gebieden en een tweede review die READY meldt, loopt af met precies een GO, ongewijzigde goedgekeurde hash en zonder NEEDS_HUMAN."
+        },
+        {
+          "id": "A4",
+          "text": "Snapshot: de eis dat de snapshot vóór de eerste bronwijziging in HEAD staat vervalt. READY vereist een lokaal geldige, ongewijzigde snapshotketen die bij de goedgekeurde envelop hoort; de merge-gate houdt de eis dat de snapshot in HEAD staat. Een snapshotfout wordt eerst automatisch herprobeerd; een blijvende technische fout zet het pakket op BLOCKED met een korte reden en geeft geen NEEDS_HUMAN. De bestaande hervatting (AAE VERDER) werkt vanuit die toestand. Hash- en snapshotcompatibiliteit met bestaande GO's en snapshots lost de hoofdsessie zelfstandig op binnen de gebieden, zonder hun betekenis of veiligheid te verzwakken."
+        },
+        {
+          "id": "A5",
+          "text": "NEEDS_HUMAN blijft alleen voor een echte beslissing of handeling van Jurgen: wezenlijke envelopwijziging, scope-change, productvraag, handeling die alleen hij kan doen (preflight), AAE BEVESTIG voor een destructieve database-actie. ENTRY.md noemt die lijst letterlijk en zegt dat interne administratie, snapshotfouten en technische uitvoering er nooit toe leiden."
+        },
+        {
+          "id": "A6",
+          "text": "Niveauregels in validateContract: LIGHT staat geen providers, database, merge, deploy, extra commando's of andere risicovlaggen dan ui toe. HIGH is verplicht bij de vlaggen authorization, financial, sensitive_data, migration en de nieuwe vlag customer_claims, en bij database, supabase-provider, merge, deploy of een destructief extra commando. customer_claims is smal: klantgerichte claims over prijs, dekking, rechten en plichten, financiele voorwaarden of compliance; gewone commerciele tekst valt er niet onder. De vlag heeft een eigen verplichte controle (claims-review)."
+        },
+        {
+          "id": "A7",
+          "text": "ENTRY.md, REFERENTIE.md en het sjabloon beschrijven het beslisschema LIGHT/NORMAL/HIGH, wanneer wel en niet een nieuwe GO nodig is, het vaste agentplafond, de NEEDS_HUMAN-regel en de zijprojectregel: nieuwe testinfrastructuur, tooling of refactoring alleen als het in het oorspronkelijke doel staat of zonder dat een concreet HIGH-risico niet te controleren is; anders een regel in docs/aae/notes/verbeterpunten.md en het werk gaat door. ENTRY.md blijft kort."
+        },
+        {
+          "id": "A8",
+          "text": "Harde grenzen ongewijzigd en bewezen: de volledige v3.3-suite slaagt en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van de bewezen baseline (parent c23ade2); de 5 bestaande failures blijven buiten scope. Elke bestaande test die om een bewust gewijzigd gedrag wordt aangepast, staat met reden in het eindrapport; geen test is verwijderd of verzwakt zonder benoemde vervanger. Voor elke blijvende blokkade uit A1 (breder gebied, risicoverhoging, meer database, git, provider, budget, criteria, beslisgrenzen, lichter bewijs) en voor elke gate (merge, deploy, geheimen, scope, database default-deny) bestaat een test die nog steeds blokkeert."
+        },
+        {
+          "id": "A9",
+          "text": "Reviewroute en afbakening: een onafhankelijke Reviewer geeft een actueel READY-oordeel op de uiteindelijke bron (HIGH). Het live systeem (.claude, CLAUDE.md, instellingen, hooks), main en de installer zijn niet gewijzigd en niets is geinstalleerd; installatie is een apart werkpakket met eigen GO na review en akkoord van Jurgen."
+        }
+      ],
+      "assumptions": [
+        "AAE 3.3.0 draait live; tijdens dit werkpakket gelden dus nog de oude regels (onder meer de snapshot vóór de eerste bronwijziging in een commit).",
+        "Hash- en snapshotcompatibiliteit lost de hoofdsessie zelf op: bestaande snapshots blijven geldig of worden aantoonbaar niet gebruikt.",
+        "Bewijs bij een aangescherpte envelop (bewijs aan de goedgekeurde in plaats van de actuele hash binden) blijft buiten v3.3.1, tenzij tijdens de bouw aantoonbaar noodzakelijk.",
+        "De voortgang van dit werkpakket staat in docs/aae/PROGRESS.md (gevolgd bestand, schrijfbaar onder de GO); docs/PROGRESS.md wordt niet gewijzigd."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (naamgeving, bestandsindeling, testopzet, hash- en snapshotcompatibiliteit, volgorde) beslist de hoofdsessie zelf.",
+        "Reviewbevindingen binnen deze gebieden worden hersteld zonder nieuwe GO.",
+        "Nieuwe tooling of testinfrastructuur alleen als het in het doel staat; anders een verbeterpunt in docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als hash- of snapshotcompatibiliteit alleen op te lossen is door de betekenis of veiligheid van bestaande GO's of snapshots te verzwakken.",
+        "Stop en leg aan Jurgen voor als een harde veiligheidsgrens (GO-binding, schrijfgebied, geheimen, database default-deny, destructieve gates, merge/deploy-gates, padbewaking, snapshot als rollback) verzwakt zou moeten worden.",
+        "Stop en leg aan Jurgen voor als de wijziging buiten de genoemde gebieden moet, zoals de installer of het live systeem.",
+        "Installeren op het live systeem is een apart werkpakket met eigen GO."
+      ],
+      "extra_commands": []
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "Git-diff laat alleen wijzigingen zien in de genoemde gebieden en docs/aae/PROGRESS.md; live .claude, CLAUDE.md, instellingen, installer en main ongewijzigd."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt, inclusief de nieuwe tests V331-01 t/m V331-14 voor A1 t/m A6 en het eindscenario A3."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De eigen suite (tools/aae-v33/tests/eigen.test.mjs: baseline, pariteit, installer, terugdraaien, overgang) slaagt; de gewijzigde bestaande tests staan met reden in het rapport."
+    }
+  ],
+  "snapshot_digest": "b553118de306af19759106e0ee35be28969478336959658804cffa0216b326d7"
+}

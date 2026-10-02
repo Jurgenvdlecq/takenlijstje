@@ -1,0 +1,1 @@
+test('new ordinary prompt unbinds previous task',t=>{const r=fixture(t);begin(r);installTask(r,task());prompt(r,'Nu graag iets anders onderzoeken.');assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/Nieuwe gebruikersvraag/);});

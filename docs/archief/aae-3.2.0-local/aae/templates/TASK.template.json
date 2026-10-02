@@ -1,0 +1,40 @@
+{
+  "schema_version": 3,
+  "id": "VUL_IN",
+  "title": "VUL IN",
+  "goal": "VUL IN",
+  "phase": "VUL IN",
+  "mode": "VUL IN",
+  "risk": "VUL IN",
+  "uncertainty": "VUL IN",
+  "risk_flags": [],
+  "scope": {
+    "read": [],
+    "write": []
+  },
+  "acceptance": [
+    {
+      "id": "AC1",
+      "text": "VUL IN"
+    }
+  ],
+  "test_plan": [
+    {
+      "kind": "analysis",
+      "method": "inspection",
+      "description": "VUL IN"
+    }
+  ],
+  "agents": [],
+  "commands": [],
+  "budget": {
+    "agent_calls": 0,
+    "max_parallel": 1,
+    "command_runs": 0,
+    "external_calls": 0
+  },
+  "approval_required": false,
+  "design_freeze": false,
+  "decision_points": [],
+  "integrations": {}
+}

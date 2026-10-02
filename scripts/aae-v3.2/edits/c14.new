@@ -1,0 +1,10 @@
+    // v3.2-local (R3): een vervolgbericht laat een actieve route van deze sessie en haar GO staan.
+    // Alleen de aparte gevoelige GO vervalt. Gepauzeerde, afgeronde of nog niet goedgekeurde routes worden niet meegenomen.
+    if(s.task&&s.task.status==='active'&&s.task.owner===session){
+      s.task.request_key=s.request.key;if(s.task.approval)s.task.approval.request_key=s.request.key;s.task.sensitive_approval=null;
+      log(s,'user_request',{session,task_kept:s.task.id});
+      return context('UserPromptSubmit','AAE v3.2-local: taak '+s.task.id+' blijft actief'+(s.task.approval?' en de GO blijft geldig':'')+' binnen de goedgekeurde envelop. Werk zelfstandig verder; alleen een materiele scope- of risicowijziging of een beslisgrens vraagt een nieuwe GO. Is dit een nieuwe opdracht, rond dan eerst af (close) of herrouteer met een nieuw taak-ID.');
+    }
+    if(s.task){s.task.approval=null;s.task.sensitive_approval=null;/* old snapshot is not bound to this request */}
+    log(s,'user_request',{session});
+    return context('UserPromptSubmit','AAE v3.2-local: nieuwe vraag. Eerst lichte routing; hergebruik context. Geen oude bouwtoestemming. Gesprek mag zonder route. Een kleine duidelijke taak heeft geen aparte supervisor nodig.');

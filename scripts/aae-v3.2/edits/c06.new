@@ -1,0 +1,2 @@
+    keys(c,['id','argv','purpose','why','watch','timeout_ms','max_runs','gate'],['id','argv','purpose','why','watch','timeout_ms','max_runs'],'Commando');
+    if(Object.hasOwn(c,'gate'))choice(c.gate,['none','ready'],'Commando-gate');

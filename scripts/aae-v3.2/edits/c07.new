@@ -1,0 +1,2 @@
+    number(c.timeout_ms,1000,300000,'Timeout');number(c.max_runs,1,LOCAL_PURPOSES.includes(c.purpose)?20:c.purpose==='publish'?10:1,'Aantal uitvoeringen');
+    if(['install','destructive'].includes(c.purpose))requireThat(c.max_runs===1,'Installeren/destructief: een uitvoering per expliciete routegoedkeuring.');
