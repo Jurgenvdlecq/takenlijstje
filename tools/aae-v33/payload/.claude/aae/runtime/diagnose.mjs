@@ -50,6 +50,25 @@ export async function netwerkGeblokkeerd(tmp) {
     return {ok: geweigerd && verbindingen === 0, uitvoer: r.uit.trim().slice(0, 300), verbindingen};
   } finally { server.close(); }
 }
+/**
+ * Het permissiemodel van Node had een symlink-omzeiling (CVE-2025-55130), opgelost in 20.20.0, 22.22.0, 24.13.0 en 25.3.0 (beveiligingsrelease januari 2026).
+ * Op een oudere versie weigert diagnose te starten. (Versielijst uit de release-aankondiging; niet op deze machine geverifieerd.)
+ */
+export function nodeVersieOk(v = process.versions.node) {
+  const [ma, mi] = String(v).split('.').map(Number);
+  if (ma >= 26) return true;
+  const min = {25: 3, 24: 13, 22: 22, 20: 20}[ma];
+  return min !== undefined && mi >= min;
+}
+/** Verwijdert alle symlinks uit de wegwerpkopie (diepte-eerst), zodat een testbestand niet via een gevolgde symlink buiten de kopie kan komen. */
+function verwijderSymlinks(dir) {
+  let n = 0;
+  for (const d of fs.readdirSync(dir, {withFileTypes: true})) {
+    const p = path.join(dir, d.name);
+    if (d.isSymbolicLink()) { fs.unlinkSync(p); n++; } else if (d.isDirectory() && d.name !== '.git') n += verwijderSymlinks(p);
+  }
+  return n;
+}
 function staat(root) {
   const s = git(root, ['status', '--porcelain', '--untracked-files=all']);
   return crypto.createHash('sha256').update(String(trackedFingerprint(root)) + '\n' + (s.status === 0 ? s.stdout : 'status-fout')).digest('hex');
@@ -59,8 +78,11 @@ export async function diagnose(root, testRel, rev = 'HEAD', opts = {}) {
   const timeout = Math.min(Number(opts.timeoutMs) || 120000, MAX_TIMEOUT);
   if (!(typeof testRel === 'string' && TEST.test(testRel) && veiligPad(testRel))) throw new Error('cli diagnose accepteert precies één concreet *.test.mjs-bestand (geen map, suite, script of build; geen geheim pad).');
   if (!(typeof rev === 'string' && REV.test(rev) && !rev.includes(':'))) throw new Error('Ongeldige revisie voor cli diagnose: ' + String(rev).slice(0, 60));
+  if (!nodeVersieOk()) throw new Error('cli diagnose geweigerd: Node ' + process.version + ' is ouder dan de versie waarin de symlink-omzeiling van het permissiemodel is opgelost.');
   const sha = git(root, ['rev-parse', '--verify', rev + '^{commit}']);
   if (sha.status !== 0) throw new Error('Onbekende revisie: ' + rev);
+  // Alleen de huidige commit of een voorouder daarvan: geen testcode uit een vreemde branch zonder GO.
+  if (git(root, ['merge-base', '--is-ancestor', sha.stdout.trim(), 'HEAD']).status !== 0) throw new Error('cli diagnose draait alleen op HEAD of een voorouder daarvan, niet op ' + rev + '.');
   const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae-diagnose-'))), wt = path.join(tmp, 'kopie');
   for (const d of ['home', 'tmp', 'netproef']) fs.mkdirSync(path.join(tmp, d), {recursive: true});
   const voor = staat(root);
@@ -74,11 +96,12 @@ export async function diagnose(root, testRel, rev = 'HEAD', opts = {}) {
     const lijst = git(wt, ['ls-files', '-z']);
     let weggelaten = 0;
     for (const f of (lijst.stdout || '').split('\0').filter(Boolean)) if (secretPath(f)) { fs.rmSync(path.join(wt, ...f.split('/')), {force: true, recursive: true}); weggelaten++; }
+    const symlinks = verwijderSymlinks(wt);
     if (!fs.existsSync(path.join(wt, ...testRel.split('/')))) throw new Error('Het testbestand bestaat niet in revisie ' + rev + ': ' + testRel);
     const start = Date.now();
     const r = await draai([...permissie([wt, tmp], tmp), '--test', '--test-isolation=none', testRel], {cwd: wt, env: schoneEnv(tmp), timeout});
     const na = staat(root);
-    return {ok: r.code === 0, exit_code: r.code, timed_out: r.signal === 'SIGKILL' && Date.now() - start >= timeout - 50, duur_ms: Date.now() - start, test: testRel, revisie: rev, sha: sha.stdout.trim(), netwerk_geblokkeerd: true, geheimen_weggelaten: weggelaten, werkmap_ongewijzigd: voor === na, uitvoer: r.uit};
+    return {ok: r.code === 0, exit_code: r.code, timed_out: r.signal === 'SIGKILL' && Date.now() - start >= timeout - 50, duur_ms: Date.now() - start, test: testRel, revisie: rev, sha: sha.stdout.trim(), netwerk_geblokkeerd: true, geheimen_weggelaten: weggelaten, symlinks_verwijderd: symlinks, werkmap_ongewijzigd: voor === na, uitvoer: r.uit};
   } finally {
     if (gemaakt) git(root, ['worktree', 'remove', '--force', wt]);
     git(root, ['worktree', 'prune']);

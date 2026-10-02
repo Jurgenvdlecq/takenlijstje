@@ -57,6 +57,7 @@ export function assertReady(root, st, c, prefix = '') {
 export function menselijkeReview(root, st, c) {
   const h = st.human_review;
   if (!h || h.verdict !== 'READY' || h.door !== 'Jurgen' || h.bron !== 'UserPromptSubmit') return false;
+  if (h.envelope_hash !== envelopeHash(c)) return false; // een gewijzigde (opnieuw goedgekeurde) envelop vraagt een nieuwe review, ook op dezelfde commit
   const head = gitHead(root);
   if (!head || head !== h.sha) return false;
   const paden = [...areaWrite(c), ...c.envelope.areas.flatMap(a => (a.support || []).flatMap(k => SUPPORT_ROOTS[k] || []))];

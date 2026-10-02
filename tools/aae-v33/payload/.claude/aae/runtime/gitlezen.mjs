@@ -15,7 +15,7 @@ const REV_TREE = /^(?![-:.])[A-Za-z0-9_.\/~^@-]{1,120}\^\{(tree|commit)\}$/;
 export function veiligPad(p) {
   if (typeof p !== 'string' || !p.length || p.length > 300) return false;
   if (/^[-:\/~]/.test(p) || /[*?\[\]{}\\\0\s'"`$!#;&|<>()]/.test(p)) return false;
-  if (p.split('/').some(s => s === '..' || s === '.')) return false;
+  if (p.replace(/\/+$/, '').split('/').some(s => s === '..' || s === '.' || s === '')) return false; // ook geen // (git normaliseert dat naar een ander pad dan het filter zag)
   return !secretPath(p.replace(/\/+$/, ''));
 }
 const isRev = t => REV.test(t) && !t.includes(':');
@@ -32,11 +32,13 @@ function splitsPaden(rest) {
  * Mag dit argv zonder GO direct via Bash (alleen namen, hashes en statistiek)? Geeft true/false.
  * Inhoud tonen (diff zonder --stat, show <rev>:<pad>, cat-file -p, grep, blame) kan alleen via cli git.
  */
-export function breedLezen(argv) {
+export function breedLezen(argv, root = null) {
   if (!Array.isArray(argv) || argv[0] !== 'git' || argv.length < 2) return false;
   const [, sub, ...rest] = argv;
   const {voor, paden} = splitsPaden(rest);
   if (!paden.every(veiligPad)) return false;
+  // git show/diff/log met een blob-hash tonen de inhoud van die blob, ook met --stat: alleen revisies die een commit, tag of tree zijn (vastgesteld met git, fail-closed).
+  if (['show', 'diff', 'log', 'ls-tree'].includes(sub) && !voor.filter(isRev).every(t => geenBlob(root, t))) return false;
   if (sub === 'status') return voor.every(t => vlag(t, ['--porcelain', '--short', '--branch', '-s', '-b', '--untracked-files=all', '--untracked-files=no', '--untracked-files=normal']));
   if (sub === 'log') return voor.every(t => vlag(t, LOG_VLAG) || /^-n\d{1,5}$/.test(t) || /^--max-count=\d{1,5}$/.test(t) || /^--(format|pretty)=[%A-Za-z0-9,:|._-]{0,80}$/.test(t) || isRev(t));
   if (sub === 'diff' || sub === 'show') {
@@ -54,6 +56,12 @@ export function breedLezen(argv) {
 
 const GIT_OPTS = {encoding: 'utf8', shell: false, timeout: 30000, maxBuffer: 16 * 1024 * 1024};
 const run = (root, args) => spawnSync('git', args, {cwd: root, ...GIT_OPTS});
+/** Is deze revisie (of elke kant van een bereik a..b / a...b) een commit, tag of tree? Zonder projectmap of bij twijfel: nee. */
+export function geenBlob(root, rev) {
+  if (!root) return false;
+  const delen = rev.includes('..') ? rev.split(/\.\.\.?/) : [rev];
+  return delen.every(d => { if (!d) return true; const r = run(root, ['cat-file', '-t', d]); return r.status === 0 && ['commit', 'tag', 'tree'].includes(String(r.stdout).trim()); });
+}
 /** Schrijft paden (bestanden of mappen) uit naar losse, niet-geheime bestanden voor de gegeven revisie (of de werkmap). */
 function bestanden(root, rev, paden, gewijzigdTussen = null) {
   const args = gewijzigdTussen ? ['diff', '--name-only', '-z', ...gewijzigdTussen, '--', ...paden] : rev ? ['ls-tree', '-r', '--name-only', '-z', rev, '--', ...paden] : ['ls-files', '-z', '--', ...paden];
@@ -69,7 +77,7 @@ function bestanden(root, rev, paden, gewijzigdTussen = null) {
  * De uitvoer wordt alleen teruggegeven als hij geen bekend geheimpatroon bevat.
  */
 export function inhoudLezen(root, argv) {
-  if (breedLezen(['git', ...argv])) return toon(run(root, argv), 0);
+  if (breedLezen(['git', ...argv], root)) return toon(run(root, argv), 0);
   const [sub, ...rest] = argv;
   const {voor, paden, metStreep} = splitsPaden(rest);
   const eis = (ok, reden) => { if (!ok) throw new Error(reden); };
@@ -86,6 +94,7 @@ export function inhoudLezen(root, argv) {
     eis(paden.every(veiligPad), 'Een pad is niet toegestaan (geheim, jokerteken, .. of pathspec-magie).');
     const revs = voor.filter(t => t !== '--cached' && t !== '--staged');
     eis(revs.every(isRev) && revs.length <= 2 && voor.every(t => isRev(t) || t === '--cached' || t === '--staged'), 'Alleen revisies en --cached zijn toegestaan vóór --.');
+    eis(revs.every(t => geenBlob(root, t)), 'Een revisie moet een commit, tag of tree zijn (geen blob-hash).');
     const lijst = bestanden(root, null, paden, [...voor]); // dezelfde vergelijking, alleen namen: zo valt elk geheim bestand weg vóór de inhoud wordt opgevraagd
     if (!lijst.veilig.length) return {uitvoer: '', weggelaten: lijst.weggelaten};
     return toon(run(root, ['diff', '--no-ext-diff', '--no-textconv', ...voor, '--', ...lijst.veilig]), lijst.weggelaten);
@@ -96,13 +105,14 @@ export function inhoudLezen(root, argv) {
     const ei = voor.indexOf('-e'); eis(ei >= 0 && voor[ei + 1], 'Gebruik: git grep [vlaggen] -e <patroon> [<rev>] -- <pad...>.');
     const vlaggen = voor.slice(0, ei), na = voor.slice(ei + 2);
     eis(vlaggen.every(t => ['-n', '-i', '-l', '-c', '-w', '-F', '-E', '-I', '--count', '--line-number', '--ignore-case', '--files-with-matches'].includes(t)) && na.length <= 1 && na.every(isRev), 'Vlag of revisie niet toegestaan in git grep.');
+    eis(na.every(t => geenBlob(root, t)), 'Een revisie moet een commit, tag of tree zijn (geen blob-hash).');
     const rev = na[0] || null, lijst = bestanden(root, rev, paden);
     if (!lijst.veilig.length) return {uitvoer: '', weggelaten: lijst.weggelaten};
     return toon(run(root, ['grep', ...vlaggen, '-e', voor[ei + 1], ...(rev ? [rev] : []), '--', ...lijst.veilig]), lijst.weggelaten, true);
   }
   if (sub === 'blame') {
     eis(metStreep && paden.length === 1 && veiligPad(paden[0]), 'Gebruik: git blame [<rev>] -- <pad> (één niet-geheim bestand).');
-    eis(voor.length <= 1 && voor.every(isRev), 'Alleen één revisie is toegestaan vóór --.');
+    eis(voor.length <= 1 && voor.every(isRev) && voor.every(t => geenBlob(root, t)), 'Alleen één revisie (commit, tag of tree) is toegestaan vóór --.');
     return toon(run(root, ['blame', ...voor, '--', paden[0]]), 0);
   }
   throw new Error('Deze git-opdracht is zonder GO niet toegestaan (alleen diff/show/cat-file/grep/blame met veilige paden, of de brede opdrachten met --stat/--name-only).');

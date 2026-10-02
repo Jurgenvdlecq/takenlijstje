@@ -181,7 +181,7 @@ function bashPermission(root, st, e) {
     return null;
   }
   const argv = argvMetBoom(command);
-  if (argv && argv[0] === 'git' && (safeLocalArgv(argv) || breedLezen(argv))) return null;
+  if (argv && argv[0] === 'git' && breedLezen(argv, root)) return null; // breedLezen omvat de oude alleen-lezen git-lijst, nu met de blob-controle
   throw new GuardError('Geen vrije shell binnen de agentworkflow (geen ; & | > < $( ` of aanhalingstekens). Zet het commando in plan.commands van het contract en gebruik: node .claude/aae/runtime/cli.mjs run <id>. Alleen-lezen git mag direct (namen en statistiek); inhoud lezen via node .claude/aae/runtime/cli.mjs git <opdracht>.');
 }
 

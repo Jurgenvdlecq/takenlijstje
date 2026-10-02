@@ -8,6 +8,7 @@ import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition
 import {liveRows} from './reports.mjs';
 import {assertReady, assertGate} from './gates.mjs';
 import {extraKey} from './commands.mjs';
+import {geenBlob} from './gitlezen.mjs';
 import {gitHead, candidateFiles, stagedFiles, secretHits, unpushedFiles, trackedFingerprint, remoteRefCommit} from './gitops.mjs';
 
 const hasLive = st => liveRows(st).some(r => ['reserved', 'running'].includes(r.status));
@@ -24,6 +25,8 @@ export async function runCommand(root, cmdId, adhoc = null) {
     requireThat(m, 'Commando niet in het plan: ' + cmdId);
     const k = classifyCommand(c, m);
     requireThat(k.ok, 'Commando valt buiten de envelop: ' + k.reason);
+    // v3.4: git show/diff/log met een blob-hash tonen de inhoud van die blob (ook met --stat); alleen commits, tags en trees.
+    if (m.argv[0] === 'git' && ['show', 'diff', 'log', 'ls-tree'].includes(m.argv[1])) requireThat((m.argv.indexOf('--') > 0 ? m.argv.slice(2, m.argv.indexOf('--')) : m.argv.slice(2)).filter(t => !t.startsWith('-') && !t.includes('/') && !t.includes(':')).every(t => geenBlob(root, t)), 'Een revisie in dit git-commando is geen commit, tag of tree (een blob-hash toont inhoud).');
     requireThat(!hasLive(st) && !st.command_running, 'Geen commandoloop naast agentcontrole of andere commando\'s.');
     const fp = commandFingerprint(root, m);
     if (k.kind === 'extra') {
@@ -161,7 +164,7 @@ export function adminPush(root, id) {
     // Wat nieuw is: sinds de remote werkbranch, of (bij een eerste push) sinds de commit waarop het pakket startte. Onbekend = weigeren.
     const basis = remoteRefCommit(root, tak) || st.start_head;
     requireThat(basis, 'Onbekend wat er nieuw is op ' + tak + ' (geen remote branch en geen startcommit van het pakket).');
-    const d = gitSync(root, ['diff', '--name-only', '-z', basis + '..HEAD']); requireThat(d.status === 0, 'git diff faalde: ' + String(d.stderr).slice(0, 160));
+    const d = gitSync(root, ['diff', '--name-only', '--no-renames', '-z', basis + '..HEAD']); requireThat(d.status === 0, 'git diff faalde: ' + String(d.stderr).slice(0, 160));
     const nieuw = (d.stdout || '').split('\0').filter(Boolean);
     requireThat(nieuw.every(f => binnen(paden, f) || addAllowed(st.contract, f)), 'De te pushen commits raken bestanden buiten het pakket (' + nieuw.filter(f => !(binnen(paden, f) || addAllowed(st.contract, f))).slice(0, 3).join(', ') + ').');
     const geheimen = secretHits(root, nieuw); requireThat(!geheimen.length, 'Mogelijk geheim in de te pushen commits.');

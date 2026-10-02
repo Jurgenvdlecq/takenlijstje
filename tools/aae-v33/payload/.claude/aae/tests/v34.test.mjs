@@ -13,7 +13,7 @@ import {assertGate} from '../runtime/gates.mjs';
 import {presentProposal} from '../runtime/commands.mjs';
 import {breedLezen, inhoudLezen, veiligPad} from '../runtime/gitlezen.mjs';
 import {secretPath, secretContent} from '../runtime/secrets.mjs';
-import {diagnose, netwerkGeblokkeerd} from '../runtime/diagnose.mjs';
+import {diagnose, netwerkGeblokkeerd, nodeVersieOk} from '../runtime/diagnose.mjs';
 import {alleenVerwijzing} from '../runtime/events.mjs';
 
 const met = fn => async t => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae34cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg, t); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
@@ -39,12 +39,15 @@ const PRIV = ['-----BEGIN ', 'RSA PRIVATE ', 'KEY-----'].join('');
 
 // ---- V1: read-only git zonder GO, veilig voor geheimen ----
 test('V34-01 brede git-opdrachten (namen, hashes, statistiek) mogen zonder GO; inhoud, schrijven en geheime paden niet', met(async root => {
+  gitFixture(root); sh(root, 'commit', '-q', '--allow-empty', '-m', 'twee'); sh(root, 'commit', '-q', '--allow-empty', '-m', 'drie');
+  const b = (argv) => breedLezen(argv, root);
   for (const argv of [['git', 'status', '--porcelain'], ['git', 'log', '--oneline', '-n5', '--', 'src'], ['git', 'log', '--format=%H|%s', 'HEAD~2..HEAD'], ['git', 'diff', '--stat', 'HEAD~1', 'HEAD'], ['git', 'show', '--name-only', 'HEAD'],
     ['git', 'ls-files', '--', 'src'], ['git', 'ls-tree', '-r', '--name-only', 'HEAD'], ['git', 'rev-parse', 'HEAD^{tree}'], ['git', 'merge-base', '--is-ancestor', 'a1', 'b2'], ['git', 'branch', '--show-current'], ['git', 'cat-file', '-t', 'HEAD']])
-    assert.equal(breedLezen(argv), true, argv.join(' '));
+    assert.equal(b(argv), true, argv.join(' '));
+  assert.equal(breedLezen(['git', 'show', '--stat', 'HEAD']), false, 'zonder projectmap kan de blob-controle niet: fail-closed');
   for (const argv of [['git', 'diff', 'HEAD'], ['git', 'show', 'HEAD:src/a.js'], ['git', 'log', '-p'], ['git', 'branch', 'nieuw'], ['git', 'log', '--', '.env'], ['git', 'diff', '--stat', '--', ':(glob)*'], ['git', 'ls-files', '--', 'src/*'],
     ['git', 'diff', '--stat', '--output=x'], ['git', '-c', 'a=b', 'status'], ['git', 'log', '--', '../x'], ['git', 'push'], ['git', 'cat-file', '-p', 'HEAD:src/a.js'], ['git', 'checkout', 'main'], ['git', 'log', '--', '.claude/aae/private/x']])
-    assert.equal(breedLezen(argv), false, argv.join(' '));
+    assert.equal(b(argv), false, argv.join(' '));
   // via de Bash-bewaking, zonder werkpakket
   assert.equal(bash(root, 'git rev-parse HEAD^{tree}'), null, 'tree-hash zonder GO');
   assert.equal(bash(root, 'git log --oneline -n3 -- src'), null);
@@ -298,6 +301,51 @@ test('V34-15 scenario: het v3.3.1-verloop (tekstwijziging, rapport via hand-back
   const tel = tellers(st(root));
   assert.ok(tel.go <= 3, 'GO\'s: ' + tel.go); assert.equal(tel.needs_human, 1, 'alleen de echte criteriumwijziging vroeg een beslissing');
   assert.ok(st(root).history.filter(x => x.type === 'needs_human').every(x => x.kind === 'material_change'));
+}));
+
+// ---- herstelpunten uit de review (blob-hash, //, envelop bij AAE REVIEW, hernoeming, Node-versie, vreemde revisie, symlinks) ----
+test('V34-18 een blob-hash toont nooit inhoud, ook niet met --stat of via cli run; // in een pad wordt geweigerd', met(async root => {
+  gitFixture(root, {'src/a.js': 'export const a = 1;\n'});
+  const blob = sh(root, 'rev-parse', 'HEAD:src/a.js').stdout.trim();
+  for (const argv of [['git', 'show', '--stat', blob], ['git', 'show', '--name-only', blob], ['git', 'diff', '--stat', blob, blob], ['git', 'log', '--oneline', blob]]) assert.equal(breedLezen(argv, root), false, argv.join(' '));
+  assert.ok(denies(() => bash(root, 'git show --stat ' + blob)));
+  assert.ok(denies(() => inhoudLezen(root, ['show', '--stat', blob])));
+  assert.match(msg(() => inhoudLezen(root, ['diff', blob, blob, '--', 'src/a.js'])), /geen blob-hash/);
+  assert.equal(breedLezen(['git', 'show', '--stat', 'HEAD'], root), true, 'een commit mag wel');
+  assert.equal(breedLezen(['git', 'show', '--stat', 'HEAD^{tree}'.replace('^{tree}', '')], root), true);
+  assert.equal(veiligPad('a//b'), false); assert.equal(veiligPad('.claude//aae/private/x'), false);
+  assert.ok(denies(() => inhoudLezen(root, ['blame', 'HEAD', '--', '.claude//aae/private/x'])));
+  executing(root, {plan: {...contract().plan, commands: [...contract().plan.commands, C('blob', ['git', 'show', '--stat', blob], 'read')]}});
+  assert.match(await amsg(runCommand(root, 'blob')), /blob-hash/);
+}));
+test('V34-19 AAE REVIEW vervalt als de envelop (en dus de hash) daarna verandert, ook op dezelfde commit', met(async root => {
+  gitFixture(root);
+  executing(root, {risk_class: 'HIGH'});
+  prompt(root, 'AAE REVIEW W-T ' + HEAD(root).slice(0, 12) + ' READY');
+  herplan(root, {risk_class: 'HIGH', envelope: {decision_defaults: ['Een nieuwe standaardkeuze (geen nieuwe GO, wel een andere hash).']}});
+  assert.equal(st(root).status, 'EXECUTING');
+  const r = await runCommand(root, 't_ok'); makeResult(root, r.evidence_path);
+  assert.match(msg(() => closeTask(root)), /AAE REVIEW/, 'de review hoorde bij de vorige envelop');
+}));
+test('V34-20 administratie na close: een hernoeming van buiten naar de eigen werkmap telt ook de verwijderde bron', met(async root => {
+  gitFixture(root, {'src/a.js': 'export const a = 1;\n'});
+  executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}});
+  const r = await runCommand(root, 't_ok'); makeResult(root, r.evidence_path); closeTask(root);
+  fs.mkdirSync(path.join(root, 'docs/aae/work/W-T'), {recursive: true}); sh(root, 'mv', 'src/a.js', 'docs/aae/work/W-T/a.js');
+  assert.match(msg(() => adminCommit(root, 'W-T', 'Hernoemd bestand')), /iets anders klaar/);
+}));
+test('V34-21 cli diagnose: minimaal een gepatchte Node-versie, alleen HEAD of een voorouder, en geen symlinks in de kopie', met(async (root, cfg, t) => {
+  assert.equal(nodeVersieOk('24.12.0'), false); assert.equal(nodeVersieOk('24.13.0'), true); assert.equal(nodeVersieOk('25.2.9'), false); assert.equal(nodeVersieOk('25.3.0'), true);
+  assert.equal(nodeVersieOk('22.22.0'), true); assert.equal(nodeVersieOk('20.19.9'), false); assert.equal(nodeVersieOk('26.0.0'), true); assert.equal(nodeVersieOk('18.20.0'), false);
+  gitFixture(root);
+  fs.symlinkSync('../package.json', path.join(root, 'src/link.json')); sh(root, 'add', 'src/link.json'); sh(root, 'commit', '-q', '-m', 'symlink');
+  sh(root, 'checkout', '-q', '-b', 'vreemd'); sh(root, 'commit', '-q', '--allow-empty', '-m', 'vreemd'); sh(root, 'checkout', '-q', 'claude/w');
+  assert.match(await amsg(diagnose(root, 'src/ok.test.mjs', 'vreemd')), /voorouder/);
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae34net-')));
+  let blok; try { blok = await netwerkGeblokkeerd(tmp); } finally { fs.rmSync(tmp, {recursive: true, force: true}); }
+  if (!blok.ok) { t.diagnostic('netwerkblokkade niet beschikbaar; alleen de weigering getoetst'); return; }
+  const ok = await diagnose(root, 'src/ok.test.mjs');
+  assert.equal(ok.ok, true, ok.uitvoer); assert.ok(ok.symlinks_verwijderd >= 1, 'de symlink is uit de kopie gehaald');
 }));
 
 // ---- V7 en V8 ----

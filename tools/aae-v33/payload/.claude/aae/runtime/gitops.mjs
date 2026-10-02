@@ -39,7 +39,7 @@ export function candidateFiles(root, paths) {
   return (r.stdout || '').split('\0').filter(Boolean);
 }
 export function stagedFiles(root) {
-  const r = spawnSync('git', ['diff', '--cached', '--name-only', '-z'], {cwd: root, encoding: 'utf8', shell: false, timeout: 30000});
+  const r = spawnSync('git', ['diff', '--cached', '--name-only', '--no-renames', '-z'], {cwd: root, encoding: 'utf8', shell: false, timeout: 30000}); // zonder rename-detectie: ook de verwijderde bron van een hernoeming telt
   if (r.status !== 0) throw new Error('Geheimencontrole niet mogelijk: git diff --cached faalde (' + String(r.stderr || r.error || 'time-out').slice(0, 120) + ').');
   return (r.stdout || '').split('\0').filter(Boolean);
 }
