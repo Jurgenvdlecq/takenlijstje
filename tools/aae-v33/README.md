@@ -26,6 +26,15 @@ Dit is het resultaat van werkpakket **AAE-V33-001**, aangepast in **AAE-V33-001B
 - **Samenvoegen is gebonden aan de exacte PR-versie** (owner, repo, branch en `expectedHeadSha` moeten overeenkomen met de remote PR-head, het READY-resultaat en de lokale branch) en uitrollen aan de READY-commit.
 - **Samenvoegen en uitrollen zijn aparte, bewijsgebonden stappen.** Destructieve databasehandelingen vragen altijd een expliciete bevestiging.
 
+## Wat is er anders in 3.3.1 (werkpakket AAE-V331-001, nog niet geïnstalleerd)
+Doel: minder overhead bij kleine wijzigingen, zonder de harde grenzen te verzwakken.
+- **GO-binding smaller:** plan-, bewijs-, aannames- en administratieve tekst en het agentplafond tellen niet meer mee. Een risicoverlaging vraagt nooit een nieuwe GO; een risicoverhoging, ander doel/criteria, nieuw gebied, meer database/git/merge/deploy, extra commando's of hogere budgetten (commando's, extern, parallel) wel. Bewijs wordt nooit stil lichter: een controlesoort verdwijnt niet en de methode wordt niet zwakker.
+- **Agentplafond per niveau, intern:** hard LIGHT 1, NORMAL 2, HIGH 3 (normaal 0, 1, 2). Een reviewbevinding met herstel en een noodzakelijke extra review binnen het plafond vragen nooit een nieuwe GO.
+- **Niveauregels:** HIGH is verplicht bij gevoelige gegevens, rechten, geld, migratie, database, Supabase, merge, deploy, een destructief extra commando en de nieuwe vlag `customer_claims`; LIGHT staat geen externe diensten, extra commando's of andere vlaggen dan `ui` toe.
+- **Snapshot:** geen verplichte commitvolgorde meer vóór de eerste bronwijziging. READY eist een lokaal geldige snapshotketen; de merge- en deploy-gate eisen hem in HEAD. Een snapshotfout wordt herprobeerd en geeft daarna `BLOCKED` (geen `NEEDS_HUMAN`).
+- **NEEDS_HUMAN** alleen voor een echte beslissing of handeling van Jurgen; **geen zijprojecten** (verbeterpunten gaan naar `docs/aae/notes/verbeterpunten.md`).
+- Tests: `payload/.claude/aae/tests/v331.test.mjs` (V331-01 t/m V331-16). Let op: de eigen suite (`eigen.test.mjs`) hoort bij de toestand vóór de installatie van v3.3.0 en faalt voor een deel sinds die installatie; zie `docs/aae/notes/verbeterpunten.md`.
+
 ## Controleren
 ```
 node --test tools/aae-v33/tests/v33-suite.test.mjs   # de v3.3-suite (scenario's T1–T23, GO-binding GB01–GB17, bewaking, runner)

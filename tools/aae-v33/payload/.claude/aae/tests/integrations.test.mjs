@@ -66,11 +66,12 @@ test('I06 apply_migration is geblokkeerd vóór de GO en toegestaan daarna', met
   go(root);
   assert.equal(ext(root, 'apply_migration', call), null);
 }));
-test('I07 het externe toolbudget staat los van het agentbudget', met(root => {
+test('I07 het externe toolbudget staat los van het agentplafond', met(root => {
   run(root, {envelope: {providers: prov(), db_max: 'A', budgets: {agent_calls: {soft: 0, hard: 0}, command_runs: 20, external_calls: 10, max_parallel: 1}}});
   ext(root, 'list_tables', {project_id: REF}); ext(root, 'list_tables', {project_id: REF});
   assert.equal(st(root).usage.external, 2); assert.equal(st(root).usage.agents, 0);
-  assert.match(msg(() => agentCall(root)), /Hard agentplafond/);
+  assert.ok(agentCall(root), 'externe aanroepen verbruiken geen agentplafond (HIGH: 3)');
+  assert.equal(st(root).usage.external, 2, 'een agent verbruikt geen extern budget');
 }));
 test('I08 een verkeerde Supabase-projectverwijzing in de invoer wordt geblokkeerd', met(root => {
   run(root);
@@ -108,9 +109,12 @@ test('I12 GitHub: PR-aanmaak is aan de envelop gebonden, lezen is vrij en samenv
   hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'g1', tool_input: {}, tool_response: {}});
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'g2'})), /staat niet in de goedgekeurde envelop/);
 }));
-test('I13 de vlag "migration" maakt een pakket niet automatisch HIGH', () => {
-  const c = contract({risk_flags: ['migration']}); c.plan.test_plan.push(...['migration', 'rollback', 'data-preservation'].map(kind => ({kind, method: 'inspection', description: 'Beschrijf de controle van ' + kind + '.'})));
-  assert.equal(validateContract(structuredClone(c)).risk_class, 'STANDARD');
+test('I13 (v3.3.1) de vlag "migration" vraagt HIGH: STANDARD wordt geweigerd, HIGH is geldig', () => {
+  const bewijs = ['migration', 'rollback', 'data-preservation'].map(kind => ({kind, method: 'inspection', description: 'Beschrijf de controle van ' + kind + '.'}));
+  const c = contract({risk_flags: ['migration']}); c.plan.test_plan.push(...bewijs);
+  assert.throws(() => validateContract(structuredClone(c)), /HIGH/);
+  const h = contract({risk_flags: ['migration'], risk_class: 'HIGH'}); h.plan.test_plan.push(...bewijs);
+  assert.equal(validateContract(structuredClone(h)).risk_class, 'HIGH');
 });
 test('I14 de SQL-classificatie weigert bijwerkingen in SELECT en meerdere statements', () => {
   assert.equal(classifySql('SELECT 1').level, 'read');

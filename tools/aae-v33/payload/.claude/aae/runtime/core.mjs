@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
-export const VERSION = '3.3.0';
+export const VERSION = '3.3.1';
 export const WORK = 'docs/aae/work';
 export const STATE_DIR = '.claude/aae/state';
 export const ROLES = ['aae-product-partner', 'aae-architect', 'aae-reviewer'];
@@ -17,9 +17,14 @@ export const RISK_CHECKS = {
   financial: ['calculations', 'rounding'],
   sensitive_data: ['data-handling'],
   background_jobs: ['idempotency', 'retry'],
-  external_effects: ['failure-handling']
+  external_effects: ['failure-handling'],
+  // Smal: alleen klantgerichte claims over prijs, dekking, rechten en plichten, financiële voorwaarden of compliance; gewone commerciële tekst valt hier niet onder.
+  customer_claims: ['claims-review']
 };
-export const HIGH_FLAGS = ['authorization', 'financial', 'sensitive_data'];
+export const HIGH_FLAGS = ['authorization', 'financial', 'sensitive_data', 'migration', 'customer_claims'];
+/** Intern agentplafond per niveau (geen onderdeel van de GO): normaal gebruik en hard maximum. Binnen het plafond is nooit een nieuwe GO nodig. */
+export const AGENT_CAP = {LIGHT: {normal: 0, hard: 1}, STANDARD: {normal: 1, hard: 2}, HIGH: {normal: 2, hard: 3}};
+const METHOD_RANK = {manual: 0, inspection: 1, command: 2};
 export const PURPOSES = ['read', 'test', 'build', 'preview', 'commit', 'push', 'merge', 'deploy', 'install', 'destructive'];
 export const LOCAL = ['read', 'test', 'build', 'preview'];
 export const SUPABASE_TOOLS_ALL = ['get_project_url', 'list_tables', 'list_extensions', 'list_migrations', 'query_logs', 'get_advisors', 'generate_typescript_types', 'search_docs', 'execute_sql', 'apply_migration'];
@@ -344,10 +349,10 @@ export function validateContract(c) {
   requireThat(c.schema_version === 4, 'Contract vereist schema_version 4.');
   identifier(c.id, 'Werkpakket-ID'); text(c.title, 'Titel', 200); text(c.goal, 'Doel');
   choice(c.risk_class, CLASSES, 'Risicoklasse');
-  array(c.risk_flags, 0, 7, 'Risicovlaggen');
+  array(c.risk_flags, 0, Object.keys(RISK_CHECKS).length, 'Risicovlaggen');
   requireThat(new Set(c.risk_flags).size === c.risk_flags.length, 'Dubbele risicovlag');
   for (const f of c.risk_flags) choice(f, Object.keys(RISK_CHECKS), 'Risicovlag');
-  if (c.risk_flags.some(f => HIGH_FLAGS.includes(f))) requireThat(c.risk_class === 'HIGH', 'Autorisatie, financieel of gevoelige gegevens vereisen risicoklasse HIGH.');
+  if (c.risk_flags.some(f => HIGH_FLAGS.includes(f))) requireThat(c.risk_class === 'HIGH', 'Autorisatie, financieel, gevoelige gegevens, databasemigratie of klantclaims vereisen risicoklasse HIGH.');
   const e = c.envelope;
   keys(e, ['phase', 'areas', 'db_max', 'providers', 'git', 'budgets', 'acceptance', 'assumptions', 'decision_defaults', 'decision_points', 'extra_commands'], ['phase', 'areas', 'git', 'budgets', 'acceptance'], 'Envelop');
   choice(e.phase, ['analysis', 'implementation'], 'Fase');
@@ -377,9 +382,9 @@ export function validateContract(c) {
   if (e.git.push.length) requireThat(e.git.commit, 'push vereist commit.');
   if (e.git.merge !== null) { keys(e.git.merge, ['to'], ['to'], 'Merge'); requireThat(typeof e.git.merge.to === 'string' && BRANCH.test(e.git.merge.to), 'Merge-doel ongeldig.'); requireThat(e.git.push.length > 0, 'merge vereist een pushbranch.'); }
   choice(e.git.deploy, ['none', 'verify', 'trigger'], 'Deploy');
-  keys(e.budgets, ['agent_calls', 'command_runs', 'external_calls', 'max_parallel'], ['agent_calls', 'command_runs'], 'Budget');
-  keys(e.budgets.agent_calls, ['soft', 'hard'], ['soft', 'hard'], 'Agentbudget');
-  number(e.budgets.agent_calls.hard, 0, 12, 'Agentbudget hard'); number(e.budgets.agent_calls.soft, 0, e.budgets.agent_calls.hard, 'Agentbudget soft');
+  keys(e.budgets, ['agent_calls', 'command_runs', 'external_calls', 'max_parallel'], ['command_runs'], 'Budget');
+  // Het agentplafond is intern en hangt aan het niveau (AGENT_CAP); een opgegeven waarde wordt genegeerd en niet door de GO bepaald.
+  e.budgets.agent_calls = {soft: AGENT_CAP[c.risk_class].normal, hard: AGENT_CAP[c.risk_class].hard};
   number(e.budgets.command_runs, 0, 200, 'Commandobudget');
   e.budgets.external_calls ??= 0; e.budgets.max_parallel ??= 2;
   number(e.budgets.external_calls, 0, 60, 'Extern toolbudget'); number(e.budgets.max_parallel, 1, 3, 'Parallelisme');
@@ -398,6 +403,13 @@ export function validateContract(c) {
     const nee = extraRefusal(x.argv, x.purpose); requireThat(!nee, 'Extra commando ' + x.argv.join(' ').slice(0, 80) + ' (' + x.purpose + ') is niet toegestaan: ' + nee);
   }
   if (e.phase === 'analysis') requireThat(e.extra_commands.length === 0, 'Een analyse heeft geen extra commando\'s: ze zou projectcode kunnen starten zonder GO.');
+  // Niveauregels: het niveau hoort bij het risico. HIGH is verplicht bij database, Supabase, merge, deploy of een destructief extra commando (de risicovlaggen zijn hierboven gecontroleerd);
+  // LIGHT is alleen voor kleine, lokale wijzigingen zonder die effecten.
+  const hoogRisico = [e.db_max !== 'none' && 'database', e.providers.supabase && 'Supabase', e.git.merge !== null && 'merge', e.git.deploy !== 'none' && 'deploy', e.extra_commands.some(x => x.purpose === 'destructive') && 'destructief commando'].filter(Boolean);
+  if (hoogRisico.length) requireThat(c.risk_class === 'HIGH', 'Risicoklasse HIGH is verplicht bij ' + hoogRisico.join(', ') + '.');
+  if (c.risk_class === 'LIGHT') {
+    requireThat(!Object.keys(e.providers).length && e.extra_commands.length === 0 && c.risk_flags.every(f => f === 'ui'), 'LIGHT is alleen voor kleine, lokale wijzigingen: geen externe diensten, extra commando\'s of andere risicovlaggen dan ui (gebruik STANDARD of HIGH).');
+  }
   const p = c.plan;
   keys(p, ['test_plan', 'agents', 'commands', 'read', 'open_product_questions', 'keep_raw', 'preflight'], ['test_plan'], 'Plan');
   p.agents ??= []; p.commands ??= []; p.read ??= []; p.open_product_questions ??= []; p.keep_raw ??= false;
@@ -472,9 +484,8 @@ export function materialChanges(a, n) {
   if (n.id !== a.id) why.push('werkpakket-ID');
   if (norm(n.goal) !== norm(a.goal)) why.push('doel');
   if (en.phase !== ea.phase) why.push('fase');
-  if (level(n.risk_class) < level(a.risk_class)) why.push('risicoklasse lager (bewijs lichter)');
+  // Alleen een risicoverhoging vraagt nieuwe toestemming; een risicoverlaging (lagere klasse of minder vlaggen) loopt gewoon door onder de bestaande goedkeuring.
   if (level(n.risk_class) > level(a.risk_class)) why.push('risicoklasse hoger');
-  if (!sub(a.risk_flags, n.risk_flags)) why.push('risicovlaggen');
   if (!sub(n.risk_flags, a.risk_flags)) why.push('risicovlaggen uitgebreid');
   for (const ar of en.areas) for (const w of ar.write) if (!scopeContains(ea.areas.flatMap(x => x.write), relName(w))) why.push('schrijfgebied ' + w);
   const oudeSteun = new Set(ea.areas.flatMap(x => x.support || []));
@@ -491,13 +502,14 @@ export function materialChanges(a, n) {
   if ((DEPLOY_LEVEL[en.git.deploy] ?? 9) > (DEPLOY_LEVEL[ea.git.deploy] ?? 0)) why.push('deploy');
   if (!sub(en.extra_commands.map(x => stable(x)), ea.extra_commands.map(x => stable(x)))) why.push('extra commando\'s');
   const ba = ea.budgets, bn = en.budgets;
-  if (bn.agent_calls.hard > ba.agent_calls.hard || bn.command_runs > ba.command_runs || bn.external_calls > ba.external_calls || bn.max_parallel > ba.max_parallel) why.push('budget');
+  // Het agentplafond is intern (AGENT_CAP) en geen onderdeel van de GO; aannames en beslisstandaarden zijn toelichting en geen bevoegdheid.
+  if (bn.command_runs > ba.command_runs || bn.external_calls > ba.external_calls || bn.max_parallel > ba.max_parallel) why.push('budget');
   if (!ea.acceptance.every(x => en.acceptance.some(y => y.id === x.id && y.text === x.text))) why.push('acceptatiecriteria');
-  if (!sub(en.assumptions, ea.assumptions)) why.push('nieuwe aannames');
-  if (!sub(en.decision_defaults, ea.decision_defaults)) why.push('nieuwe beslisstandaarden');
   if (!sub(ea.decision_points || [], en.decision_points || [])) why.push('beslisgrenzen');
-  // Bewijsvloer (B2): soort, methode én omschrijving van de goedgekeurde controles blijven minstens gelijk; bewijs wordt nooit stil lichter.
-  if (!a.plan.test_plan.every(x => n.plan.test_plan.some(y => y.kind === x.kind && y.method === x.method && y.description === x.description))) why.push('bewijsplan');
+  // Bewijsvloer: een goedgekeurde controlesoort blijft aanwezig en de bewijsmethode wordt niet zwakker (command > inspection > manual); de omschrijving is vrij.
+  // Een controle die alleen door een inmiddels vervallen risicovlag verplicht was, mag vervallen (een risicoverlaging is toegestaan).
+  const vervalt = new Set(requiredChecks(a).filter(k => !requiredChecks(n).includes(k)));
+  if (!a.plan.test_plan.every(x => vervalt.has(x.kind) || n.plan.test_plan.some(y => y.kind === x.kind && (METHOD_RANK[y.method] ?? -1) >= (METHOD_RANK[x.method] ?? 9)))) why.push('bewijsplan');
   return [...new Set(why)];
 }
 /** Commando's die buiten de allowlist vallen, moeten exact in extra_commands staan; goedgekeurde fingerprint voor niet-lokale doelen. */

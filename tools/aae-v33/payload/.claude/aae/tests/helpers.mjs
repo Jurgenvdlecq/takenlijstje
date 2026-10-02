@@ -42,8 +42,15 @@ export function contract(over = {}) {
     }
   };
   const c = {...base, ...over, envelope: {...base.envelope, ...(over.envelope || {})}, plan: {...base.plan, ...(over.plan || {})}};
+  // v3.3.1: database, Supabase, merge, deploy en destructieve extra commando's vragen HIGH. Tests over iets anders hoeven dat niet telkens te herhalen;
+  // de niveauregel zelf wordt getest in v331.test.mjs (met een expliciete risk_class).
+  if (!over.risk_class && hoogRisico(c)) c.risk_class = 'HIGH';
   return c;
 }
+export const hoogRisico = c => {
+  const e = c.envelope;
+  return (e.db_max && e.db_max !== 'none') || Boolean(e.providers?.supabase) || (e.git?.merge ?? null) !== null || (e.git?.deploy ?? 'none') !== 'none' || (e.extra_commands || []).some(x => x.purpose === 'destructive');
+};
 export function put(root, rel, value) {
   const f = path.join(root, rel); fs.mkdirSync(path.dirname(f), {recursive: true});
   fs.writeFileSync(f, typeof value === 'string' ? value : JSON.stringify(value, null, 2) + '\n');

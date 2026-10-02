@@ -14,7 +14,6 @@
     "providers": {},
     "git": {"commit": false, "push": [], "merge": null, "deploy": "none"},
     "budgets": {
-      "agent_calls": {"soft": 2, "hard": 4},
       "command_runs": 40,
       "external_calls": 0,
       "max_parallel": 1

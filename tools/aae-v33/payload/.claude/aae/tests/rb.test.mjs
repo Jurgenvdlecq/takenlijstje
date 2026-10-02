@@ -13,7 +13,7 @@ import {registerContract, loadWork, saveWork, withLock, proposalFile} from '../r
 import {presentProposal} from '../runtime/commands.mjs';
 import {runCommand, reportTemplate} from '../runtime/runner.mjs';
 import {assertGate, assertReady} from '../runtime/gates.mjs';
-import {listSnapshots, snapshotDir, verifyChain, writeSnapshot} from '../runtime/snapshot.mjs';
+import {listSnapshots, snapshotDir, verifyChain, writeSnapshot, writeSnapshotRetry} from '../runtime/snapshot.mjs';
 import {recoverWork} from '../runtime/recover.mjs';
 import {trackedFingerprint} from '../runtime/gitops.mjs';
 
@@ -78,11 +78,11 @@ test('RB05 de geheimencontrole draait ook bij push (eerder, buiten AAE gecommitt
 const GH = {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 6, owner: 'o', repo: 'r', head: 'claude/w', base: 'main'};
 const MERGE_ENV = {git: {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'}, providers: {github: GH}, budgets: BUDGET(6)};
 const PRE = (root, input, id) => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12, ...input}, {tool_use_id: id});
-test('RB06 een PR-merge is gebonden aan de remote PR-head én aan de gereviewde READY-commit (reviewscenario: een verouderd gepushte werkbranch)', met(async root => {
+test('RB06 een PR-merge is gebonden aan de remote PR-head én aan de gereviewde READY-commit (reviewscenario: een verouderd gepushte werkbranch)', met(async (root, cfg) => {
   gitFixture(root);
   executing(root, {envelope: MERGE_ENV});
   snapCommit(root);
-  const r = await runCommand(root, 't_ok'); makeResult(root, r.evidence_path);
+  const r = await runCommand(root, 't_ok'); runAgent(root, {configDir: cfg}); makeResult(root, r.evidence_path); // v3.3.1: merge is HIGH, dus ook een onafhankelijk READY-oordeel
   const ready = HEAD(root), oud = sh(root, 'rev-parse', 'HEAD~1').stdout.trim();
   const maak = {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'};
   const maakPr = (nr, sha, id) => { pre(root, 'mcp__github__create_pull_request', maak, {tool_use_id: id}); hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: id, tool_input: maak, tool_response: {number: nr, ...(sha ? {head: {sha}} : {})}}); };
@@ -107,14 +107,14 @@ test('RB06 een PR-merge is gebonden aan de remote PR-head én aan de gereviewde 
   withLock(root, () => { const s = loadWork(root, 'W-T'); delete s.last_push; saveWork(root, s); });
   assert.equal(PRE(root, {expectedHeadSha: ready}, 'm7'), null, 'alles gelijk: remote PR-head, expectedHeadSha, READY-commit, lokale HEAD en gepushte branch');
 }));
-test('RB06 owner, repo en head zijn verplicht vastgepind in de envelop; de deploy-gate is aan de READY-commit gebonden', met(async root => {
+test('RB06 owner, repo en head zijn verplicht vastgepind in de envelop; de deploy-gate is aan de READY-commit gebonden', met(async (root, cfg) => {
   const bron = contract({envelope: MERGE_ENV}); assert.doesNotThrow(() => validateContract(structuredClone(bron)));
   for (const weg of ['owner', 'repo', 'head']) { const c = contract({envelope: {...MERGE_ENV, providers: {github: {...GH, [weg]: undefined}}}}); delete c.envelope.providers.github[weg]; assert.throws(() => validateContract(structuredClone(c)), /GitHub/, weg); }
   assert.throws(() => validateContract(structuredClone(contract({envelope: {...MERGE_ENV, providers: {github: {...GH, head: 'claude/andere'}}}}))), /werkbranch uit envelop\.git\.push/);
   gitFixture(root);
   executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'trigger'}}, plan: {...contract().plan}});
   snapCommit(root);
-  const r = await runCommand(root, 't_ok'); makeResult(root, r.evidence_path);
+  const r = await runCommand(root, 't_ok'); runAgent(root, {configDir: cfg}); makeResult(root, r.evidence_path);
   const s = st(root); assert.doesNotThrow(() => assertGate(root, s, s.contract, 'deploy'));
   sh(root, 'commit', '-q', '--allow-empty', '-m', 'na het rapport');
   assert.throws(() => assertGate(root, s, s.contract, 'deploy'), /hoort bij commit/);
@@ -185,17 +185,28 @@ test('RB10 bij AAE GO legt de runtime als eerste schrijfactie een tracked, appen
   assert.match(msg(() => write(root, snapshotDir('W-T') + '/' + naam)), /beschermd/); assert.match(msg(() => write(root, snapshotDir('W-T') + '/002-aaaaaaaaaaaa.json')), /beschermd/);
   const voor = fs.readFileSync(path.join(sd(root), naam), 'utf8'); writeSnapshot(root, loadWork(root, 'W-T')); assert.equal(fs.readFileSync(path.join(sd(root), naam), 'utf8'), voor, 'idempotent: nooit overschreven');
 }));
-test('RB10 kan de snapshot niet worden geschreven, dan wacht het pakket op een beslissing (NEEDS_HUMAN) en gaat geen enkele schrijfactie voor; na herstel van het probleem hervat AAE VERDER', met(root => {
+test('RB10 (v3.3.1) kan de snapshot blijvend niet worden geschreven, dan wordt het pakket BLOCKED (geen NEEDS_HUMAN: het is technisch) en gaat geen enkele schrijfactie voor; na herstel van het probleem hervat AAE VERDER', met(root => {
   plan(root); const p = presentProposal(root, 'W-T');
   put(root, 'docs/aae/work/W-T/approved', 'dit is een bestand, geen map'); // blokkeert het aanmaken van de snapshot
   prompt(root, p.exacte_go);
-  assert.equal(st(root).status, 'NEEDS_HUMAN'); assert.equal(st(root).needs_human.kind, 'snapshot');
-  assert.match(st(root).needs_human.summary, /duurzaam worden vastgelegd/);
+  assert.equal(st(root).status, 'BLOCKED'); assert.equal(st(root).needs_human, null, 'een snapshotfout is geen beslissing van Jurgen');
+  assert.match(st(root).blockers[0], /Snapshot .* niet worden vastgelegd/); assert.ok(st(root).history.some(h => h.type === 'snapshot_geblokkeerd'));
   assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/, 'er is geen enkele schrijfactie vóór de snapshot');
-  prompt(root, 'AAE VERDER'); assert.equal(st(root).status, 'NEEDS_HUMAN', 'zolang het probleem er is, hervat het pakket niet');
+  prompt(root, 'AAE VERDER'); assert.equal(st(root).status, 'BLOCKED', 'zolang het probleem er is, hervat het pakket niet');
   fs.rmSync(path.join(root, 'docs/aae/work/W-T/approved'));
   prompt(root, 'AAE VERDER'); assert.equal(st(root).status, 'EXECUTING'); assert.equal(listSnapshots(root, 'W-T').length, 1);
   assert.equal(write(root, 'src/a.js'), null);
+}));
+test('RB10 (v3.3.1) een verdwenen snapshot wordt door de runtime teruggezet zonder blokkade; een blijvende fout geeft na herpogingen een fout', met(root => {
+  executing(root);
+  const [naam] = listSnapshots(root, 'W-T'), f = path.join(sd(root), naam), orig = fs.readFileSync(f, 'utf8');
+  fs.rmSync(f); // de snapshot is verdwenen: de runtime schrijft hem terug, het model nooit
+  assert.equal(write(root, 'src/a.js'), null); assert.equal(st(root).status, 'EXECUTING');
+  assert.equal(fs.readFileSync(f, 'utf8'), orig, 'dezelfde snapshot, byte voor byte');
+  fs.rmSync(f); fs.mkdirSync(f); // een map op de plek van het bestand: elke poging faalt
+  const t0 = Date.now();
+  assert.throws(() => writeSnapshotRetry(root, loadWork(root, 'W-T'), 'AAE GO', {pogingen: 3, wacht: 20}), /onleesbaar|beschadigd/);
+  assert.ok(Date.now() - t0 >= 50, 'er is gewacht tussen de pogingen (20 + 40 ms)');
 }));
 test('RB10 een latere materiële wijziging geeft na een nieuwe GO een nieuwe snapshot met vorige-hash-keten; de bestaande snapshot blijft onaangeroerd; een beschadigde snapshot stopt elke handeling', met(root => {
   executing(root);
@@ -208,7 +219,7 @@ test('RB10 een latere materiële wijziging geeft na een nieuwe GO een nieuwe sna
   assert.equal(verifyChain(root, 'W-T').chain.length, 2);
   // een handmatig gewijzigde snapshot: elke bewakingshandeling weigert en het pakket wacht op een beslissing
   const f = path.join(sd(root), lijst[1]); const s = JSON.parse(fs.readFileSync(f, 'utf8')); s.contract.goal = 'Een heel ander doel dat nooit is goedgekeurd door de gebruiker.'; fs.writeFileSync(f, JSON.stringify(s, null, 2));
-  assert.match(msg(() => write(root, 'src/a.js')), /beschadigd of handmatig gewijzigd/); assert.equal(st(root).status, 'NEEDS_HUMAN');
+  assert.match(msg(() => write(root, 'src/a.js')), /beschadigd of handmatig gewijzigd/); assert.equal(st(root).status, 'BLOCKED', 'v3.3.1: een technische snapshotfout is BLOCKED, geen NEEDS_HUMAN'); assert.equal(st(root).needs_human, null);
 }));
 test('RB10 herstel na verlies van sessie of container: cli recover bouwt uit de snapshot-keten plus de repository-staat op wat was goedgekeurd; PAUSED; AAE VERDER hervat uitsluitend dezelfde envelop en is geen nieuwe GO', met(root => {
   gitFixture(root); executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}});
@@ -250,12 +261,20 @@ test('RB10 een beschadigde, handmatig gewijzigde of onvolledige keten wordt bij 
   assert.equal(recoverWork(root, 'W-T').status, 'PAUSED');
   assert.ok(fs.readdirSync(path.join(root, 'docs/aae/work/W-T')).some(n => n.startsWith('state.json.beschadigd-')));
 }));
-test('RB10 hoort commit bij de envelop, dan staat de snapshot in HEAD vóór de eerste bronwijziging; READY en de merge-gate vereisen dat', met(async root => {
+test('RB10 (v3.3.1) geen verplichte commitvolgorde: bronwijzigingen mogen vóór de snapshotcommit; READY eist een lokaal geldige snapshot, de merge-gate eist hem in HEAD', met(async (root, cfg) => {
   gitFixture(root); executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}});
-  assert.match(msg(() => write(root, 'src/a.js')), /Commit eerst de snapshot/);
+  assert.equal(write(root, 'src/a.js'), null, 'geen "commit eerst de snapshot" meer vóór de eerste bronwijziging');
   const r = await runCommand(root, 't_ok'); makeResult(root, r.evidence_path);
-  assert.throws(() => assertReady(root, st(root), st(root).contract, ''), /snapshot van de goedgekeurde envelop .* niet in de laatste commit/);
-  snapCommit(root);
-  assert.equal(write(root, 'src/a.js'), null);
+  assert.doesNotThrow(() => assertReady(root, st(root), st(root).contract, ''), 'READY: een lokaal geldige snapshot is genoeg, ook zonder commit');
+  const [naam] = listSnapshots(root, 'W-T'), f = path.join(sd(root), naam), orig = fs.readFileSync(f, 'utf8');
+  fs.rmSync(f); assert.throws(() => assertReady(root, st(root), st(root).contract, ''), /lokale snapshot/, 'READY: zonder snapshot geen READY');
+  fs.writeFileSync(f, orig.replace('"goal"', '"goal "')); assert.throws(() => assertReady(root, st(root), st(root).contract, ''), /beschadigd of handmatig gewijzigd/, 'READY: een gewijzigde snapshot telt niet');
+  fs.writeFileSync(f, orig);
   assert.doesNotThrow(() => { const t = reportTemplate(root); assert.ok(t.git_head); });
+}));
+test('RB10 (v3.3.1) de merge-gate houdt de eis dat de snapshot in HEAD staat (alleen daar, niet meer bij READY of schrijven)', met(async (root, cfg) => {
+  gitFixture(root); executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'}}});
+  const r = await runCommand(root, 't_ok'); runAgent(root, {configDir: cfg}); makeResult(root, r.evidence_path);
+  const s = st(root);
+  assert.throws(() => assertGate(root, s, s.contract, 'merge'), /Gate merge: de snapshot van de goedgekeurde envelop .* niet in de laatste commit/);
 }));

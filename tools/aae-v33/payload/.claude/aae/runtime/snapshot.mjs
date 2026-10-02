@@ -124,10 +124,25 @@ export function writeSnapshot(root, st, source = 'AAE GO', opts = {}) {
   st.snapshot = {sequence: s.sequence, hash: s.hash, path: rel};
   return st.snapshot;
 }
+const pauze = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+/** Een snapshotfout wordt eerst automatisch herprobeerd (tijdelijke bestandssysteemfouten); pas een blijvende fout wordt doorgegeven. */
+export function writeSnapshotRetry(root, st, source = 'AAE GO', {pogingen = 3, wacht = 40} = {}) {
+  let laatste;
+  for (let i = 1; i <= pogingen; i++) {
+    try { return writeSnapshot(root, st, source); } catch (e) { laatste = e; if (i < pogingen) pauze(wacht * i); }
+  }
+  throw laatste;
+}
 /** Bij elke bewakingshandeling na een GO: de snapshot van de goedgekeurde envelop bestaat en klopt; ontbreekt hij, dan schrijft de runtime hem alsnog (nooit het model). */
 export function ensureSnapshot(root, st) {
   if (!st.approved?.snapshot_required) return null;
-  return writeSnapshot(root, st, st.approved.source || 'AAE GO');
+  return writeSnapshotRetry(root, st, st.approved.source || 'AAE GO');
+}
+/** Lokale controle vóór READY: de snapshotketen is geldig en eindigt op de goedgekeurde envelop. Een commit is hier niet nodig (alleen de merge-gate eist die). */
+export function assertSnapshotValid(root, st) {
+  if (!st.approved?.snapshot_required) return;
+  const {chain} = verifyChain(root, st.id), laatste = chain.at(-1);
+  requireThat(laatste && laatste.hash === st.approved.envelope_hash, 'De lokale snapshot van de goedgekeurde envelop ontbreekt of hoort niet bij de goedgekeurde hash.');
 }
 /** Werkpakketten met een snapshot-map maar zonder bruikbare lokale state (verlies van sessie of container, of beschadigde state): kandidaten voor cli recover. */
 export function orphanedSnapshots(root, hasState) {

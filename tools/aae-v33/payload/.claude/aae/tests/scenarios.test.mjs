@@ -137,7 +137,7 @@ test('T9 review opsplitsen: een kleinere, andere vraag mag; dezelfde vraag naast
   assert.equal(st(root).usage.agents, 2);
   assert.equal(st(root).soft_exceeded, true, 'zacht plafond overschreden maar geen blokkade');
   const e = denies(() => agentCall(root, {id: 'tu-3', vraag: 'Weer een nieuwe vraag over src/c.js.'}));
-  assert.match(e.message, /Hard agentplafond/);
+  assert.match(e.message, /agentplafond van niveau STANDARD \(2\)/);
 }));
 
 test('T10 meerdere commits en pushes binnen één GO: de classificatie staat ze toe, het commandobudget telt', metRoot(async root => {

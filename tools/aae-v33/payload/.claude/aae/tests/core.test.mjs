@@ -179,10 +179,11 @@ test('materialChanges: binnen de envelop is vrij; breder gebied, hoger risico, d
   assert.deepEqual(materialChanges(a, geldig({plan: {...a.plan, agents: []}})), []);
   assert.ok(materialChanges(a, geldig({envelope: {areas: [{name: 'Breder', write: ['src', 'app'], support: []}]}})).some(x => x.startsWith('schrijfgebied')));
   assert.ok(materialChanges(a, geldig({risk_class: 'HIGH'})).includes('risicoklasse hoger'));
-  assert.ok(materialChanges(a, geldig({risk_class: 'LIGHT'})).includes('risicoklasse lager (bewijs lichter)'));
+  assert.deepEqual(materialChanges(a, geldig({risk_class: 'LIGHT'})), [], 'v3.3.1: een risicoverlaging vraagt nooit een nieuwe GO');
   assert.ok(materialChanges(a, geldig({envelope: {db_max: 'A'}})).includes('database-klasse'));
   assert.ok(materialChanges(a, geldig({envelope: {git: {commit: true, push: [], merge: null, deploy: 'none'}}})).includes('git commit'));
-  assert.ok(materialChanges(a, geldig({envelope: {budgets: {agent_calls: {soft: 2, hard: 6}, command_runs: 20, external_calls: 0, max_parallel: 1}}})).includes('budget'));
+  assert.ok(materialChanges(a, geldig({envelope: {budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 40, external_calls: 0, max_parallel: 1}}})).includes('budget'));
+  assert.deepEqual(materialChanges(a, geldig({envelope: {budgets: {agent_calls: {soft: 2, hard: 12}, command_runs: 20, external_calls: 0, max_parallel: 1}}})), [], 'v3.3.1: het agentplafond is intern en geen onderdeel van de GO');
   assert.ok(materialChanges(a, geldig({envelope: {acceptance: [{id: 'AC1', text: 'Iets heel anders dan eerst.'}]}})).includes('acceptatiecriteria'));
 });
 test('materialChanges: meer parallelle agents is een budgetverruiming', () => {
@@ -195,7 +196,13 @@ test('B5 behouden: een merge-gate kan niet stilletjes uit de envelop verdwijnen'
   const zonder = geldig({envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'verify'}}});
   assert.ok(materialChanges(m, zonder).includes('merge-gate verdwenen'));
 });
-test('materialChanges: de bewijsvloer mag niet lichter worden', () => {
-  const a = geldig(), b = geldig(); b.plan.test_plan[1].description = 'Een andere, lichtere omschrijving van de test.';
-  assert.ok(materialChanges(a, validateContract(b)).includes('bewijsplan'));
+test('materialChanges: de bewijsvloer mag niet lichter worden (soort en methode), de omschrijving is vrij (v3.3.1)', () => {
+  const a = geldig(), b = geldig(); b.plan.test_plan[1].description = 'Een andere omschrijving van dezelfde test.';
+  assert.deepEqual(materialChanges(a, validateContract(b)), [], 'alleen de omschrijving verandert: geen nieuwe GO');
+  const zwakker = geldig(); zwakker.plan.test_plan[1].method = 'manual';
+  assert.ok(materialChanges(a, validateContract(zwakker)).includes('bewijsplan'), 'een zwakkere methode blijft materieel');
+  const weg = geldig(); weg.plan.test_plan = weg.plan.test_plan.filter(t => t.kind !== 'regression');
+  assert.throws(() => validateContract(weg), /regression/, 'een verplichte controle kan niet verdwijnen');
+  const sterker = geldig(); sterker.plan.test_plan[0].method = 'command';
+  assert.deepEqual(materialChanges(a, validateContract(sterker)), [], 'een sterkere methode is vrij');
 });

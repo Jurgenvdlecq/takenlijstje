@@ -3,7 +3,7 @@
   "id": "VOORBEELD-GROOT",
   "title": "Nieuwe kolom met standaardwaarde, vastgelegd en samengevoegd",
   "goal": "Een extra, optioneel veld bij taken toevoegen (database en scherm), tussendoor vastleggen op een werkbranch en na bewezen kwaliteit samenvoegen met de hoofdbranch.",
-  "risk_class": "STANDARD",
+  "risk_class": "HIGH",
   "risk_flags": ["migration"],
   "envelope": {
     "phase": "implementation",
@@ -17,7 +17,6 @@
     },
     "git": {"commit": true, "push": ["claude/voorbeeld-kolom"], "merge": {"to": "main"}, "deploy": "verify"},
     "budgets": {
-      "agent_calls": {"soft": 3, "hard": 6},
       "command_runs": 80,
       "external_calls": 8,
       "max_parallel": 1

@@ -6,13 +6,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   ROLES, FOCI, GuardError, requireThat, safePath, relativeInput, relName, protectedPath, controlKind, isTracked, workIdFromPath, scopeContains, areaAllows,
-  validateContract, envelopeHash, digest, now, sourceDigest, bashArgv, safeLocalArgv, dbLevel, atomicJson, VERSION, WORK, text as _text, choice
+  validateContract, envelopeHash, digest, now, sourceDigest, bashArgv, safeLocalArgv, dbLevel, atomicJson, VERSION, WORK, text as _text, choice, AGENT_CAP
 } from './core.mjs';
 import {
   withLock, listWork, loadWork, saveWork, activeWork, guardApproval, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
 import {liveRows, LIVE, reconcile, finalizeRun, safeFinalize, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
-import {snapshotCommitted, orphanedSnapshots} from './snapshot.mjs';
+import {orphanedSnapshots} from './snapshot.mjs';
 import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, prHeadShaFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
 import {assertGate, assertPrMerge} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
@@ -86,8 +86,8 @@ function delegation(root, st, e) {
   requireThat(!duplicateOf(st, hash), 'Dezelfde vraag loopt nog of is niet aantoonbaar afgerond. Stem eerst af (cli reconcile) of stel een kleinere, andere vraag.');
   const mislukt = Object.values(st.agents).filter(r => r.question_hash === hash && (['presumed_dead', 'abandoned'].includes(r.status) || r.report?.status === 'REPORT_CONFLICT') && !(r.report?.status === 'COMPLETED'));
   requireThat(mislukt.length === 0 && Object.values(st.agents).filter(r => r.question_hash === hash && r.status === 'failed').length < 2, 'Dezelfde vraag is al eerder niet afgerond. Geen herhaling van een identieke poging: stel een kleinere of andere vraag.');
-  const b = c.envelope.budgets;
-  requireThat(st.usage.agents < b.agent_calls.hard, 'Hard agentplafond (' + b.agent_calls.hard + ') bereikt. Doe het zelf of meld dat het plafond te laag is.');
+  const b = c.envelope.budgets, cap = AGENT_CAP[c.risk_class];
+  requireThat(st.usage.agents < cap.hard, 'Het agentplafond van niveau ' + c.risk_class + ' (' + cap.hard + ') is bereikt. Doe het zelf of rond af; dit is een intern plafond en geen reden om Jurgen te vragen.');
   requireThat(liveRows(st).filter(r => ['reserved', 'running', 'unverified'].includes(r.status)).length < b.max_parallel, 'Het maximum aan gelijktijdige agents is bereikt.');
   requireThat(!st.command_running, 'Geen agent starten tijdens een commando.');
   requireThat(!liveExternal(st).length, 'Geen agent starten tijdens een externe toolactie.');
@@ -99,7 +99,7 @@ function delegation(root, st, e) {
   st.agents[e.tool_use_id] = {id: e.tool_use_id, seq, run_key: 'run-' + String(seq).padStart(3, '0'), role, focus, status: 'reserved', agent_id: null, input_digest: signature, updated_input: updated, requested_model: model, reserved_at: now(), last_seen: now(),
     why: why[1].trim(), question_hash: hash, source_digest: sourceDigest(root, c), envelope_hash: envelopeHash(c), keep_raw: Boolean(c.plan.keep_raw), checks: []};
   st.usage.agents++;
-  if (st.usage.agents > b.agent_calls.soft) st.soft_exceeded = true;
+  if (st.usage.agents > cap.normal) st.soft_exceeded = true; // alleen een logsignaal, nooit een vraag aan Jurgen
   st.activity = 'WAITING_FOR_AGENT';
   log(st, 'agent_gereserveerd', {rol: role, focus, run: 'run-' + String(seq).padStart(3, '0')});
   saveWork(root, st);
@@ -136,8 +136,7 @@ function writePermission(root, st, e) {
     guardApproval(root, st);
     const c = st.contract;
     requireThat(c.envelope.phase === 'implementation', 'Analyse-only: geen applicatiecode wijzigen.');
-    // Snapshot eerst: hoort commit bij de envelop, dan moet de duurzame snapshot van de goedgekeurde envelop in HEAD staan vóór de eerste bronwijziging.
-    if (c.envelope.git.commit) requireThat(snapshotCommitted(root, st) !== false, 'Commit eerst de snapshot van de goedgekeurde envelop (' + (st.snapshot?.path || 'docs/aae/work/' + st.id + '/approved') + ') met de commit-commando\'s uit het plan, vóór de eerste bronwijziging; anders overleeft de goedkeuring verlies van de container niet.');
+    // Geen verplichte commitvolgorde meer: guardApproval heeft de lokale snapshot al gecontroleerd (en zo nodig hersteld); READY eist dat hij klopt en de merge-gate eist dat hij in HEAD staat.
     requireThat(!hasLive(st) && !st.command_running && !liveExternal(st).length, 'Geen bronwijzigingen tijdens agent-, externe tool- of testuitvoering.');
     if (!areaAllows(c, p)) denied(root, st, p, 'Bestand valt buiten de goedgekeurde gebieden: ' + p + '. Binnen een goedgekeurd gebied mag ik vrij bestanden toevoegen; een ander onderdeel van de applicatie vraagt een nieuwe beslissing (cli scope-change).');
     if (!st.files_touched.includes(p)) { st.files_touched.push(p); if (st.files_touched.length > 500) st.files_touched = st.files_touched.slice(-500); saveWork(root, st); }

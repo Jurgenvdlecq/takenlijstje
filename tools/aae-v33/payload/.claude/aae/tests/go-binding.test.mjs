@@ -96,14 +96,16 @@ test('GB07 JSON-volgorde, witruimte en niet-semantische opmaak geven dezelfde ha
   assert.deepEqual(materialChanges(a, validateContract(structuredClone(b))), []);
   assert.match(envelopeHash(a), /^[0-9a-f]{64}$/); assert.equal(shortHash(envelopeHash(a)).length, 12);
 });
-test('GB08 zachte budgetten wijzigen de hash niet; een hoger hard budget wel en vraagt een nieuwe GO', met(root => {
+test('GB08 het agentplafond is intern (v3.3.1) en geen onderdeel van de GO; een hoger commandobudget wel en vraagt een nieuwe GO', met(root => {
   assert.equal(h({envelope: {budgets: budget(1, 4)}}), h({envelope: {budgets: budget(3, 4)}}));
-  assert.notEqual(h({envelope: {budgets: budget(2, 4)}}), h({envelope: {budgets: budget(2, 5)}}));
+  assert.equal(h({envelope: {budgets: budget(2, 4)}}), h({envelope: {budgets: budget(2, 5)}}), 'een opgegeven agentplafond verandert de hash niet');
   assert.notEqual(h({envelope: {budgets: budget(2, 4, 20)}}), h({envelope: {budgets: budget(2, 4, 21)}}));
   executing(root, {envelope: {budgets: budget(1, 4)}});
   const zacht = herplan(root, {envelope: {budgets: budget(3, 4)}});
   assert.equal(zacht.status, 'EXECUTING', 'soft aanpassen geeft geen nieuwe GO');
-  const hoger = herplan(root, {envelope: {budgets: budget(3, 5)}});
+  const agents = herplan(root, {envelope: {budgets: budget(3, 12)}});
+  assert.equal(agents.status, 'EXECUTING', 'een ander agentplafond geeft geen nieuwe GO');
+  const hoger = herplan(root, {envelope: {budgets: budget(3, 4, 40)}});
   assert.equal(hoger.status, 'NEEDS_HUMAN'); assert.ok(st(root).needs_human.reasons.includes('budget'));
 }));
 test('GB08b een lager hard budget valt binnen de envelop en vraagt geen nieuwe GO', met(root => {
@@ -118,7 +120,7 @@ test('GB09 de hash bindt minimaal ID, doel, criteria, schrijfgebied, risico, fla
     id: {id: 'W-ANDER'}, doel: {goal: 'Een andere doelomschrijving dan de oorspronkelijke tekst.'}, criterium: {envelope: {acceptance: [{id: 'AC1', text: 'Een ander criterium dan het eerdere.'}]}},
     gebied: {envelope: {areas: [area('Broncode', 'src', 'app')]}}, risico: {risk_class: 'HIGH', risk_flags: [], envelope: {}}, db: {envelope: {db_max: 'A'}},
     commit: {envelope: {git: git(true, [], null, 'none')}}, push: {envelope: {git: git(true, ['claude/werk'], null, 'none')}}, merge: {envelope: {git: git(true, ['claude/werk'], {to: 'staging'}, 'none')}},
-    deploy: {envelope: {git: git(false, [], null, 'verify')}}, harde_agents: {envelope: {budgets: budget(2, 6)}}, harde_commandos: {envelope: {budgets: budget(2, 4, 30)}},
+    deploy: {envelope: {git: git(false, [], null, 'verify')}}, harde_commandos: {envelope: {budgets: budget(2, 4, 30)}},
     beslisgrens: {envelope: {decision_points: ['Stop altijd bij een nieuwe productkeuze.']}}, fase: {envelope: {phase: 'analysis', areas: []}, plan: {...contract().plan, agents: [], commands: [], test_plan: [{kind: 'analysis', method: 'inspection', description: 'Beschrijf de bevindingen.'}]}}
   };
   const gezien = new Map();

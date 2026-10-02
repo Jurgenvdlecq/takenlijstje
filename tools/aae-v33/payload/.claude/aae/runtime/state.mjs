@@ -85,10 +85,22 @@ export function activeWork(root) {
  * het werkpakket op een beslissing van Jurgen (NEEDS_HUMAN); een nieuwe `cli present` + `AAE GO` keurt dan de actuele envelop opnieuw goed.
  */
 export function guardApproval(root, st) {
-  try { assertApproval(st); ensureSnapshot(root, st); }
+  try { assertApproval(st); }
   catch (e) {
     if (st && st.status === 'EXECUTING') { needsHuman(st, 'material_change', e.message, {reasons: ['goedkeuring ongeldig']}); saveWork(root, st); }
     throw e;
+  }
+  // Een snapshotfout is technisch, geen beslissing van Jurgen: eerst automatisch herproberen (ensureSnapshot), daarna BLOCKED met een korte reden (geen NEEDS_HUMAN).
+  try { ensureSnapshot(root, st); }
+  catch (e) { blockSnapshot(root, st, e); throw e; }
+}
+/** Een blijvende technische snapshotfout zet het pakket op BLOCKED; AAE VERDER hervat dezelfde envelop zodra de snapshot weer klopt. */
+export function blockSnapshot(root, st, err) {
+  if (st && st.status === 'EXECUTING') {
+    transition(st, 'BLOCKED', 'snapshot');
+    st.blockers = ['Snapshot van de goedgekeurde envelop kon niet worden vastgelegd of geverifieerd: ' + String(err.message).slice(0, 200) + ' Herstel het technisch en stuur AAE VERDER (dezelfde envelop, geen nieuwe GO).'];
+    log(st, 'snapshot_geblokkeerd', {fout: String(err.message).slice(0, 200)});
+    saveWork(root, st);
   }
 }
 /**
