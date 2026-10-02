@@ -1,116 +1,78 @@
-/** AAE 3.1 - narrow external-tool classification. No secrets, no generic MCP wildcard. */
+/** AAE 3.3 - smalle classificatie van externe tools. De SQL-klassen DB-A/B/C staan in sql.mjs (default-deny). Geen geheimen, geen generieke MCP-vrijgave. */
 import crypto from 'node:crypto';
+import {SUPABASE_TOOLS_ALL, GITHUB_WRITE_TOOLS} from './core.mjs';
+import {classifyDb, classifySql} from './sql.mjs';
 
-export const SUPABASE_READ_TOOLS = Object.freeze([
-  'get_project_url',
-  'list_tables',
-  'list_extensions',
-  'list_migrations',
-  'query_logs',
-  'get_advisors',
-  'generate_typescript_types',
-  'search_docs'
-]);
-export const SUPABASE_CHANGE_TOOLS = Object.freeze(['apply_migration']);
+export {classifyDb, classifySql};
+export const SUPABASE_READ_TOOLS = Object.freeze(['get_project_url', 'list_tables', 'list_extensions', 'list_migrations', 'query_logs', 'get_advisors', 'generate_typescript_types', 'search_docs']);
 export const SUPABASE_SQL_TOOL = 'execute_sql';
-export const SUPABASE_TOOLS = Object.freeze([...SUPABASE_READ_TOOLS, SUPABASE_SQL_TOOL, ...SUPABASE_CHANGE_TOOLS]);
-export const GITHUB_CHANGE_TOOLS = Object.freeze(['create_pull_request']);
-export const GITHUB_TOOLS = Object.freeze([...GITHUB_CHANGE_TOOLS]);
-
-const readStart = new Set(['SELECT','SHOW','EXPLAIN','VALUES','WITH']);
-const forbiddenReadTokens = new Set([
-  'INSERT','UPDATE','DELETE','MERGE','CREATE','ALTER','DROP','TRUNCATE','GRANT','REVOKE','VACUUM','CALL','DO','COPY','COMMENT','REFRESH','REINDEX','CLUSTER','ANALYZE','LOCK','SET','RESET'
-]);
-const sensitiveTokens = new Set(['DROP','TRUNCATE','DELETE','UPDATE','MERGE','GRANT','REVOKE']);
-const sensitivePhrases = [/ALTER\s+TABLE[\s\S]*\bDROP\b/i,/DISABLE\s+ROW\s+LEVEL\s+SECURITY/i,/SECURITY\s+DEFINER/i,/pg_terminate_backend\s*\(/i,/pg_cancel_backend\s*\(/i,/set_config\s*\(/i,/nextval\s*\(/i,/setval\s*\(/i,/vault\s*\./i];
+export const SUPABASE_CHANGE_TOOLS = Object.freeze(['apply_migration']);
 
 function suffixMatch(name, provider, action) {
-  const n=String(name||'').toLowerCase();
-  if(!n.includes(provider))return false;
-  const a=action.toLowerCase();
-  return n===a || n.endsWith('__'+a) || n.endsWith(':'+a) || n.endsWith('/'+a) || n.endsWith('.'+a) || n.endsWith('_'+a);
+  const n = String(name || '').toLowerCase();
+  if (!n.includes(provider)) return false;
+  const a = action.toLowerCase();
+  return n === a || n.endsWith('__' + a) || n.endsWith(':' + a) || n.endsWith('/' + a) || n.endsWith('.' + a) || n.endsWith('_' + a);
 }
+/** Alleen toolnamen die aantoonbaar bij Supabase of GitHub horen worden herkend; de rest blijft onbekend (geblokkeerd). */
 export function identifyExternalTool(name) {
-  for(const action of SUPABASE_TOOLS)if(suffixMatch(name,'supabase',action))return {provider:'supabase',action};
-  for(const action of GITHUB_TOOLS)if(suffixMatch(name,'github',action))return {provider:'github',action};
+  for (const action of SUPABASE_TOOLS_ALL) if (suffixMatch(name, 'supabase', action)) return {provider: 'supabase', action};
+  const n = String(name || '');
+  if (/^mcp__github__/i.test(n)) return {provider: 'github', action: n.replace(/^mcp__github__/i, '').toLowerCase()};
   return null;
 }
+export function sqlText(input = {}) { for (const k of ['query', 'sql', 'statement']) if (typeof input[k] === 'string') return input[k]; return ''; }
+export function migrationSql(input = {}) { return typeof input.query === 'string' ? input.query : typeof input.sql === 'string' ? input.sql : ''; }
+export function migrationName(input = {}) { return String(input.name || input.migration_name || '').trim(); }
 
-function stripSql(sql) {
-  let s=String(sql||'');
-  s=s.replace(/\/\*[\s\S]*?\*\//g,' ');
-  s=s.replace(/--[^\n\r]*/g,' ');
-  s=s.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g,' ');
-  s=s.replace(/'(?:''|[^'])*'/g,' ');
-  s=s.replace(/"(?:""|[^"])*"/g,' ');
-  return s;
-}
-function significantStatements(sql) {
-  const clean=stripSql(sql);
-  return clean.split(';').map(x=>x.trim()).filter(Boolean);
-}
-export function sqlText(input={}) {
-  for(const key of ['query','sql','statement'])if(typeof input[key]==='string')return input[key];
-  return '';
-}
-export function classifySql(sql) {
-  const raw=String(sql||'');
-  if(!raw.trim())return {level:'blocked',reason:'SQL ontbreekt.'};
-  const statements=significantStatements(raw);
-  if(statements.length!==1)return {level:'sensitive',reason:'Meerdere SQL-statements in een execute_sql-call zijn niet toegestaan.'};
-  const clean=stripSql(statements[0]);
-  const tokens=(clean.match(/[A-Za-z_][A-Za-z0-9_$]*/g)||[]).map(x=>x.toUpperCase());
-  const first=tokens[0]||'';
-  if(readStart.has(first) && !tokens.some(t=>forbiddenReadTokens.has(t)) && !sensitivePhrases.some(r=>r.test(clean)))return {level:'read',reason:'Conservatief als read-only SQL herkend.'};
-  const sensitive=tokens.some(t=>sensitiveTokens.has(t))||sensitivePhrases.some(r=>r.test(clean));
-  return {level:sensitive?'sensitive':'change',reason:sensitive?'Mogelijk destructieve/gevoelige SQL.':'Muterende SQL hoort via apply_migration.'};
-}
-export function migrationSql(input={}) {return typeof input.query==='string'?input.query:typeof input.sql==='string'?input.sql:'';}
-export function migrationName(input={}) {return String(input.name||input.migration_name||'').trim();}
-export function classifyExternalCall(toolName,input={}) {
-  const id=identifyExternalTool(toolName);if(!id)return null;
-  if(id.provider==='supabase') {
-    if(SUPABASE_READ_TOOLS.includes(id.action))return {...id,level:'read'};
-    if(id.action===SUPABASE_SQL_TOOL){const c=classifySql(sqlText(input));return {...id,...c};}
-    if(id.action==='apply_migration'){
-      const c=classifySql(migrationSql(input));
-      // Defining functions often contains DML in the body. Treat apply_migration as controlled change
-      // unless clearly destructive at top level or explicitly marked sensitive by the task contract.
-      const clean=stripSql(migrationSql(input));
-      const topSensitive=/\b(DROP|TRUNCATE)\b/i.test(clean)||/ALTER\s+TABLE[\s\S]*\bDROP\b/i.test(clean)||/DISABLE\s+ROW\s+LEVEL\s+SECURITY/i.test(clean);
-      return {...id,level:topSensitive?'sensitive':'change',reason:topSensitive?'Destructieve migratievorm gedetecteerd.':'Migratie is een gecontroleerde externe wijziging.'};
-    }
+export function classifyExternalCall(toolName, input = {}) {
+  const id = identifyExternalTool(toolName); if (!id) return null;
+  if (id.provider === 'supabase') {
+    if (SUPABASE_READ_TOOLS.includes(id.action)) return {...id, level: 'read'};
+    if (id.action === SUPABASE_SQL_TOOL) return {...id, ...classifySql(sqlText(input))};
+    if (id.action === 'apply_migration') { const c = classifyDb(migrationSql(input)); return {...id, level: 'change', db: c.klasse, redenen: c.redenen}; }
   }
-  if(id.provider==='github'&&id.action==='create_pull_request')return {...id,level:'change'};
-  return {...id,level:'blocked'};
+  if (id.provider === 'github') {
+    if (/^(get|list|search|pull_request_read)/.test(id.action)) return {...id, level: 'read'};
+    if (GITHUB_WRITE_TOOLS.includes(id.action)) return {...id, level: id.action === 'merge_pull_request' ? 'merge' : 'change'};
+    return {...id, level: 'blocked'};
+  }
+  return {...id, level: 'blocked'};
 }
-export function projectRefFromInput(input={}) {
-  for(const key of ['project_ref','projectRef','project_id','projectId'])if(typeof input[key]==='string'&&input[key].trim())return input[key].trim();
-  return null;
-}
-function collectText(v,depth=0) {
-  if(depth>5||v===null||v===undefined)return '';
-  if(typeof v==='string')return v.slice(0,20000);
-  if(Array.isArray(v))return v.slice(0,30).map(x=>collectText(x,depth+1)).join('\n');
-  if(typeof v==='object')return Object.entries(v).slice(0,80).map(([k,x])=>k+' '+collectText(x,depth+1)).join('\n');
+export function projectRefFromInput(input = {}) { for (const k of ['project_ref', 'projectRef', 'project_id', 'projectId']) if (typeof input[k] === 'string' && input[k].trim()) return input[k].trim(); return null; }
+function collectText(v, depth = 0) {
+  if (depth > 5 || v === null || v === undefined) return '';
+  if (typeof v === 'string') return v.slice(0, 20000);
+  if (Array.isArray(v)) return v.slice(0, 30).map(x => collectText(x, depth + 1)).join('\n');
+  if (typeof v === 'object') return Object.entries(v).slice(0, 80).map(([k, x]) => k + ' ' + collectText(x, depth + 1)).join('\n');
   return String(v);
 }
-export function projectRefFromResponse(response) {
-  const text=collectText(response);
-  const m=text.match(/https:\/\/([a-z0-9-]{5,})\.supabase\.co\b/i);
-  return m?m[1]:null;
+export function projectRefFromResponse(response) { const m = collectText(response).match(/https:\/\/([a-z0-9-]{5,})\.supabase\.co\b/i); return m ? m[1] : null; }
+/** Het nummer van een zojuist gemaakte pull request uit de toolrespons (null als het niet te vinden is: dan kan er niets worden samengevoegd). */
+export function prNumberFromResponse(response) {
+  if (Number.isInteger(response?.number) && response.number > 0) return response.number;
+  const t = collectText(response);
+  const m = t.match(/"number"\s*:\s*(\d{1,9})\b/) || (/"number"/.test(t) ? null : t.match(/\/pull\/(\d{1,9})\b/)); // een gestructureerd veld gaat voor; een pull-URL alleen als er geen "number" is
+  return m ? Number(m[1]) : null;
 }
-export function responseDigest(response) {return crypto.createHash('sha256').update(collectText(response)).digest('hex');}
-export function inputDigest(input) {return crypto.createHash('sha256').update(JSON.stringify(input||{})).digest('hex');}
-export function safeExternalSummary(call,input={}) {
-  const out={provider:call.provider,action:call.action,level:call.level,input_digest:inputDigest(input)};
-  if(call.provider==='supabase'){
-    const ref=projectRefFromInput(input);if(ref)out.project_ref=ref;
-    if(call.action==='apply_migration'){const n=migrationName(input);if(n)out.migration_name=n;out.sql_digest=crypto.createHash('sha256').update(migrationSql(input)).digest('hex');}
-    if(call.action==='execute_sql')out.sql_digest=crypto.createHash('sha256').update(sqlText(input)).digest('hex');
+/** De head-sha van een pull request uit een toolrespons (create_pull_request of pull_request_read get): alleen een volledige 40-/64-hex sha telt. */
+export function prHeadShaFromResponse(response) {
+  const kies = v => typeof v === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(v) ? v.toLowerCase() : null;
+  const direct = kies(response?.head?.sha) || kies(response?.head_sha) || kies(response?.headSha) || kies(response?.pull_request?.head?.sha);
+  if (direct) return direct;
+  const t = collectText(response);
+  const m = /"head"\s*:\s*\{[^}]*?"sha"\s*:\s*"([0-9a-f]{40}(?:[0-9a-f]{24})?)"/i.exec(t) || /head\s+sha\s*[:=]\s*"?([0-9a-f]{40}(?:[0-9a-f]{24})?)\b/i.exec(t);
+  return m ? m[1].toLowerCase() : null;
+}
+export const responseDigest = response => crypto.createHash('sha256').update(collectText(response)).digest('hex');
+export const inputDigest = input => crypto.createHash('sha256').update(JSON.stringify(input || {})).digest('hex');
+export function safeExternalSummary(call, input = {}) {
+  const out = {provider: call.provider, action: call.action, level: call.level, input_digest: inputDigest(input)};
+  if (call.provider === 'supabase') {
+    const ref = projectRefFromInput(input); if (ref) out.project_ref = ref;
+    if (call.action === 'apply_migration') { const n = migrationName(input); if (n) out.migration_name = n; out.sql_digest = crypto.createHash('sha256').update(migrationSql(input)).digest('hex'); if (call.db) out.db_klasse = call.db; }
+    if (call.action === 'execute_sql') out.sql_digest = crypto.createHash('sha256').update(sqlText(input)).digest('hex');
   }
-  if(call.provider==='github'){
-    for(const k of ['base','head','title'])if(typeof input[k]==='string')out[k]=input[k].slice(0,240);
-  }
+  if (call.provider === 'github') for (const k of ['base', 'head', 'title', 'owner', 'repo', 'expectedHeadSha']) if (typeof input[k] === 'string') out[k] = input[k].slice(0, 240);
   return out;
 }

@@ -1,55 +1,205 @@
+// Externe integraties en database-klassen (pariteit met I01-I22; DB-A/B/C vervangt de aparte gevoelige GO).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fixture,begin,prompt,pre,task,specialist,installTask,ev,state} from './helpers.mjs';
-import {handleEvent} from '../runtime/events.mjs';
-import {classifyExternalCall} from '../runtime/integrations.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, denies, agentCall, put} from './helpers.mjs';
+import {validateContract, materialChanges} from '../runtime/core.mjs';
+import {classifyDb, classifySql, classifyExternalCall, identifyExternalTool, projectRefFromResponse} from '../runtime/integrations.mjs';
 
-const REF='takenlijst-ref';
-function post(root,id,name,response={content:[{type:'text',text:'ok'}]}){return handleEvent(root,ev(root,'PostToolUse',{tool_name:name,tool_use_id:id,tool_response:response}));}
-function fail(root,id,name){return handleEvent(root,ev(root,'PostToolUseFailure',{tool_name:name,tool_use_id:id,tool_response:{error:'nope'}}));}
-function call(root,name,input={}){const id='ext-'+Math.random().toString(36).slice(2);const res=handleEvent(root,ev(root,'PreToolUse',{tool_name:name,tool_input:input,tool_use_id:id}));return {id,res};}
-function verify(root){const c=call(root,'mcp__supabase__get_project_url');post(root,c.id,'mcp__supabase__get_project_url',{content:[{type:'text',text:`Project API URL: https://${REF}.supabase.co`} ]});assert.equal(state(root).integrations.supabase.verified_ref,REF);}
-function integrationTask(overrides={}){
-  const base=task({phase:'analysis',mode:'standard',risk:'normal',uncertainty:'low',risk_flags:[],scope:{read:['src'],write:[]},integrations:{supabase:{project_ref:REF,tools:['get_project_url','list_migrations','execute_sql'],max_calls:6}},budget:{agent_calls:0,max_parallel:1,command_runs:0,external_calls:6}});
-  return {...base,...overrides};
-}
-function migrationTask(overrides={}){
-  const c=integrationTask({phase:'implementation',risk_flags:['migration'],integrations:{supabase:{project_ref:REF,tools:['get_project_url','list_migrations','apply_migration'],max_calls:6}},test_plan:[
-    {kind:'scope',method:'inspection',description:'Controleer projectbinding en afgesproken scope.'},
-    {kind:'functional',method:'inspection',description:'Controleer het bedoelde databasegedrag.'},
-    {kind:'regression',method:'inspection',description:'Controleer relevante regressierisicos.'},
-    {kind:'migration',method:'inspection',description:'Controleer migratie-uitvoering.'},
-    {kind:'rollback',method:'inspection',description:'Controleer herstelpad of idempotentie.'},
-    {kind:'data-preservation',method:'inspection',description:'Controleer gegevensbehoud.'}
-  ]});return {...c,...overrides};
-}
+const REF = 'abcdefghij';
+const BUDGET = n => ({agent_calls: {soft: 1, hard: 2}, command_runs: 20, external_calls: n, max_parallel: 1});
+const prov = (tools = ['get_project_url', 'list_tables', 'execute_sql', 'apply_migration'], max = 10) => ({supabase: {project_ref: REF, tools, max_calls: max}});
+const met = fn => async () => { const root = fixture(); try { await fn(root); } finally { cleanup(root); } };
+const msg = fn => { const e = denies(fn); assert.ok(e, 'verwacht een weigering'); return e.message; };
+let teller = 0;
+const probe = (root, ref = REF) => {
+  const id = 'probe-' + (++teller);
+  pre(root, 'mcp__supabase__get_project_url', {}, {tool_use_id: id});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__supabase__get_project_url', tool_use_id: id, tool_input: {}, tool_response: {content: [{type: 'text', text: 'https://' + ref + '.supabase.co'}]}});
+};
+/** Voert één externe toolaanroep volledig uit (reservering + afronding). */
+const ext = (root, tool, input, response = {content: [{type: 'text', text: 'ok'}]}) => {
+  const id = 'x-' + (++teller);
+  const r = pre(root, 'mcp__supabase__' + tool, input, {tool_use_id: id});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__supabase__' + tool, tool_use_id: id, tool_input: input, tool_response: response});
+  return r;
+};
+const run = (root, over = {}) => { probe(root); return executing(root, {envelope: {providers: prov(), db_max: 'A', budgets: BUDGET(10)}, ...over}); };
+// GitHub-provider: owner, repo en head zijn verplicht vastgepind in de envelop; head is een werkbranch uit git.push.
+const GIT = {commit: true, push: ['claude/w'], merge: null, deploy: 'none'};
+const GHP = (tools, max, extra = {}) => { const p = {tools, max_calls: max, owner: 'o', repo: 'r', head: 'claude/w', base: 'main', ...extra}; for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k]; return {github: p}; };
 
-test('I01: get_project_url is the only bounded pre-route Supabase probe',t=>{const r=fixture(t);begin(r);verify(r);assert.throws(()=>call(r,'mcp__supabase__list_migrations'),/route/);});
-test('I02: known read-only Supabase tool allowed in active route',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());const c=call(r,'mcp__supabase__list_migrations');assert.equal(c.res,null);post(r,c.id,'mcp__supabase__list_migrations',{migrations:[]});assert.equal(state(r).task.usage.external,1);});
-test('I03: unknown Supabase tool stays blocked',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());assert.throws(()=>call(r,'mcp__supabase__drop_database'),/niet door AAE/);});
-test('I04: SELECT via execute_sql is allowed and receipt stores no raw result',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());const c=call(r,'mcp__supabase__execute_sql',{query:'select count(*) from public.tasks'});post(r,c.id,'mcp__supabase__execute_sql',{content:[{type:'text',text:'SECRET_VALUE user@example.com'}]});const st=state(r),p=st.task.external_receipts[0].evidence_path,txt=fs.readFileSync(path.join(r,p),'utf8');assert.doesNotMatch(txt,/SECRET_VALUE|user@example/);assert.match(txt,/result_digest/);});
-test('I05: UPDATE via execute_sql cannot run as ordinary read/change',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());assert.throws(()=>call(r,'mcp__supabase__execute_sql',{query:"update public.tasks set status='done'"}),/AAE GO/);});
-test('I06: apply_migration is blocked before AAE GO and allowed after GO',t=>{const r=fixture(t);begin(r);verify(r);const route=installTask(r,migrationTask());assert.equal(route.status,'pending');assert.throws(()=>call(r,'mcp__supabase__apply_migration',{name:'add_index',query:'create index if not exists x on public.tasks(id)'}),/AAE GO/);prompt(r,'AAE GO');const c=call(r,'mcp__supabase__apply_migration',{name:'add_index',query:'create index if not exists x on public.tasks(id)'});post(r,c.id,'mcp__supabase__apply_migration',{ok:true});assert.equal(state(r).task.external_receipts[0].status,'stopped');});
-test('I07: external provider budget is independent from agent budget',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());const c=call(r,'mcp__supabase__list_migrations');post(r,c.id,'mcp__supabase__list_migrations',{migrations:[]});assert.equal(state(r).task.usage.external,1);assert.equal(state(r).task.usage.agents,0);});
-test('I08: wrong Supabase project input is blocked',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());assert.throws(()=>call(r,'mcp__supabase__list_migrations',{project_ref:'other-project'}),/ander project/);});
-test('I09: failed Supabase call consumes budget but does not spawn repair agents',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());const c=call(r,'mcp__supabase__list_migrations');fail(r,c.id,'mcp__supabase__list_migrations');const st=state(r);assert.equal(st.task.usage.external,1);assert.equal(st.task.usage.agents,0);assert.equal(st.task.external_calls[c.id].status,'failed');});
-test('I10: sensitive SQL needs exact plan plus separate sensitive GO',t=>{const r=fixture(t);begin(r);verify(r);const sql='drop table public.temporary_old';const c=task({mode:'high-assurance',risk:'high',uncertainty:'low',risk_flags:[],scope:{read:['src'],write:[]},agents:[specialist('aae-code-reviewer')],integrations:{supabase:{project_ref:REF,tools:['get_project_url','execute_sql'],max_calls:3,dangerous_sql:[sql]}},budget:{agent_calls:1,max_parallel:1,command_runs:0,external_calls:3}});installTask(r,c);prompt(r,'AAE GO');assert.throws(()=>call(r,'mcp__supabase__execute_sql',{query:sql}),/GEVOELIG GO/);prompt(r,'AAE GEVOELIG GO T-001');assert.doesNotThrow(()=>call(r,'mcp__supabase__execute_sql',{query:sql}));});
-test('I11: ToolSearch is allowed for main session but not subagents',t=>{const r=fixture(t);begin(r);assert.equal(pre(r,'ToolSearch',{query:'supabase'}),null);assert.throws(()=>pre(r,'ToolSearch',{query:'supabase'},{agent_id:'a',agent_type:'aae-code-reviewer'}),/read-only/);});
-test('I12: GitHub PR creation is route-bound and merge remains unknown/blocked',t=>{const r=fixture(t);begin(r);const c=task({mode:'standard',risk_flags:['external_effects'],scope:{read:['src'],write:[]},test_plan:[{kind:'scope',method:'inspection',description:'Controleer PR-scope.'},{kind:'functional',method:'inspection',description:'Controleer PR-aanmaak.'},{kind:'regression',method:'inspection',description:'Controleer dat geen merge plaatsvindt.'},{kind:'failure-handling',method:'inspection',description:'Controleer foutafhandeling zonder retrylus.'}],integrations:{github:{tools:['create_pull_request'],max_calls:1,base:'main',head:'claude/feature'}},budget:{agent_calls:0,max_parallel:1,command_runs:0,external_calls:1}});assert.equal(installTask(r,c).status,'pending');assert.throws(()=>call(r,'mcp__GitHub__create_pull_request',{base:'main',head:'claude/feature',title:'Feature'}),/AAE GO/);prompt(r,'AAE GO');assert.doesNotThrow(()=>call(r,'mcp__GitHub__create_pull_request',{base:'main',head:'claude/feature',title:'Feature'}));assert.throws(()=>call(r,'mcp__GitHub__merge_pull_request',{pull_number:1}),/niet door AAE/);});
-test('I13: migration flag no longer forces High Assurance by itself',()=>{assert.doesNotThrow(()=>migrationTask());});
+test('I01 get_project_url is de enige begrensde Supabase-probe vóór een werkpakket', met(root => {
+  probe(root);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, '.claude/aae/state/global.json'), 'utf8')).supabase_probe.ref, REF);
+  assert.match(msg(() => pre(root, 'mcp__supabase__list_tables', {}, {tool_use_id: 'z1'})), /Maak eerst een werkpakket/);
+  assert.match(msg(() => pre(root, 'mcp__supabase__execute_sql', {query: 'SELECT 1'}, {tool_use_id: 'z2'})), /Maak eerst een werkpakket/);
+}));
+test('I02 een bekende alleen-lezen Supabase-tool is toegestaan binnen een actief werkpakket', met(root => {
+  run(root);
+  assert.equal(ext(root, 'list_tables', {project_id: REF}), null);
+  assert.equal(st(root).usage.external, 1);
+}));
+test('I03 een onbekende Supabase-tool blijft geblokkeerd', met(root => {
+  run(root);
+  assert.match(msg(() => pre(root, 'mcp__supabase__delete_project', {}, {tool_use_id: 'q1'})), /niet door AAE/);
+  assert.match(msg(() => pre(root, 'mcp__supabase__pause_project', {}, {tool_use_id: 'q2'})), /niet door AAE/);
+}));
+test('I04 SELECT via execute_sql is toegestaan en het bewijs bewaart geen ruw resultaat', met(root => {
+  run(root);
+  ext(root, 'execute_sql', {query: 'SELECT 1', project_id: REF}, {content: [{type: 'text', text: 'GEHEIM-RESULTAAT-123'}]});
+  const ontvangst = st(root).external_receipts.at(-1);
+  const inhoud = fs.readFileSync(path.join(root, ontvangst.evidence_path), 'utf8');
+  assert.ok(!inhoud.includes('GEHEIM-RESULTAAT-123'));
+  assert.match(ontvangst.result_digest, /^[0-9a-f]{64}$/);
+}));
+test('I05 een UPDATE via execute_sql kan niet als gewone lees- of wijzigactie draaien', met(root => {
+  run(root);
+  assert.match(msg(() => pre(root, 'mcp__supabase__execute_sql', {query: 'UPDATE t SET a = 1 WHERE id = 2', project_id: REF}, {tool_use_id: 'u1'})), /Muterende execute_sql/);
+}));
+test('I06 apply_migration is geblokkeerd vóór de GO en toegestaan daarna', met(root => {
+  probe(root);
+  plan(root, {envelope: {providers: prov(), db_max: 'A', budgets: BUDGET(10)}});
+  const call = {name: 'nieuwe_tabel', query: 'CREATE TABLE notities (id int);', project_id: REF};
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'm1'})), /vereist een werkpakket in uitvoering/);
+  go(root);
+  assert.equal(ext(root, 'apply_migration', call), null);
+}));
+test('I07 het externe toolbudget staat los van het agentbudget', met(root => {
+  run(root, {envelope: {providers: prov(), db_max: 'A', budgets: {agent_calls: {soft: 0, hard: 0}, command_runs: 20, external_calls: 10, max_parallel: 1}}});
+  ext(root, 'list_tables', {project_id: REF}); ext(root, 'list_tables', {project_id: REF});
+  assert.equal(st(root).usage.external, 2); assert.equal(st(root).usage.agents, 0);
+  assert.match(msg(() => agentCall(root)), /Hard agentplafond/);
+}));
+test('I08 een verkeerde Supabase-projectverwijzing in de invoer wordt geblokkeerd', met(root => {
+  run(root);
+  assert.match(msg(() => pre(root, 'mcp__supabase__list_tables', {project_id: 'anderproject'}, {tool_use_id: 'w1'})), /ander project/);
+}));
+test('I09 een mislukte Supabase-aanroep verbruikt budget maar start geen herstelagents', met(root => {
+  run(root);
+  pre(root, 'mcp__supabase__list_tables', {project_id: REF}, {tool_use_id: 'f1'});
+  hook(root, {hook_event_name: 'PostToolUseFailure', tool_name: 'mcp__supabase__list_tables', tool_use_id: 'f1', tool_input: {}, error: 'time-out'});
+  assert.equal(st(root).usage.external, 1); assert.equal(st(root).usage.agents, 0);
+  assert.equal(st(root).external_calls.f1.status, 'failed');
+}));
+test('I10 vervanger voor de aparte gevoelige GO: klasse B past alleen als de envelop B toestaat; klasse C vraagt altijd AAE BEVESTIG', met(root => {
+  run(root);
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', {name: 'backfill', query: 'UPDATE notities SET a = 1 WHERE id = 2;', project_id: REF}, {tool_use_id: 'b1'})), /database-klasse B/);
+  const root2 = fixture();
+  try {
+    probe(root2);
+    executing(root2, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
+    assert.equal(ext(root2, 'apply_migration', {name: 'backfill', query: 'UPDATE notities SET a = 1 WHERE id = 2;', project_id: REF}), null);
+    assert.match(msg(() => pre(root2, 'mcp__supabase__apply_migration', {name: 'weg', query: 'DROP TABLE notities;', project_id: REF}, {tool_use_id: 'c1'})), /AAE BEVESTIG/);
+  } finally { cleanup(root2); }
+}));
+test('I11 ToolSearch is toegestaan voor de hoofdsessie maar niet voor specialisten', met(root => {
+  executing(root);
+  assert.equal(pre(root, 'ToolSearch', {query: 'x'}), null);
+  assert.match(msg(() => pre(root, 'ToolSearch', {query: 'x'}, {agent_id: 'sub00001', agent_type: 'aae-reviewer'})), /read-only/);
+}));
+test('I12 GitHub: PR-aanmaak is aan de envelop gebonden, lezen is vrij en samenvoegen blijft geblokkeerd zonder capability', met(root => {
+  assert.equal(pre(root, 'mcp__github__get_file_contents', {path: 'README.md'}), null);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'g0'})), /Maak eerst een werkpakket met github/);
+  assert.match(msg(() => pre(root, 'mcp__github__push_files', {}, {tool_use_id: 'g9'})), /niet toegestaan/);
+  executing(root, {envelope: {git: GIT, providers: GHP(['create_pull_request'], 2), budgets: BUDGET(2)}});
+  assert.equal(pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'g1'}), null);
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'g1', tool_input: {}, tool_response: {}});
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'g2'})), /staat niet in de goedgekeurde envelop/);
+}));
+test('I13 de vlag "migration" maakt een pakket niet automatisch HIGH', () => {
+  const c = contract({risk_flags: ['migration']}); c.plan.test_plan.push(...['migration', 'rollback', 'data-preservation'].map(kind => ({kind, method: 'inspection', description: 'Beschrijf de controle van ' + kind + '.'})));
+  assert.equal(validateContract(structuredClone(c)).risk_class, 'STANDARD');
+});
+test('I14 de SQL-classificatie weigert bijwerkingen in SELECT en meerdere statements', () => {
+  assert.equal(classifySql('SELECT 1').level, 'read');
+  assert.equal(classifySql('SELECT 1; DROP TABLE x').level, 'sensitive');
+  for (const s of ['SELECT * FROM t FOR UPDATE', 'SELECT pg_terminate_backend(1)', "SELECT set_config('a','b',false)", 'WITH x AS (DELETE FROM t RETURNING *) SELECT * FROM x', 'SELECT nextval(\'s\')', 'SELECT * FROM auth.users'])
+    assert.equal(classifySql(s).level, 'change', s);
+  assert.equal(classifySql('').level, 'blocked');
+});
+test('I15 een functie, procedure of trigger is altijd DB-C, ook met een onschuldige body (de oude test die klasse A vastpinde is vervangen; zie RE01)', () => {
+  for (const f of ['CREATE OR REPLACE FUNCTION opruim() RETURNS void LANGUAGE plpgsql AS $$ BEGIN DELETE FROM oud; END; $$;', 'CREATE FUNCTION f() RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;', 'CREATE FUNCTION g() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;']) assert.equal(classifyDb(f).klasse, 'C', f);
+  assert.equal(classifyDb('DELETE FROM oud;').klasse, 'C');
+});
+test('I16 een gewoon bericht mag opnieuw proben zonder een oud werkpakket te heractiveren', met(root => {
+  probe(root); prompt(root, 'Vervolgvraag zonder commando'); probe(root);
+  assert.equal(fs.readdirSync(path.join(root, 'docs/aae/work')).length, 0);
+}));
+test('I17 de Supabase-verificatie hoort bij het werkpakket en overleeft vervolgberichten (R10)', met(root => {
+  run(root);
+  assert.equal(st(root).supabase_verified.ref, REF);
+  prompt(root, 'Een vervolgbericht'); prompt(root, 'Nog een bericht');
+  assert.equal(st(root).supabase_verified.ref, REF);
+  assert.equal(ext(root, 'list_tables', {project_id: REF}), null);
+}));
+test('I18 apply_migration faalt gesloten zonder expliciete naam of SQL', met(root => {
+  run(root);
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', {query: 'CREATE TABLE x (id int);', project_id: REF}, {tool_use_id: 'n1'})), /migratienaam/);
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', {name: 'leeg', project_id: REF}, {tool_use_id: 'n2'})), /migratie-SQL/);
+}));
+test('I19 PR-aanmaak vereist een expliciete, passende base en head', met(root => {
+  executing(root, {envelope: {git: GIT, providers: GHP(['create_pull_request'], 3), budgets: BUDGET(3)}});
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {head: 'claude/w'}, {tool_use_id: 'a1'})), /expliciete base/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {base: 'main'}, {tool_use_id: 'a2'})), /expliciete head/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'develop', head: 'claude/w'}, {tool_use_id: 'a3'})), /PR-base wijkt af/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'andere', base: 'main', head: 'claude/w'}, {tool_use_id: 'a4'})), /vastgepinde repository/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/ander'}, {tool_use_id: 'a5'})), /vastgepinde werkbranch/);
+}));
+test('I20 een bevestiging (AAE BEVESTIG) overleeft een vervolgbericht niet (R8)', met(root => {
+  run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
+  const call = {name: 'weg', query: 'DROP TABLE notities;', project_id: REF};
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'd1'})), /AAE BEVESTIG/);
+  prompt(root, 'AAE BEVESTIG'); prompt(root, 'een gewoon vervolgbericht');
+  assert.equal(st(root).confirmed, null);
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'd2'})), /AAE BEVESTIG/, 'opnieuw bevestigen is nodig');
+}));
+test('I21 een geplande niet-destructieve migratie blijft werken na vervolgberichten onder dezelfde GO (R8)', met(root => {
+  run(root);
+  prompt(root, 'vervolg'); prompt(root, 'vervolg 2');
+  assert.equal(ext(root, 'apply_migration', {name: 'nieuwe_tabel', query: 'CREATE TABLE notities (id int);', project_id: REF}), null);
+}));
+test('I22 het verbreden van de Supabase-integratie is een wezenlijke wijziging', () => {
+  const a = validateContract(structuredClone(contract({envelope: {providers: prov(['get_project_url', 'list_tables'], 5), budgets: BUDGET(5)}})));
+  const b = validateContract(structuredClone(contract({envelope: {providers: prov(['get_project_url', 'list_tables', 'execute_sql'], 5), budgets: BUDGET(5)}})));
+  const c = validateContract(structuredClone(contract({envelope: {providers: {supabase: {project_ref: 'anderproject', tools: ['get_project_url'], max_calls: 5}}, budgets: BUDGET(5)}})));
+  assert.ok(materialChanges(a, b).includes('provider supabase'));
+  assert.ok(materialChanges(a, c).includes('provider supabase'));
+  assert.deepEqual(materialChanges(b, a), []);
+});
 
-test('I14: SQL classifier rejects side-effect SELECT and multiple statements',()=>{assert.equal(classifyExternalCall('mcp__supabase__execute_sql',{query:"select set_config('x','y',false)"}).level,'sensitive');assert.equal(classifyExternalCall('mcp__supabase__execute_sql',{query:'select 1; select 2'}).level,'sensitive');});
-test('I15: function-body DML in apply_migration is not mistaken for immediate DELETE',()=>{const sql=`create or replace function public.cleanup() returns void language plpgsql as $$ begin delete from public.old_rows where false; end; $$;`;assert.equal(classifyExternalCall('mcp__supabase__apply_migration',{name:'cleanup_fn',query:sql}).level,'change');});
-
-test('I16: new ordinary prompt may re-probe Supabase without reviving old route',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());prompt(r,'Nieuwe databasevraag.');const c=call(r,'mcp__supabase__get_project_url');assert.equal(c.res,null);});
-
-test('I17: Supabase verification is scoped to the task and survives follow-up prompts (R10)',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,integrationTask());prompt(r,'Vervolgvraag binnen dezelfde taak.');assert.doesNotThrow(()=>call(r,'mcp__supabase__list_migrations'));prompt(r,'Nieuwe databaseopdracht.');installTask(r,integrationTask({id:'T-002'}));assert.throws(()=>call(r,'mcp__supabase__list_migrations'),/deze taak live geverifieerd/);verify(r);assert.doesNotThrow(()=>call(r,'mcp__supabase__list_migrations'));});
-test('I18: apply_migration fails closed without explicit name or SQL',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,migrationTask());prompt(r,'AAE GO');assert.throws(()=>call(r,'mcp__supabase__apply_migration',{name:'',query:'create table public.x(id int)'}),/migratienaam/);assert.throws(()=>call(r,'mcp__supabase__apply_migration',{name:'x',query:''}),/migratie-SQL/);});
-test('I19: GitHub PR creation requires explicit matching base and head',t=>{const r=fixture(t);begin(r);const c=task({mode:'standard',risk_flags:['external_effects'],scope:{read:['src'],write:[]},test_plan:[{kind:'scope',method:'inspection',description:'Controleer PR-scope.'},{kind:'functional',method:'inspection',description:'Controleer PR-aanmaak.'},{kind:'regression',method:'inspection',description:'Controleer dat geen merge plaatsvindt.'},{kind:'failure-handling',method:'inspection',description:'Controleer foutafhandeling zonder retrylus.'}],integrations:{github:{tools:['create_pull_request'],max_calls:1,base:'main',head:'claude/feature'}},budget:{agent_calls:0,max_parallel:1,command_runs:0,external_calls:1}});installTask(r,c);prompt(r,'AAE GO');assert.throws(()=>call(r,'mcp__GitHub__create_pull_request',{title:'Feature'}),/expliciete base/);});
-
-// --- v3.2-local ---
-test('I20: separate sensitive GO does not survive a follow-up prompt (R8)',t=>{const r=fixture(t);begin(r);verify(r);const sql='drop table public.temporary_old';const c=task({mode:'high-assurance',risk:'high',uncertainty:'low',risk_flags:[],scope:{read:['src'],write:[]},agents:[specialist('aae-code-reviewer')],integrations:{supabase:{project_ref:REF,tools:['get_project_url','execute_sql'],max_calls:3,dangerous_sql:[sql]}},budget:{agent_calls:1,max_parallel:1,command_runs:0,external_calls:3}});installTask(r,c);prompt(r,'AAE GO');prompt(r,'AAE GEVOELIG GO T-001');prompt(r,'Ik kijk even mee.');assert.throws(()=>call(r,'mcp__supabase__execute_sql',{query:sql}),/GEVOELIG GO/);});
-test('I21: planned non-destructive migration keeps working after follow-up prompts under the one GO (R8)',t=>{const r=fixture(t);begin(r);verify(r);installTask(r,migrationTask());prompt(r,'AAE GO');prompt(r,'Tests zijn groen, ga door.');const c=call(r,'mcp__supabase__apply_migration',{name:'add_index',query:'create index if not exists x on public.tasks(id)'});assert.equal(c.res,null);post(r,c.id,'mcp__supabase__apply_migration',{ok:true});prompt(r,'Nog een correctie graag.');assert.doesNotThrow(()=>call(r,'mcp__supabase__apply_migration',{name:'add_index_fix',query:'create index if not exists y on public.tasks(created_at)'}));});
-test('I22: widening the Supabase integration is a material change',t=>{const r=fixture(t);begin(r);verify(r);const c=migrationTask();installTask(r,c);prompt(r,'AAE GO');const res=installTask(r,{...c,integrations:{supabase:{...c.integrations.supabase,tools:[...c.integrations.supabase.tools,'execute_sql']}}});assert.equal(res.status,'pending');assert.ok(res.envelope_changes.includes('supabase'));});
+// De SQL-klassen (A/B/C, default-deny) worden getoetst in sql.test.mjs (RE01-RE03 en de mutatiecorpus); hier alleen de integratie met de tools.
+test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
+  const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
+  executing(root, {envelope: {git, providers: GHP(['create_pull_request', 'merge_pull_request'], 4), budgets: BUDGET(4)}});
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'k0'})), /zelf heeft gemaakt/);
+  const maak = {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'};
+  pre(root, 'mcp__github__create_pull_request', maak, {tool_use_id: 'k1'});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: maak, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
+  assert.deepEqual(st(root).created_prs, [{number: 12, owner: 'o', repo: 'r', base: 'main', head: 'claude/w'}]);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'develop', head: 'claude/w', title: 'x'}, {tool_use_id: 'k5'})), /PR-base wijkt af|merge-doel/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 99}, {tool_use_id: 'k2'})), /zelf heeft gemaakt/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'andere', pullNumber: 12}, {tool_use_id: 'k4'})), /dezelfde owner\/repo/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12}, {tool_use_id: 'k6'})), /expectedHeadSha/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12, expectedHeadSha: 'a'.repeat(40)}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
+}));
+test('review ronde 4: een PR die samengevoegd mag worden, moet naar het merge-doel wijzen (anders valt de deploy-check op het verkeerde doel)', met(root => {
+  executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'staging'}, deploy: 'verify'}, providers: GHP(['create_pull_request', 'merge_pull_request'], 4, {base: undefined}), budgets: BUDGET(4)}});
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'm1'})), /merge-doel/);
+  assert.equal(pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'staging', head: 'claude/w', title: 'x'}, {tool_use_id: 'm2'}), null);
+}));
+test('review: een bevestiging overleeft een pauze niet', met(root => {
+  run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
+  const call = {name: 'weg', query: 'DROP TABLE notities;', project_id: REF};
+  assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', call, {tool_use_id: 'p1'})), /AAE BEVESTIG/);
+  prompt(root, 'AAE BEVESTIG'); assert.ok(st(root).confirmed);
+  prompt(root, 'AAE PAUZE'); assert.equal(st(root).confirmed, null);
+}));
+test('toolherkenning: alleen aantoonbaar Supabase- of GitHub-tools worden herkend', () => {
+  assert.deepEqual(identifyExternalTool('mcp__Supabase__execute_sql'), {provider: 'supabase', action: 'execute_sql'});
+  assert.equal(identifyExternalTool('mcp__onbekend__execute_sql'), null);
+  assert.equal(classifyExternalCall('mcp__github__push_files', {}).level, 'blocked');
+  assert.equal(classifyExternalCall('mcp__github__list_commits', {}).level, 'read');
+  assert.equal(projectRefFromResponse({content: [{type: 'text', text: 'url: https://abcdefghij.supabase.co/rest'}]}), REF);
+});

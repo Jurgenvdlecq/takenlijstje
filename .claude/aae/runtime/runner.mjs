@@ -1,151 +1,167 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawn,spawnSync} from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import {
-  STATE,RESULT,TASK,withState,assertBound,safePath,readJson,atomicJson,requireThat,
-  sourceDigest,commandFingerprint,commandApproved,now,log,digest,requiredChecks,allLive,VERSION,summary
+  STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, addAllowed, VERSION
 } from './core.mjs';
+import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition, needsHuman, resultFile, listWork, TERMINAL} from './state.mjs';
+import {liveRows} from './reports.mjs';
+import {assertReady, assertGate} from './gates.mjs';
+import {extraKey} from './commands.mjs';
+import {gitHead, candidateFiles, stagedFiles, secretHits, unpushedFiles, trackedFingerprint} from './gitops.mjs';
 
-/** Execute a declared argv without a shell. Repository programs remain trusted code. */
-export async function runCommand(root,id) {
-  const launch=withState(root,s=>{
-    const t=assertBound(root,s),c=t.contract.commands.find(x=>x.id===id);
-    requireThat(c,'Commando niet in de route: '+id);
-    requireThat(allLive(s).length===0&&!t.command_running,'Geen commandoloop naast agentcontrole of andere commandos.');
-    const fingerprint=commandFingerprint(root,c);
-    requireThat(commandApproved(root,t,c)||['read','test','build','preview'].includes(c.purpose)&&s.trusted_commands[fingerprint], 'Commando/bronnen niet goedgekeurd. Presenteer het commando en vraag AAE GO.');
-    // v3.2-local (R6): een vooraf goedgekeurde merge/deploy draait pas als het resultaat aantoonbaar READY is.
-    if(c.gate==='ready')assertReady(root,s,t,'Gate '+id+': ');
-    requireThat(t.usage.commands<t.contract.budget.command_runs,'Totaal commandobudget bereikt. Niet automatisch herstarten.');
-    requireThat((t.command_counts[id]||0)<c.max_runs,'Maximum aantal runs voor '+id+' bereikt.');
-    const src=sourceDigest(root,t.contract);
-    const related=t.command_receipts.filter(r=>r.command_fingerprint===fingerprint&&r.source_after===src).slice(-2);
-    requireThat(!(related.length===2&&related.every(r=>r.exit_code!==0)),'Twee gelijke mislukte pogingen zonder bronwijziging. Stop en verander de hypothese, niet dezelfde test blijven draaien.');
-    t.usage.commands++;t.command_counts[id]=(t.command_counts[id]||0)+1;
-    const runId='run-'+t.usage.commands;
-    t.command_running={id:runId,command:id,started:now(),pid:process.pid};
-    log(s,'command_started',{task:t.id,command:id,run_id:runId});
-    return {command:c,fingerprint,source_before:src,task_id:t.id,task_digest:t.digest,contract:t.contract,run_id:runId};
+const hasLive = st => liveRows(st).some(r => ['reserved', 'running'].includes(r.status));
+const NON_LOCAL = ['install', 'destructive', 'merge', 'deploy'];
+
+/** Voert een in het plan vastgelegd argv uit zonder shell. De bewaking controleert de klasse tegen de envelop; projectprogramma's blijven krachtige code, geen sandbox. */
+export async function runCommand(root, cmdId) {
+  const launch = withLock(root, () => {
+    const st = activeWork(root);
+    requireThat(st, 'Geen actief werkpakket.');
+    requireThat(st.status === 'EXECUTING', 'Werkpakket is niet in uitvoering (' + st.status + '). Een commando draait alleen binnen een goedgekeurd werkpakket.');
+    guardApproval(root, st);
+    const c = st.contract, m = c.plan.commands.find(x => x.id === cmdId);
+    requireThat(m, 'Commando niet in het plan: ' + cmdId);
+    const k = classifyCommand(c, m);
+    requireThat(k.ok, 'Commando valt buiten de envelop: ' + k.reason);
+    requireThat(!hasLive(st) && !st.command_running, 'Geen commandoloop naast agentcontrole of andere commando\'s.');
+    const fp = commandFingerprint(root, m);
+    if (k.kind === 'extra') {
+      const rec = st.extra_fp[extraKey(m)];
+      if (NON_LOCAL.includes(m.purpose)) requireThat(rec && rec.fp === fp, 'Commando of diens bronnen zijn niet (meer) gelijk aan wat de GO goedkeurde. Vraag een nieuwe goedkeuring.');
+      else if (rec) {
+        const nu = Object.fromEntries(commandRefs(root, m));
+        for (const [p, h] of Object.entries(nu)) requireThat(rec.refs[p] === h || scopeContains(areaWrite(c), p), 'Een bewaakt bestand buiten de schrijfgebieden is gewijzigd: ' + p);
+      }
+    }
+    if (m.purpose === 'commit' && m.argv[0] === 'git') {
+      // Geen geheimen in een commit: controleer wat er klaargezet wordt (add) en wat er al klaarstaat (commit). Alleen namen en soort, nooit de inhoud.
+      const kandidaten = m.argv[1] === 'add' ? candidateFiles(root, m.argv.slice(4)) : m.argv[1] === 'commit' ? stagedFiles(root) : [];
+      const geheimen = secretHits(root, kandidaten);
+      requireThat(!geheimen.length, 'Mogelijk geheim in de commit (' + geheimen.slice(0, 5).map(h => h.path + ': ' + h.reden).join('; ') + '). Verwijder of negeer het bestand (.gitignore) en probeer opnieuw.');
+      // Een commit neemt alles mee wat al klaarstaat: bestanden buiten de goedgekeurde gebieden horen er niet in.
+      if (m.argv[1] === 'commit') { const buiten = stagedFiles(root).filter(p => !addAllowed(c, p)); requireThat(!buiten.length, 'Er staan bestanden klaar (staging) buiten de goedgekeurde gebieden: ' + buiten.slice(0, 5).join(', ') + '. Vraag de gebruiker ze uit de staging te halen; een commit neemt ze anders mee.'); }
+    }
+    if (m.purpose === 'push' && m.argv[0] === 'git') {
+      // Ook bij een push: alle commits die nog niet op de remote staan worden op geheimen gecontroleerd, ook als ze eerder buiten AAE zijn gemaakt.
+      const geheimen = secretHits(root, unpushedFiles(root, m.argv.at(-1)));
+      requireThat(!geheimen.length, 'Mogelijk geheim in de te pushen commits (' + geheimen.slice(0, 5).map(h => h.path + ': ' + h.reden).join('; ') + '). Push niet; verwijder het uit de geschiedenis of vraag de gebruiker.');
+    }
+    if (m.purpose === 'merge') assertGate(root, st, c, 'merge', m.argv[0] === 'git' ? m.argv : null);
+    if (m.purpose === 'deploy') assertGate(root, st, c, 'deploy');
+    requireThat(st.usage.commands < c.envelope.budgets.command_runs, 'Totaal commandobudget bereikt.');
+    requireThat((st.command_counts[cmdId] || 0) < m.max_runs, 'Maximum aantal runs voor ' + cmdId + ' bereikt.');
+    const src = sourceDigest(root, c);
+    const verwant = st.receipts.filter(r => r.command_fingerprint === fp && r.source_after === src).slice(-2);
+    requireThat(!(verwant.length === 2 && verwant.every(r => r.exit_code !== 0)), 'Twee gelijke mislukte pogingen zonder bronwijziging. Verander de hypothese, niet dezelfde opdracht blijven herhalen.');
+    st.usage.commands++; st.command_counts[cmdId] = (st.command_counts[cmdId] || 0) + 1;
+    const runId = 'run-' + st.usage.commands;
+    st.command_running = {id: runId, command: cmdId, started: now(), pid: process.pid};
+    st.activity = m.purpose === 'merge' ? 'MERGING' : m.purpose === 'deploy' ? 'DEPLOYING' : ['test', 'build', 'preview'].includes(m.purpose) ? 'TESTING' : 'BUILDING';
+    log(st, 'commando_gestart', {commando: cmdId, doel: m.purpose, run: runId});
+    saveWork(root, st);
+    return {m, fp, src, id: st.id, runId, eh: envelopeHash(c), contract: c, trackedVoor: c.envelope.phase === 'analysis' ? trackedFingerprint(root) : null};
   });
-  const logRel=STATE+'/logs/'+launch.task_id+'-'+launch.run_id+'.txt';
-  const logPath=safePath(root,logRel);fs.mkdirSync(path.dirname(logPath),{recursive:true,mode:0o700});
-  const fd=fs.openSync(logPath,'w',0o600);
-  let captured=0,tail='',truncated=false;
-  function output(buf) {
-    const b=Buffer.from(buf);tail=(tail+b.toString('utf8')).slice(-2500);
-    if(captured<1024*1024){const keep=b.subarray(0,1024*1024-captured);fs.writeSync(fd,keep);captured+=keep.length;}
-    else truncated=true;
-  }
-  const started=Date.now();let result;
+  const logRel = STATE_DIR + '/logs/' + launch.id + '-' + launch.runId + '.txt';
+  const logPath = safePath(root, logRel); fs.mkdirSync(path.dirname(logPath), {recursive: true, mode: 0o700});
+  const fd = fs.openSync(logPath, 'w', 0o600);
+  let captured = 0, tail = '', truncated = false;
+  const output = buf => {
+    const b = Buffer.from(buf); tail = (tail + b.toString('utf8')).slice(-2500);
+    if (captured < 1024 * 1024) { const keep = b.subarray(0, 1024 * 1024 - captured); fs.writeSync(fd, keep); captured += keep.length; } else truncated = true;
+  };
+  const started = Date.now(); let result;
   try {
-    result=await new Promise(resolve=>{
-      const c=launch.command;
-      const child=spawn(c.argv[0],c.argv.slice(1),{cwd:fs.realpathSync(root),shell:false,detached:process.platform!=='win32',env:{...process.env,CI:'1'},stdio:['ignore','pipe','pipe']});
-      let timedOut=false,spawnError=null;
-      const kill=()=>{try{if(process.platform!=='win32')process.kill(-child.pid,'SIGKILL');else child.kill('SIGKILL');}catch{}};
-      const timer=setTimeout(()=>{timedOut=true;kill();},c.timeout_ms);
-      child.stdout?.on('data',output);child.stderr?.on('data',output);
-      child.on('error',err=>{spawnError=err.message;output(Buffer.from(err.message));});
-      child.on('close',(code,signal)=>{clearTimeout(timer);resolve({exit_code:typeof code==='number'?code:timedOut?124:1,signal:signal||null,timed_out:timedOut,error:spawnError});});
+    result = await new Promise(resolve => {
+      const m = launch.m;
+      // NODE_TEST_CONTEXT hoort bij een bovenliggende node --test-run; geërfd laat het een geneste testrun altijd "slagen". Een commando draait altijd los.
+      // npm_config_yes=false: npx installeert nooit stilzwijgend een ontbrekend pakket.
+      const env = {...process.env, CI: '1', npm_config_yes: 'false'}; delete env.NODE_TEST_CONTEXT;
+      const child = spawn(m.argv[0], m.argv.slice(1), {cwd: fs.realpathSync(root), shell: false, detached: process.platform !== 'win32', env, stdio: ['ignore', 'pipe', 'pipe']});
+      let timedOut = false, spawnError = null;
+      const kill = () => { try { if (process.platform !== 'win32') process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch { /* al weg */ } };
+      const timer = setTimeout(() => { timedOut = true; kill(); }, m.timeout_ms);
+      child.stdout?.on('data', output); child.stderr?.on('data', output);
+      child.on('error', err => { spawnError = err.message; output(Buffer.from(err.message)); });
+      child.on('close', (code, signal) => { clearTimeout(timer); resolve({exit_code: typeof code === 'number' ? code : timedOut ? 124 : 1, signal: signal || null, timed_out: timedOut, error: spawnError}); });
     });
-  } finally {fs.closeSync(fd);}
-  const sourceAfter=sourceDigest(root,launch.contract);
-  const receipt={schema_version:3,task_id:launch.task_id,route_digest:launch.task_digest,run_id:launch.run_id,command_id:id,argv:launch.command.argv,command_fingerprint:launch.fingerprint,source_before:launch.source_before,source_after:sourceAfter,
-    ...result,duration_ms:Date.now()-started,finished:now(),log_path:logRel,log_truncated:truncated};
-  const receiptPath='docs/aae/evidence/'+launch.task_id+'/'+launch.run_id+'.json';
-  withState(root,s=>{
-    requireThat(s.task?.id===launch.task_id&&s.task.digest===launch.task_digest,'Route gewijzigd tijdens commando; resultaat niet als actueel bewijs registreren.');
-    s.task.command_running=null;s.task.command_receipts.push({...receipt,evidence_path:receiptPath});
-    atomicJson(root,receiptPath,receipt);
-    log(s,'command_finished',{task:launch.task_id,command:id,exit_code:receipt.exit_code});
+  } finally { fs.closeSync(fd); }
+  const sourceAfter = sourceDigest(root, launch.contract);
+  const receipt = {schema_version: 4, id: launch.id, envelope_hash: launch.eh, run_id: launch.runId, command_id: launch.m.id, argv: launch.m.argv, purpose: launch.m.purpose, command_fingerprint: launch.fp,
+    source_before: launch.src, source_after: sourceAfter, ...result, duration_ms: Date.now() - started, finished: now(), log_path: logRel, log_truncated: truncated};
+  const receiptPath = 'docs/aae/evidence/' + launch.id + '/' + launch.runId + '.json';
+  withLock(root, () => {
+    const st = loadWork(root, launch.id);
+    st.command_running = null;
+    const nu = envelopeHash(st.contract);
+    st.receipts.push({...receipt, evidence_path: receiptPath, envelope_hash: nu === launch.eh ? launch.eh : null});
+    atomicJson(root, receiptPath, receipt);
+    if (launch.m.purpose === 'push' && receipt.exit_code === 0) st.last_push = {at: now(), branch: launch.m.argv.at(-1)};
+    // Een analyse mag niets gevolgds veranderen: zelfs een leescommando wordt daarop gecontroleerd.
+    if (launch.trackedVoor !== null && trackedFingerprint(root) !== launch.trackedVoor) needsHuman(st, 'scope_change', 'Een analyse-commando (' + launch.m.id + ') heeft gevolgde bestanden veranderd. Een analyse wijzigt niets gevolgds; beslis wat er met die wijziging moet gebeuren.');
+    if (st.status === 'EXECUTING') st.activity = 'BUILDING';
+    log(st, 'commando_klaar', {commando: launch.m.id, exit: receipt.exit_code});
+    saveWork(root, st);
   });
-  return {...receipt,evidence_path:receiptPath,tail,warning:'Commandoreceipt bewijst uitvoering, niet inhoudelijke correctheid of veiligheid van projectcode.'};
-}
-function checkedEvidence(root,s,items,method,src) {
-  requireThat(Array.isArray(items)&&items.length>0,'Bewijsverwijzing ontbreekt.');
-  for(const p of items) {const f=safePath(root,p,{allowMissing:false});requireThat(fs.statSync(f).isFile(),'Bewijs moet een bestand zijn.');}
-  if(method==='command') requireThat(items.some(p=>s.task.command_receipts.some(r=>r.evidence_path===p&&r.exit_code===0&&r.source_before===r.source_after&&r.source_after===src&&r.route_digest===s.task.digest)),'Geen succesvolle actuele commandoreceipt voor deze controle.');
-}
-/**
- * v3.2-local (R6): dezelfde READY-bewijsregels als close, zonder de taak te sluiten. Een commando met
- * gate "ready" draait alleen als RESULT.json bij de actuele route en bron hoort en alles aantoonbaar geslaagd is.
- */
-function assertReady(root,s,t,prefix) {
-  requireThat(fs.existsSync(safePath(root,RESULT)),prefix+'RESULT.json ontbreekt; eerst alle criteria en controles aantoonbaar READY maken.');
-  const r=readJson(root,RESULT),src=sourceDigest(root,t.contract);
-  requireThat(r.schema_version===3&&r.task_id===t.id&&r.route_digest===t.digest,prefix+'Resultaat hoort niet bij de actieve route.');
-  requireThat(r.source_digest===src,prefix+'Broncode veranderd sinds bewijsrapport. Maak relevante controles opnieuw.');
-  requireThat(r.status==='READY',prefix+'Resultaat is niet READY.');
-  requireThat(Array.isArray(r.criteria)&&Array.isArray(r.checks),prefix+'Resultaat mist criteria of controles.');
-  for(const a of t.contract.acceptance){const x=r.criteria.find(y=>y.id===a.id);requireThat(x?.status==='passed',prefix+'Criterium niet bewezen: '+a.id);checkedEvidence(root,s,x.evidence,'inspection',src);}
-  for(const kind of [...new Set([...requiredChecks(t.contract),...t.contract.test_plan.map(c=>c.kind)])]){
-    const x=r.checks.find(y=>y.kind===kind),planned=t.contract.test_plan.find(y=>y.kind===kind);
-    requireThat(x?.status==='passed',prefix+'Verplichte controle niet geslaagd: '+kind);
-    requireThat(x.method===planned.method,prefix+'Bewijsmethode wijkt af van plan: '+kind);
-    checkedEvidence(root,s,x.evidence,x.method,src);
-  }
-  if(t.contract.phase==='implementation'&&t.contract.mode==='high-assurance')requireThat(Object.values(t.calls).some(c=>['aae-security-reviewer','aae-code-reviewer','aae-test-writer'].includes(c.role)&&c.status==='stopped'&&c.reported_status==='READY'&&c.source_digest===src&&c.task_digest===t.digest),prefix+'High Assurance mist actueel onafhankelijk READY-oordeel.');
+  return {...receipt, evidence_path: receiptPath, tail, warning: 'Commandoreceipt bewijst uitvoering, niet inhoudelijke correctheid of veiligheid van projectcode.'};
 }
 export function reportTemplate(root) {
-  return withState(root,s=>{const t=assertBound(root,s);return {
-    schema_version:3,task_id:t.id,route_digest:t.digest,source_digest:sourceDigest(root,t.contract),status:'PARTIAL',summary:'Vul in wat aantoonbaar is uitgevoerd; geen verondersteld bewijs.',
-    criteria:t.contract.acceptance.map(a=>({id:a.id,status:'not_run',evidence:[],note:''})),
-    checks:t.contract.test_plan.map(c=>({kind:c.kind,method:c.method,status:'not_run',evidence:[],note:''}))
-  };});
-}
-export function closeTask(root) {
-  return withState(root,s=>{
-    const t=assertBound(root,s);requireThat(allLive(s).length===0&&!t.command_running,'Er loopt nog werk.');
-    const r=readJson(root,RESULT),src=sourceDigest(root,t.contract);
-    requireThat(r.schema_version===3&&r.task_id===t.id&&r.route_digest===t.digest,'Resultaat hoort niet bij de actieve route.');
-    requireThat(r.source_digest===src,'Broncode veranderd sinds bewijsrapport. Maak relevante controles opnieuw, niet blind een nieuwe hash.');
-    requireThat(['READY','PARTIAL','BLOCKED'].includes(r.status),'Ongeldige eindstatus.');
-    requireThat(typeof r.summary==='string'&&r.summary.trim().length>=5,'Samenvatting ontbreekt.');
-    requireThat(Array.isArray(r.criteria)&&Array.isArray(r.checks),'Resultaat mist criteria of controles.');
-    if(r.status==='READY') {
-      requireThat(new Set(r.criteria.map(a=>a.id)).size===r.criteria.length,'Dubbele criteria in rapport.');
-      for(const a of t.contract.acceptance) {const actual=r.criteria.find(x=>x.id===a.id);requireThat(actual?.status==='passed','Criterium niet bewezen: '+a.id);checkedEvidence(root,s,actual.evidence,'inspection',src);requireThat(typeof actual.note==='string'&&actual.note.length>=5,'Criterium mist toelichting.');}
-      for(const kind of [...new Set([...requiredChecks(t.contract),...t.contract.test_plan.map(c=>c.kind)])]) {
-        const actual=r.checks.find(x=>x.kind===kind),planned=t.contract.test_plan.find(x=>x.kind===kind);
-        requireThat(actual?.status==='passed','Verplichte controle niet geslaagd: '+kind);
-        requireThat(actual.method===planned.method,'Bewijsmethode wijkt af van plan: '+kind);
-        checkedEvidence(root,s,actual.evidence,actual.method,src);
-        requireThat(typeof actual.note==='string'&&actual.note.length>=5,'Controle mist toelichting.');
-      }
-      if(t.contract.phase==='implementation'&&t.contract.mode==='high-assurance') requireThat(Object.values(t.calls).some(c=>['aae-security-reviewer','aae-code-reviewer','aae-test-writer'].includes(c.role)&&c.status==='stopped'&&c.reported_status==='READY'&&c.source_digest===src&&c.task_digest===t.digest),'High Assurance mist actueel onafhankelijk READY-oordeel.');
-    }
-    t.status='closed';t.result=r.status;t.approval=null;
-    atomicJson(root,STATE+'/results/'+t.id+'.json',r);log(s,'task_closed',{task:t.id,status:r.status});
-    return {task_id:t.id,status:r.status,not_deployed:true,note:'Administratief afgerond. Bewijskwaliteit blijft mensenwerk; READY is geen publicatietoestemming.'};
+  return withLock(root, () => {
+    const st = activeWork(root); requireThat(st, 'Geen actief werkpakket.');
+    const c = st.contract;
+    return {schema_version: 4, id: c.id, envelope_hash: envelopeHash(c), source_digest: sourceDigest(root, c), git_head: gitHead(root), status: 'PARTIAL', summary: 'Vul in wat aantoonbaar is uitgevoerd; geen verondersteld bewijs.',
+      criteria: c.envelope.acceptance.map(a => ({id: a.id, status: 'not_run', evidence: [], note: ''})),
+      checks: c.plan.test_plan.map(t => ({kind: t.kind, method: t.method, status: 'not_run', evidence: [], note: ''}))};
   });
 }
-export function doctor(root) {
-  const checks=[];const add=(name,ok,detail)=>checks.push({name,status:ok?'PASS':'ATTENTION',detail});
-  add('node',Number(process.versions.node.split('.')[0])>=20,process.version);
-  const version=spawnSync('claude',['--version'],{cwd:root,encoding:'utf8',timeout:5000,shell:false});
-  const v=(version.stdout||'').match(/(\d+)\.(\d+)\.(\d+)/);
-  const compatible=v&&(Number(v[1])>2||Number(v[1])===2&&(Number(v[2])>1||Number(v[2])===1&&Number(v[3])>=246));
-  add('claude_cli',Boolean(compatible),v?v[0]:'Niet aangetroffen; geen echte hosttest uitgevoerd.');
-  for(const p of ['.claude/settings.json','.claude/settings.local.json']) {
-    if(!fs.existsSync(safePath(root,p)))continue;
-    const cfg=readJson(root,p);
-    add(p+' hooks_enabled',cfg.disableAllHooks!==true,'Lokale controles zijn niet hetzelfde als effectief geladen managed/user-beleid.');
-    add(p+' normal_permissions',cfg.permissions?.defaultMode!=='bypassPermissions','Geen bypassPermissions gebruiken.');
-  }
-  const settings=readJson(root,'.claude/settings.json');
-  const hooks=settings.hooks||{};
-  for(const event of ['SessionStart','UserPromptSubmit','PreToolUse','PostToolUse','PostToolUseFailure','SubagentStart','SubagentStop']) {
-    add('hook '+event,(hooks[event]||[]).some(g=>(g.hooks||[]).some(h=>h.command==='node'&&h.args?.some(a=>a.endsWith('/.claude/aae/runtime/hook.mjs')))), 'Controle van projectconfig; bevestig in Claude Code met /hooks.');
-  }
-  const managedFile='.claude/aae/managed.json';
-  if(fs.existsSync(safePath(root,managedFile))) {
-    const m=readJson(root,managedFile);let changed=[];
-    for(const [p,hash]of Object.entries(m.files)){try{const b=fs.readFileSync(safePath(root,p,{allowMissing:false}));if(digestBytes(b)!==hash)changed.push(p);}catch{changed.push(p);}}
-    add('managed_integrity',changed.length===0,changed.length?changed.join(', '):'Beheerde bestanden komen overeen met installatie.');
-  } else add('managed_integrity',false,'Installatiemanifest ontbreekt.');
-  const state=withState(root,s=>summary(s));
-  return {version:VERSION,checks,state,live_validation:'NOT_RUN_BY_DOCTOR',supported_execution:'Linux/macOS/WSL met Node 20+; native Windows uitvoering niet praktijkgetest.',limitations:['Geen OS-sandbox. Goedgekeurde projectcommands kunnen doen wat de gebruiker op deze machine mag.','Geen exact Max-tegoed of totaal tokenverbruik berekend.','Externe/global/managed hooks kunnen aanvullend gedrag veroorzaken.','Werkelijke hostwerking moet eenmalig in een testproject worden bevestigd.']};
+export function closeTask(root) {
+  return withLock(root, () => {
+    const st = activeWork(root); requireThat(st, 'Geen actief werkpakket.');
+    requireThat(st.status === 'EXECUTING', 'Werkpakket is niet in uitvoering.');
+    guardApproval(root, st); // het resultaat (rapportopslag) wordt alleen vastgelegd onder een geldige goedkeuring
+    const c = st.contract;
+    requireThat(!hasLive(st) && !st.command_running, 'Er loopt nog werk.');
+    const r = readJson(root, resultFile(c.id)), src = sourceDigest(root, c);
+    requireThat(r.schema_version === 4 && r.id === c.id && r.envelope_hash === envelopeHash(c), 'Resultaat hoort niet bij dit werkpakket en deze envelop.');
+    requireThat(r.source_digest === src, 'Broncode veranderd sinds bewijsrapport. Maak relevante controles opnieuw, niet blind een nieuwe hash.');
+    requireThat(['READY', 'PARTIAL', 'BLOCKED'].includes(r.status), 'Ongeldige eindstatus.');
+    requireThat(typeof r.summary === 'string' && r.summary.trim().length >= 5, 'Samenvatting ontbreekt.');
+    requireThat(Array.isArray(r.criteria) && Array.isArray(r.checks), 'Resultaat mist criteria of controles.');
+    if (r.status === 'READY') assertReady(root, st, c, '');
+    st.result = r.status;
+    // Alleen een bewezen READY sluit af. PARTIAL en BLOCKED laten het pakket open (BLOCKED), met de reden zichtbaar; VERDER hervat binnen dezelfde GO.
+    if (r.status !== 'READY') st.blockers = [(r.status === 'PARTIAL' ? 'Gedeeltelijk afgerond: ' : 'Vastgelopen: ') + r.summary.trim().slice(0, 300)];
+    transition(st, r.status === 'READY' ? 'READY' : 'BLOCKED', 'close ' + r.status);
+    atomicJson(root, STATE_DIR + '/results/' + c.id + '.json', r);
+    saveWork(root, st);
+    return {id: c.id, status: r.status, work_status: st.status, not_deployed: true, note: 'Administratief afgerond. READY is geen publicatie- of deploymenttoestemming.'};
+  });
 }
-function digestBytes(b){return cryptoHash(b);}
+const digestBytes = b => digest(b.toString('base64'));
+export function doctor(root) {
+  const checks = [];
+  const add = (name, ok, detail) => checks.push({name, status: ok ? 'PASS' : 'ATTENTION', detail});
+  add('node', Number(process.versions.node.split('.')[0]) >= 20, process.version);
+  const settings = readJson(root, '.claude/settings.json'), hooks = settings.hooks || {};
+  for (const event of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'SubagentStart', 'SubagentStop']) {
+    add('hook ' + event, (hooks[event] || []).some(g => (g.hooks || []).some(h => h.command === 'node' && h.args?.some(a => a.endsWith('/.claude/aae/runtime/hook.mjs')))), 'Projectconfig; bevestig in Claude Code met /hooks.');
+  }
+  add('geen Stop-hook van AAE', !(hooks.Stop || []).some(g => (g.hooks || []).some(h => h.args?.some(a => a.endsWith('/.claude/aae/runtime/hook.mjs')))), 'AAE gebruikt geen Stop-hook.');
+  add('permissions', settings.permissions?.defaultMode !== 'bypassPermissions', 'Geen bypassPermissions gebruiken.');
+  const mf = '.claude/aae/managed.json';
+  if (fs.existsSync(safePath(root, mf))) {
+    const m = readJson(root, mf), changed = [];
+    for (const [p, hash] of Object.entries(m.files)) { try { if (digestFile(fs.readFileSync(safePath(root, p, {allowMissing: false}))) !== hash) changed.push(p); } catch { changed.push(p); } }
+    add('managed_integrity', changed.length === 0, changed.length ? changed.join(', ') : 'Beheerde bestanden komen overeen met installatie.');
+    add('versie', m.version === VERSION, 'manifest ' + m.version + ', runtime ' + VERSION);
+  } else add('managed_integrity', false, 'Installatiemanifest ontbreekt.');
+  const lock = path.join(fs.realpathSync(root), STATE_DIR, 'lock', 'owner.json');
+  let lockOk = true, lockDetail = 'geen lock';
+  if (fs.existsSync(lock)) { try { const o = JSON.parse(fs.readFileSync(lock, 'utf8')); let levend = true; try { process.kill(o.pid, 0); } catch { levend = false; } lockOk = levend; lockDetail = levend ? 'lock van levend proces ' + o.pid : 'achtergebleven lock van dood proces ' + o.pid + ' (veilig te verwijderen na controle)'; } catch { lockOk = false; lockDetail = 'onleesbare lock'; } }
+  add('lock', lockOk, lockDetail);
+  const werk = listWork(root).map(id => loadWork(root, id)).filter(Boolean).map(s => ({id: s.id, status: s.status, activity: s.activity, legacy: s.legacy}));
+  return {version: VERSION, checks, werkpakketten: werk, live_validation: 'NOT_RUN_BY_DOCTOR', limitations: ['Geen OS-sandbox. Goedgekeurde projectcommando\'s kunnen doen wat de gebruiker op deze machine mag.', 'Geen exact tegoed of tokenverbruik berekend.', 'Globale/managed hooks kunnen aanvullend gedrag veroorzaken.']};
+}
 import {createHash} from 'node:crypto';
-function cryptoHash(b){return createHash('sha256').update(b).digest('hex');}
+const digestFile = b => createHash('sha256').update(b).digest('hex');
+export const _unused = {spawnSync, TERMINAL, digestBytes};

@@ -55,3 +55,21 @@ next-env.d.ts
 /docs/aae/evidence/
 /docs/aae/notes/
 # AAE V3 LOCAL END
+
+# >>> AAE 3.3 (beheerd blok) >>>
+/.claude/aae/state/
+/.claude/aae/private/
+/.aae-backups/
+/docs/aae/work/*/state.json
+/docs/aae/work/*/state.json.tmp-*
+/docs/aae/work/*/state.json.beschadigd-*
+/docs/aae/work/*/result.json
+/docs/aae/work/*/proposal.json
+/docs/aae/work/*/proposal.json.tmp-*
+/docs/aae/work/*/raw/
+/docs/aae/work/*/approved/.tmp-*
+/docs/aae/evidence/
+/docs/aae/notes/
+/docs/aae/RESULT.json
+/docs/aae/TASK.json
+# <<< AAE 3.3 <<<

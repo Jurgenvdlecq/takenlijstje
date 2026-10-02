@@ -1,129 +1,308 @@
+// Bewaking (pariteit met de v3.2-guardtests; elke test heeft een G-code die de pariteitsmatrix gebruikt).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
-import {fixture,begin,prompt,pre,task,specialist,installTask,agent,finish,ev,put,state} from './helpers.mjs';
-import {validateTask,route,TASK,digest,sourceDigest,withState} from '../runtime/core.mjs';
-import {handleEvent} from '../runtime/events.mjs';
+import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put, installRuntime, spawnHook} from './helpers.mjs';
+import {validateContract, sourceDigest, classifyCommand, clock} from '../runtime/core.mjs';
+import {loadWork, saveWork, withLock, contractFile, newState} from '../runtime/state.mjs';
+import {liveRows, reconcile} from '../runtime/reports.mjs';
+import {presentProposal} from '../runtime/commands.mjs';
 
-test('A01: production writes without route are blocked',t=>{const r=fixture(t);begin(r);assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'changed'}),/route/);});
-test('A02: runtime/config writes are protected',t=>{const r=fixture(t);begin(r);for(const p of ['.claude/settings.json','.claude/aae/runtime/hook.mjs','.claude/aae/state/local.json','CLAUDE.md','.gitignore'])assert.throws(()=>pre(r,'Write',{file_path:path.join(r,p),content:'bad'}));});
-test('A03: unfilled shipped template cannot activate',t=>{const r=fixture(t);begin(r);const c=JSON.parse(fs.readFileSync(path.join(r,'.claude/aae/templates/TASK.template.json')));put(r,TASK,c);assert.throws(()=>route(r));});
-test('A04: two-line/formless route cannot activate',t=>{const r=fixture(t);begin(r);put(r,TASK,{mode:'lean',design_freeze:false});assert.throws(()=>route(r),/ontbrekend/);});
-test('A05: analysis is not implementation permission',t=>{const r=fixture(t);begin(r);installTask(r,task({phase:'analysis'}));assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/Analyse/);assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'docs/aae/notes/analysis.md'),content:'Evidence'}));});
-test('schema rejects unknown fields and unsafe path forms',()=>{for(const patch of [{foo:1},{mode:'Lean / Standard / High Assurance'},{approval_required:'false'},{scope:{read:[],write:['../outside']}}])assert.throws(()=>validateTask(task(patch)));});
-test('schema requires high-risk checks and an independent reviewer',()=>{const c=task({risk:'high',mode:'high-assurance',risk_flags:['authorization']});assert.throws(()=>validateTask(c),/kwaliteitsondergrens/);for(const kind of ['authorization-positive','authorization-negative','tenant-isolation'])c.test_plan.push({kind,method:'command',description:'Concrete test'});assert.throws(()=>validateTask(c),/onafhankelijke/);});
-test('task edits must be whole-file validated JSON writes',t=>{const r=fixture(t);begin(r);assert.throws(()=>pre(r,'Edit',{file_path:path.join(r,TASK),old_string:'analysis',new_string:'implementation'}),/volledig JSON/);assert.throws(()=>pre(r,'Write',{file_path:path.join(r,TASK),content:'{}'}));});
-test('valid small scope works but adjacent names do not match',t=>{const r=fixture(t);begin(r);installTask(r,task());assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'new'}));assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js-evil'),content:'new'}),/schrijfscope/);});
-test('A20: symlinked notes cannot redirect into code',t=>{const r=fixture(t);begin(r);fs.mkdirSync(path.join(r,'docs/aae/notes'),{recursive:true});fs.symlinkSync(path.join(r,'src/a.js'),path.join(r,'docs/aae/notes/a.md'));assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'docs/aae/notes/a.md'),content:'evil'}),/Symbolische/);});
-test('symlinked scope parent is rejected',t=>{const r=fixture(t);begin(r);fs.symlinkSync(path.join(r,'src'),path.join(r,'linked'),'dir');installTask(r,task({scope:{read:[],write:['linked/a.js']}}));assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'linked/a.js'),content:'evil'}),/Symbolische/);});
-test('secrets are not direct read/write targets',t=>{const r=fixture(t);begin(r);assert.throws(()=>pre(r,'Read',{file_path:path.join(r,'.env')}),/secrets/);assert.throws(()=>installTask(r,task({scope:{read:[],write:['.env']}})),/Systeembestanden/);});
-test('A06/A07: unplanned Agent and Task calls rejected',t=>{const r=fixture(t);begin(r);installTask(r,task());for(const tool of ['Agent','Task'])assert.throws(()=>pre(r,tool,{subagent_type:'aae-security-reviewer',prompt:'Investigate'}),/taakcontract/);assert.throws(()=>agent(r,'Explore'),/niet toegestaan/);});
-test('A08: agent total survives route reassessment',t=>{const r=fixture(t);begin(r);const c=task({mode:'standard',agents:[specialist('aae-code-reviewer',2)],budget:{agent_calls:2,max_parallel:1,command_runs:0}});installTask(r,c);finish(r,agent(r));finish(r,agent(r));route(r);assert.throws(()=>agent(r),/agentbudget/);assert.equal(state(r).task.usage.agents,2);});
-test('agent reservation is idempotent for same tool id',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));const input={subagent_type:'aae-code-reviewer',prompt:'Specific scope'};pre(r,'Agent',input,{tool_use_id:'call-1'});pre(r,'Agent',input,{tool_use_id:'call-1'});assert.equal(state(r).task.usage.agents,1);assert.throws(()=>pre(r,'Agent',{...input,prompt:'Different'},{tool_use_id:'call-1'}),/hergebruikt/);});
-test('selected model is inserted instead of requested expensive override',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));const c=agent(r,'aae-code-reviewer',{model:'opus'});assert.equal(c.res.hookSpecificOutput.updatedInput.model,'sonnet');assert.match(c.res.hookSpecificOutput.updatedInput.prompt,/VERPLICHT AAE/);});
-test('bootstrap supervisor is limited and counts in total budget',t=>{const r=fixture(t);begin(r);finish(r,agent(r,'aae-supervisor'),'aae-supervisor');assert.throws(()=>agent(r,'aae-supervisor'),/al een supervisor/);installTask(r,task({mode:'standard',agents:[specialist()],budget:{agent_calls:2,max_parallel:1,command_runs:0}}));assert.equal(state(r).task.usage.agents,1);finish(r,agent(r));assert.equal(state(r).task.usage.agents,2);});
-test('route cannot be created while bootstrap is live',t=>{const r=fixture(t);begin(r);agent(r,'aae-supervisor');put(r,TASK,task({budget:{agent_calls:1,max_parallel:1,command_runs:0}}));assert.throws(()=>route(r),/loopt nog een agent/);});
-test('no additional supervisor when route budget is zero',t=>{const r=fixture(t);begin(r);installTask(r,task());assert.throws(()=>agent(r,'aae-supervisor'),/budget/);});
-test('new task id cannot reset budget in same request',t=>{const r=fixture(t);begin(r);installTask(r,task());put(r,TASK,task({id:'T-002'}));assert.throws(()=>route(r),/nieuw taak-ID/);});
-test('A09/A10: known and unknown subagents cannot write or run shell',t=>{const r=fixture(t);begin(r);installTask(r,task());for(const role of ['general-purpose','aae-code-reviewer']){assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'evil'},{agent_id:'a',agent_type:role}),/read-only/);assert.throws(()=>pre(r,'Bash',{command:'npm run test'},{agent_id:'a',agent_type:role}),/read-only/);}});
-test('agents cannot delegate to other agents',t=>{const r=fixture(t);begin(r);assert.throws(()=>pre(r,'Agent',{subagent_type:'aae-supervisor',prompt:'spawn'},{agent_id:'a',agent_type:'aae-code-reviewer'}),/geen andere agents/);});
-test('unregistered agent reads blocked; registered packet reads allowed',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));assert.throws(()=>pre(r,'Read',{file_path:path.join(r,'src/a.js')},{agent_id:'unknown',agent_type:'aae-code-reviewer'}),/geregistreerde/);const a=agent(r);handleEvent(r,ev(r,'SubagentStart',{agent_id:'a',agent_type:'aae-code-reviewer'}));assert.doesNotThrow(()=>pre(r,'Read',{file_path:path.join(r,'src/a.js')},{agent_id:'a',agent_type:'aae-code-reviewer'}));assert.throws(()=>pre(r,'Grep',{pattern:'everything'},{agent_id:'a',agent_type:'aae-code-reviewer'}),/werkpakket/);});
-test('concurrent reservations are refused at limit one',t=>{const r=fixture(t);begin(r);installTask(r,task({mode:'standard',agents:[specialist(),specialist('aae-test-writer')],budget:{agent_calls:2,max_parallel:1,command_runs:0}}));agent(r);assert.throws(()=>agent(r,'aae-test-writer'),/reserveert/);});
-test('explicit approved parallel two supports distinct readonly roles',t=>{const r=fixture(t);begin(r);const result=installTask(r,task({mode:'standard',agents:[specialist(),specialist('aae-test-writer')],budget:{agent_calls:2,max_parallel:2,command_runs:0},parallel_reason:'Twee onafhankelijke readonly vragen met gescheiden context.'}));assert.equal(result.status,'pending');prompt(r,'AAE GO');agent(r);assert.doesNotThrow(()=>agent(r,'aae-test-writer'));});
-test('background telemetry does not free a slot prematurely',t=>{const r=fixture(t);begin(r);installTask(r,task({mode:'standard',agents:[specialist('aae-code-reviewer',2)],budget:{agent_calls:2,max_parallel:1,command_runs:0}}));const a=agent(r);handleEvent(r,ev(r,'PostToolUse',{tool_name:'Agent',tool_use_id:a.toolId,tool_response:{status:'async_launched',agentId:'a'}}));assert.throws(()=>agent(r),/reserveert/);handleEvent(r,ev(r,'SubagentStop',{agent_id:'a',agent_type:'aae-code-reviewer',last_assistant_message:'STATUS: READY'}));assert.doesNotThrow(()=>agent(r));});
-test('failed launch consumes budget but frees reservation',t=>{const r=fixture(t);begin(r);installTask(r,task({mode:'standard',agents:[specialist('aae-code-reviewer',2)],budget:{agent_calls:2,max_parallel:1,command_runs:0}}));const a=agent(r);handleEvent(r,ev(r,'PostToolUseFailure',{tool_name:'Agent',tool_use_id:a.toolId}));agent(r);assert.equal(state(r).task.usage.agents,2);});
-test('source writes are refused during review',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));agent(r);assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'changed'}),/bronwijzigingen/);});
-test('resume of stale source context is rejected',t=>{const r=fixture(t);begin(r);installTask(r,task({mode:'standard',agents:[specialist('aae-code-reviewer',2)],budget:{agent_calls:2,max_parallel:1,command_runs:0}}));const id=finish(r,agent(r));put(r,'src/a.js','export const a=99;');assert.throws(()=>agent(r,'aae-code-reviewer',{resume:id}),/niet meer actueel/);});
-test('A11/A12: old GO cannot approve changed route',t=>{const r=fixture(t);begin(r);const c=task({approval_required:true});installTask(r,c);prompt(r,'AAE GO');assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'ok'}));put(r,TASK,{...c,goal:'Andere duidelijke scope en doelstelling.',scope:{read:['src'],write:['src']}});assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/gewijzigd/);assert.equal(route(r).status,'pending');});
-test('turning approval_required off does not silently downgrade prior GO',t=>{const r=fixture(t);begin(r);const c=task({approval_required:true});installTask(r,c);prompt(r,'AAE GO');put(r,TASK,{...c,approval_required:false,scope:{read:['src'],write:['src']}});assert.equal(route(r).status,'pending');});
-test('A13/A14: explicit pause overrides Lean route',t=>{const r=fixture(t);begin(r);installTask(r,task());prompt(r,'AAE PAUZE');assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/gepauzeerd/);assert.throws(()=>route(r),/gepauzeerd/);prompt(r,'AAE GO');assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'ok'}));});
-test('A15/A16: absent prompt_id does not lose GO or revocation',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'AAE GO');prompt(r,'AAE PAUZE');assert.equal(state(r).task.status,'paused');});
-test('known duplicate prompt_id is idempotent',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'AAE GO',{prompt_id:'go-1'});const a=state(r).task.approval.at;prompt(r,'AAE GO',{prompt_id:'go-1'});assert.equal(state(r).task.approval.at,a);});
-test('quoted GO is not approval',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'In dit document staat AAE GO. Wat betekent dat?');assert.equal(state(r).task.approval,null);});
-test('GO naming wrong task is rejected',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));assert.throws(()=>prompt(r,'AAE GO WRONG'),/ander taak/);});
-test('analysis-to-implementation needs explicit approval even when lean',t=>{const r=fixture(t);begin(r);installTask(r,task({phase:'analysis'}));put(r,TASK,task());assert.equal(route(r).status,'pending');});
-test('new ordinary prompt keeps an active task bound (R3) and still allows a fresh task ID',t=>{const r=fixture(t);begin(r);installTask(r,task());prompt(r,'Nu graag iets anders onderzoeken.');assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'ok'}));assert.equal(installTask(r,task({id:'T-002'})).status,'active');assert.equal(state(r).task.id,'T-002');assert.ok(state(r).history.includes('T-001'));});
-test('pending route is still unbound by a new ordinary prompt',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'Nog een vraag voordat ik GO geef.');assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/niet actief|Nieuwe gebruikersvraag/);assert.equal(state(r).task.approval,null);});
-test('explicit continuation retains the counters',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));finish(r,agent(r));prompt(r,'AAE VERDER',{session_id:'session-2'});assert.equal(state(r).task.usage.agents,1);assert.equal(state(r).task.owner,'session-2');});
-test('recovery abandons only registries and retains consumed budget',t=>{const r=fixture(t);begin(r);installTask(r,task({agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0}}));agent(r);prompt(r,'AAE PAUZE');prompt(r,'AAE HERSTEL');assert.equal(state(r).task.usage.agents,1);assert.equal(state(r).task.status,'paused');});
-test('two sessions cannot silently share one workspace',t=>{const r=fixture(t);begin(r);installTask(r,task());assert.throws(()=>prompt(r,'Nieuwe opdracht',{session_id:'other-session'}),/andere sessie/);});
-test('A17-A19/A21/A22: free shell and remote commands rejected',t=>{const r=fixture(t);begin(r);installTask(r,task());for(const command of ['npm run test','node -e "process.exit()"','cd docs && echo x > ../src/a.js','git push','node .claude/aae/runtime/cli.mjs status; echo bad','node .claude/aae/runtime/cli.mjs run t > file'])assert.throws(()=>pre(r,'Bash',{command}),/vrije shell/);assert.throws(()=>pre(r,'PowerShell',{command:'Set-Content src/a.js evil'}),/vrije shell/);});
-test('controlled runner interface accepted without bypassing host permissions',t=>{const r=fixture(t);begin(r);assert.equal(pre(r,'Bash',{command:'node .claude/aae/runtime/cli.mjs status'}),null);assert.equal(pre(r,'PowerShell',{command:'node .claude/aae/runtime/cli.mjs doctor'}),null);});
-test('A23/A24: old PROGRESS level does not change new route',t=>{const r=fixture(t);begin(r);put(r,'docs/PROGRESS.md','Kwaliteitsniveau: 1\n');installTask(r,task({approval_required:true}));assert.equal(state(r).task.status,'pending');});
-test('new unknown tools and agentteams cannot bypass routing',t=>{const r=fixture(t);begin(r);for(const n of ['TeamCreate','mcp__github__push_files','Skill'])assert.throws(()=>pre(r,n,{}),/niet door AAE/);});
-test('bypassPermissions mode is rejected',t=>{const r=fixture(t);begin(r);assert.throws(()=>pre(r,'Read',{file_path:path.join(r,'src/a.js')},{permission_mode:'bypassPermissions'}),/bypassPermissions/);});
-test('hook entrypoint resolves project root and catches invalid JSON',t=>{const r=fixture(t);const script=path.join(r,'.claude/aae/runtime/hook.mjs');let out=spawnSync(process.execPath,[script],{input:JSON.stringify(ev(r,'SessionStart')),encoding:'utf8'});assert.equal(out.status,0,out.stderr);assert.match(out.stdout,/AAE v3\.2-local geladen/);out=spawnSync(process.execPath,[script],{input:'{bad',encoding:'utf8'});assert.equal(out.status,2);});
-test('corrupt state fails closed rather than silently resetting',t=>{const r=fixture(t);begin(r);put(r,'.claude/aae/state/local.json','{bad');const out=spawnSync(process.execPath,[path.join(r,'.claude/aae/runtime/hook.mjs')],{input:JSON.stringify(ev(r,'PreToolUse',{tool_name:'Write',tool_input:{file_path:path.join(r,'src/a.js'),content:'bad'}})),encoding:'utf8'});assert.equal(out.status,2);});
-test('source fingerprint changes when relevant untracked files change',t=>{const r=fixture(t);const c=task();const a=sourceDigest(r,c);put(r,'src/new.js','new file');assert.notEqual(sourceDigest(r,c),a);});
-test('Stop hook does not force more work or a review loop',t=>{const r=fixture(t);begin(r);installTask(r,task());assert.equal(handleEvent(r,ev(r,'Stop',{stop_hook_active:true})),null);});
+const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
+const msg = (fn) => { const e = denies(fn); assert.ok(e, 'verwacht een weigering'); return e.message; };
+const contractWrite = (root, c) => { const v = validateContract(structuredClone(c)); put(root, contractFile(v.id), v); hook(root, {hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: {file_path: path.join(root, contractFile(v.id)), content: JSON.stringify(v)}, tool_response: {}}); return v; };
 
-// --- v3.2-local: één GO per werkpakket ---
-test('R3: follow-up prompt keeps the approved route and its GO',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'AAE GO');prompt(r,'Rooktest ok, ga verder.');assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'ok'}));const s=state(r);assert.equal(s.task.status,'active');assert.equal(s.task.approval.request_key,s.request.key);});
-test('R3: explicit pause is not revived by a follow-up prompt',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'AAE GO');prompt(r,'AAE PAUZE');prompt(r,'Hoe staat het ervoor?');assert.throws(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'bad'}),/gepauzeerd/);assert.equal(state(r).task.approval,null);});
-test('R3: follow-up prompt from another session does not take over',t=>{const r=fixture(t);begin(r);installTask(r,task({approval_required:true}));prompt(r,'AAE GO');assert.throws(()=>prompt(r,'Ik neem het over.',{session_id:'other-session'}),/andere sessie/);});
-test('R4: amendment inside the approved envelope keeps the GO',t=>{const r=fixture(t);begin(r);const c=task({approval_required:true,scope:{read:['src'],write:['src']}});installTask(r,c);prompt(r,'AAE GO');const res=installTask(r,{...c,goal:'Zelfde doel, andere technische uitwerking binnen dezelfde scope.',scope:{read:['src','docs'],write:['src/a.js']},acceptance:[...c.acceptance,{id:'AC2',text:'Extra controle binnen dezelfde scope.'}]});assert.equal(res.status,'active');assert.equal(res.amended,true);assert.deepEqual(res.envelope_changes,[]);assert.doesNotThrow(()=>pre(r,'Write',{file_path:path.join(r,'src/a.js'),content:'ok'}));assert.equal(state(r).task.approval.digest,state(r).task.digest);});
-test('R4: material changes leave the envelope and need a new GO',t=>{
-  const base=task({approval_required:true,mode:'standard',scope:{read:['src'],write:['src/a.js']},agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:2,external_calls:0},commands:[{id:'t1',argv:['node','x.mjs'],purpose:'test',why:'Controleer de regel.',watch:[],timeout_ms:3000,max_runs:1}]});
-  const variants=[
-    ['schrijfscope',{scope:{read:['src'],write:['src']}}],
-    ['commando',{commands:[...base.commands,{id:'p1',argv:['git','push'],purpose:'publish',why:'Publiceer de wijziging.',watch:[],timeout_ms:3000,max_runs:1}]}],
-    ['risico',{risk:'normal'}],
-    ['agent',{agents:[specialist(),specialist('aae-test-writer')],budget:{...base.budget,agent_calls:2}}],
-    ['budget',{budget:{...base.budget,agent_calls:2}}],
-    ['risicovlaggen',{risk_flags:['ui'],test_plan:[...base.test_plan,{kind:'visual',method:'manual',description:'Bekijk het scherm.'},{kind:'accessibility',method:'manual',description:'Controleer labels.'}]}],
-    ['goedkeuringsvlaggen',{design_freeze:true}],
-    ['fase',{phase:'analysis',scope:{read:['src'],write:[]},commands:[],test_plan:[{kind:'analysis',method:'inspection',description:'Onderbouw het antwoord met de relevante bron.'}]}]
-  ];
-  for(const [reason,patch] of variants){const r=fixture(t);begin(r);assert.equal(installTask(r,base).status,'pending');prompt(r,'AAE GO');const res=installTask(r,{...base,...patch});assert.equal(res.status,'pending',reason);assert.ok(res.envelope_changes.some(x=>x.startsWith(reason)),reason+': '+res.envelope_changes.join(','));assert.equal(state(r).task.approval,null,reason);}
+test('G01 zonder werkpakket in uitvoering worden geen applicatiebestanden gewijzigd', met(root => {
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
+  plan(root);
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/, 'ook niet terwijl het plan op GO wacht');
+}));
+test('G02 runtime, projectinstructies, instellingen en administratie zijn beschermd, ook binnen een goedgekeurd werkpakket', met(root => {
+  executing(root);
+  for (const p of ['.claude/settings.json', 'CLAUDE.md', '.claude/aae/runtime/core.mjs', '.env', 'docs/aae/work/W-T/state.json', '.git/config']) assert.match(msg(() => write(root, p)), /beschermd/, p);
+}));
+test('G03 een niet ingevuld contractsjabloon kan niet worden geregistreerd', () => {
+  const t = JSON.parse(fs.readFileSync(new URL('../templates/contract.template.json', import.meta.url), 'utf8'));
+  assert.throws(() => validateContract(t));
 });
-test('R4/R7: new local test command stays inside the envelope, a removed decision point does not',t=>{const r=fixture(t);begin(r);const base=task({approval_required:true,decision_points:['Vraag Jurgen voor het verwijderen van gegevens.']});installTask(r,base);prompt(r,'AAE GO');const withTest={...base,budget:{...base.budget,command_runs:3},commands:[{id:'unit',argv:['node','--test','src'],purpose:'test',why:'Gerichte test binnen de scope.',watch:[],timeout_ms:3000,max_runs:3}]};const a=installTask(r,withTest);assert.equal(a.status,'active');assert.equal(a.amended,true);const b=installTask(r,{...withTest,decision_points:[]});assert.equal(b.status,'pending');assert.ok(b.envelope_changes.includes('beslisgrenzen'));});
-test('R5/R7/R12: schema limits for runs, gates and decision points',()=>{
-  const c=x=>task({budget:{agent_calls:0,max_parallel:1,command_runs:80},commands:[{id:'c',argv:['node','x.mjs'],purpose:'test',why:'Controleer de regel.',watch:[],timeout_ms:3000,max_runs:1,...x}]});
-  assert.doesNotThrow(()=>validateTask(c({max_runs:20})));
-  assert.throws(()=>validateTask(c({max_runs:21})),/Aantal uitvoeringen/);
-  assert.doesNotThrow(()=>validateTask(c({purpose:'publish',max_runs:10})));
-  assert.throws(()=>validateTask(c({purpose:'publish',max_runs:11})),/Aantal uitvoeringen/);
-  assert.throws(()=>validateTask(c({purpose:'install',max_runs:2})),/Aantal uitvoeringen|Installeren/);
-  assert.throws(()=>validateTask(c({purpose:'destructive',max_runs:2})),/Aantal uitvoeringen|destructief/);
-  assert.doesNotThrow(()=>validateTask(c({purpose:'publish',gate:'ready'})));
-  assert.throws(()=>validateTask(c({gate:'soms'})),/gate/);
-  assert.doesNotThrow(()=>validateTask(task({decision_points:['Vraag Jurgen voor een merge naar main.']})));
-  assert.throws(()=>validateTask(task({decision_points:Array.from({length:9},(_,i)=>'Beslisgrens nummer '+i)})),/Beslisgrenzen/);
-  assert.throws(()=>validateTask(task({budget:{agent_calls:0,max_parallel:1,command_runs:81}})),/Commandobudget/);
+test('G04 een vormloos of tweeregelig contract kan niet worden geregistreerd', () => {
+  assert.throws(() => validateContract({id: 'W-X', goal: 'doe iets'}));
+  assert.throws(() => validateContract({schema_version: 4, id: 'W-X', title: 'T', goal: 'Doel dat lang genoeg is.'}));
+  assert.throws(() => validateContract('tekst'));
 });
-test('B1: a command cannot change its purpose or sneak publishing argv in as a local test',t=>{
-  const base=task({approval_required:true,mode:'standard',budget:{agent_calls:0,max_parallel:1,command_runs:4},commands:[{id:'push',argv:['git','push','origin','claude/x'],purpose:'publish',why:'Push naar de werkbranch.',watch:[],timeout_ms:3000,max_runs:1}]});
-  const variants=[
-    ['commando-doel',{commands:[{...base.commands[0],purpose:'test'}]}],
-    ['commando',{commands:[...base.commands,{id:'sneaky',argv:['git','push','origin','claude/x:main'],purpose:'test',why:'Zogenaamd een test.',watch:[],timeout_ms:3000,max_runs:1}]}],
-    ['commando',{commands:[...base.commands,{id:'fixer',argv:['npx','eslint','--fix','src'],purpose:'test',why:'Lint met automatische fix.',watch:[],timeout_ms:3000,max_runs:1}]}],
-    ['commando',{commands:[...base.commands,{id:'script',argv:['node','scripts/onbekend.mjs'],purpose:'test',why:'Onbekend eigen script.',watch:[],timeout_ms:3000,max_runs:1}]}]
-  ];
-  for(const [reason,patch] of variants){const r=fixture(t);begin(r);installTask(r,base);prompt(r,'AAE GO');const res=installTask(r,{...base,...patch});assert.equal(res.status,'pending',reason);assert.ok(res.envelope_changes.some(x=>x.startsWith(reason)),reason+': '+res.envelope_changes.join(','));}
-  const r=fixture(t);begin(r);installTask(r,base);prompt(r,'AAE GO');assert.equal(installTask(r,{...base,commands:[...base.commands,{id:'vt',argv:['npx','vitest','run','src'],purpose:'test',why:'Gerichte test.',watch:[],timeout_ms:3000,max_runs:3}]}).status,'active');
+test('G05 analyse is geen bouwtoestemming; van analyse naar implementatie is een wezenlijke wijziging met een nieuwe GO', met(root => {
+  const analyse = {envelope: {phase: 'analysis', areas: []}, plan: {...contract().plan, agents: [], commands: [], test_plan: [{kind: 'analysis', method: 'inspection', description: 'Beschrijf de bevindingen en wat niet is gecontroleerd.'}]}};
+  executing(root, analyse);
+  assert.match(msg(() => write(root, 'src/a.js')), /Analyse-only/);
+  contractWrite(root, contract());
+  assert.equal(st(root).status, 'NEEDS_HUMAN');
+  assert.ok(st(root).needs_human.reasons.includes('fase'));
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
+}));
+test('G08 het contract wordt alleen als volledig, gevalideerd JSON-bestand met Write vervangen', met(root => {
+  executing(root);
+  const f = path.join(root, contractFile('W-T')), c = validateContract(structuredClone(contract()));
+  assert.equal(pre(root, 'Write', {file_path: f, content: JSON.stringify(c)}), null);
+  assert.match(msg(() => pre(root, 'Edit', {file_path: f, old_string: 'a', new_string: 'b'})), /volledig JSON-bestand met Write/);
+  assert.ok(denies(() => pre(root, 'Write', {file_path: f, content: '{kapot'})));
+  assert.ok(denies(() => pre(root, 'Write', {file_path: f, content: JSON.stringify({...c, id: 'W-ANDERS'})})));
+  assert.ok(denies(() => pre(root, 'Write', {file_path: f, content: JSON.stringify({...c, schema_version: 3})})));
+}));
+test('G10 een symbolische link in een administratiepad kan niet naar code verwijzen', met(root => {
+  executing(root);
+  fs.mkdirSync(path.join(root, 'docs/aae/notes'), {recursive: true}); fs.rmSync(path.join(root, 'docs/aae/notes'), {recursive: true});
+  fs.symlinkSync(path.join(root, 'src'), path.join(root, 'docs/aae/notes'));
+  assert.match(msg(() => write(root, 'docs/aae/notes/x.md')), /Symbolische link/);
+}));
+test('G11 een symbolische link als bovenliggende map van het gebied wordt geweigerd', met(root => {
+  executing(root);
+  fs.rmSync(path.join(root, 'src'), {recursive: true}); fs.mkdirSync(path.join(root, 'elders'));
+  fs.symlinkSync(path.join(root, 'elders'), path.join(root, 'src'));
+  assert.match(msg(() => write(root, 'src/a.js')), /Symbolische link/);
+}));
+test('G12 secrets en testauthenticatie zijn geen directe lees- of schrijfdoelen (ook niet voor modeltools)', met(root => {
+  executing(root);
+  for (const p of ['.env', '.env.local', '.claude/aae/private/auth.json']) assert.ok(denies(() => pre(root, 'Read', {file_path: path.join(root, p)})), 'lezen ' + p);
+  assert.ok(denies(() => write(root, '.env')));
+  fs.writeFileSync(path.join(root, '.env.example'), 'NAAM=\n');
+  assert.equal(pre(root, 'Read', {file_path: path.join(root, '.env.example')}), null);
+}));
+test('G13 niet-geplande agents en niet-AAE-agenttypen worden geweigerd', met(root => {
+  executing(root);
+  for (const t of ['Explore', 'general-purpose', 'Plan', 'aae-security-reviewer']) assert.match(msg(() => agentCall(root, {id: 'x-' + t, role: t})), /Agent niet toegestaan/, t);
+  assert.match(msg(() => agentCall(root, {id: 'x-arch', role: 'aae-architect'})), /staat niet in het plan/);
+  assert.match(msg(() => agentCall(root, {id: 'x-sec', prompt: 'WAAROM-AGENT: onafhankelijke beveiligingscontrole die ik niet zelf doe\nFOCUS: security\nBeoordeel src.'})), /staat niet in het plan/);
+  assert.equal(st(root).usage.agents, 0);
+}));
+test('G14 het agentverbruik overleeft herregistratie van het contract', met((root, cfg) => {
+  executing(root);
+  runAgent(root, {configDir: cfg});
+  const c = contract(); c.plan = {...c.plan, agents: [...c.plan.agents, {name: 'aae-architect', question: 'Ontwerp een kleinere variant van de oplossing.', files: ['src']}]};
+  contractWrite(root, c);
+  assert.equal(st(root).usage.agents, 1);
+  assert.equal(st(root).status, 'EXECUTING');
+}));
+test('G15 een agentreservering is idempotent voor dezelfde tool-ID en weigert hergebruik met andere invoer', met(root => {
+  executing(root);
+  const a = agentCall(root, {id: 'tu-1'}), b = agentCall(root, {id: 'tu-1'});
+  assert.deepEqual(a, b);
+  assert.equal(st(root).usage.agents, 1);
+  assert.match(msg(() => agentCall(root, {id: 'tu-1', vraag: 'Een volledig andere vraag.'})), /Tool-ID hergebruikt/);
+}));
+test('G16 het door het plan gekozen model wordt ingezet, niet een duurder gevraagd model', met(root => {
+  executing(root);
+  const r = pre(root, 'Agent', {subagent_type: 'aae-reviewer', description: 'x', prompt: WHY + 'Beoordeel src.', model: 'opus', run_in_background: false}, {tool_use_id: 'tu-m'});
+  assert.equal(r.hookSpecificOutput.updatedInput.model, 'sonnet');
+  assert.equal(r.hookSpecificOutput.updatedInput.run_in_background, false);
+}));
+test('G18 het contract wordt niet gewijzigd terwijl een agent loopt', met(root => {
+  executing(root);
+  agentCall(root, {id: 'tu-1'});
+  const c = validateContract(structuredClone(contract()));
+  assert.match(msg(() => pre(root, 'Write', {file_path: path.join(root, contractFile('W-T')), content: JSON.stringify(c)})), /tijdens lopend werk/);
+}));
+test('G19 met een agentbudget van nul start er geen agent', met(root => {
+  executing(root, {envelope: {budgets: {agent_calls: {soft: 0, hard: 0}, command_runs: 20, external_calls: 0, max_parallel: 1}}});
+  assert.match(msg(() => agentCall(root)), /Hard agentplafond \(0\)/);
+}));
+test('G20 een tweede werkpakket start niet zolang een ander actief is; één bouwer per werkmap', met(root => {
+  executing(root);
+  plan(root, {id: 'W-U'});
+  assert.equal(st(root, 'W-U').status, 'WAITING_FOR_APPROVAL');
+  const p = presentProposal(root, 'W-U');
+  assert.match(msg(() => prompt(root, p.exacte_go)), /nog actief/);
+  assert.equal(st(root, 'W-U').status, 'WAITING_FOR_APPROVAL');
+  assert.equal(st(root).status, 'EXECUTING');
+}));
+test('G21 specialisten kunnen niet schrijven of een shell draaien; G22 en niet delegeren', met(root => {
+  executing(root);
+  agentCall(root, {id: 'tu-1'}); hook(root, {hook_event_name: 'SubagentStart', agent_type: 'aae-reviewer', agent_id: 'sub00001'});
+  const sub = {agent_id: 'sub00001', agent_type: 'aae-reviewer'};
+  assert.match(msg(() => pre(root, 'Write', {file_path: path.join(root, 'src/a.js'), content: 'x'}, sub)), /read-only/);
+  assert.match(msg(() => pre(root, 'Bash', {command: 'git status'}, sub)), /read-only/);
+  assert.match(msg(() => pre(root, 'Skill', {skill: 'x'}, sub)), /read-only/);
+  assert.match(msg(() => pre(root, 'Agent', {subagent_type: 'aae-reviewer', prompt: WHY + 'x', run_in_background: false}, sub)), /geen andere agents/);
+}));
+test('G23 een niet-geregistreerde agent mag niets lezen; een geregistreerde alleen het afgesproken pakket', met(root => {
+  executing(root);
+  assert.match(msg(() => pre(root, 'Read', {file_path: path.join(root, 'src/a.js')}, {agent_id: 'wild0001', agent_type: 'aae-reviewer'})), /Geen geldige geregistreerde agentaanroep/);
+  agentCall(root, {id: 'tu-1'}); hook(root, {hook_event_name: 'SubagentStart', agent_type: 'aae-reviewer', agent_id: 'sub00001'});
+  const sub = {agent_id: 'sub00001', agent_type: 'aae-reviewer'};
+  assert.equal(pre(root, 'Read', {file_path: path.join(root, 'src/a.js')}, sub), null);
+  assert.match(msg(() => pre(root, 'Read', {file_path: path.join(root, 'app/x.ts')}, sub)), /alleen het afgesproken werkpakket/);
+}));
+test('G25 met max_parallel 2 draaien twee verschillende alleen-lezen agents tegelijk', met(root => {
+  executing(root, {envelope: {budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 0, max_parallel: 2}}});
+  agentCall(root, {id: 'tu-1', vraag: 'Beoordeel src/a.js.'});
+  assert.ok(agentCall(root, {id: 'tu-2', vraag: 'Beoordeel src/b.js.'}));
+  assert.equal(st(root).usage.agents, 2);
+}));
+test('G26 achtergrondtelemetrie geeft een slot niet vroegtijdig vrij', met(root => {
+  executing(root);
+  agentCall(root, {id: 'tu-1'});
+  hook(root, {hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_use_id: 'tu-1', tool_input: {}, tool_response: {status: 'async_launched', agentId: 'bg000001'}});
+  assert.equal(st(root).agents['tu-1'].status, 'running');
+  assert.equal(liveRows(st(root)).length, 1);
+}));
+test('G27 een mislukte start verbruikt budget maar houdt geen slot vast', met(root => {
+  executing(root);
+  agentCall(root, {id: 'tu-1'});
+  hook(root, {hook_event_name: 'PostToolUseFailure', tool_name: 'Agent', tool_use_id: 'tu-1', tool_input: {}, error: 'mislukt'});
+  assert.equal(st(root).agents['tu-1'].status, 'failed');
+  assert.equal(st(root).usage.agents, 1);
+  assert.equal(liveRows(st(root)).length, 0);
+}));
+test('G29 hervatten van een oude agentcontext wordt geweigerd', met(root => {
+  executing(root);
+  assert.match(msg(() => pre(root, 'Agent', {subagent_type: 'aae-reviewer', prompt: WHY + 'x', run_in_background: false, resume: 'abc'}, {tool_use_id: 'tu-r'})), /Hervatten wordt niet ondersteund/);
+}));
+test('G32 ook een LIGHT-pakket start niet zonder GO; een expliciete pauze wint daarna van de goedkeuring', met(root => {
+  const s = plan(root, {risk_class: 'LIGHT'});
+  assert.equal(s.status, 'WAITING_FOR_APPROVAL', 'LIGHT keurt zichzelf niet meer goed');
+  assert.equal(s.approved, null);
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
+  go(root);
+  assert.equal(st(root).status, 'EXECUTING');
+  prompt(root, 'AAE PAUZE');
+  assert.equal(st(root).status, 'PAUSED');
+  assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
+  prompt(root, 'Ga gewoon door alsjeblieft');
+  assert.equal(st(root).status, 'PAUSED');
+}));
+test('G34 een dubbele GO is idempotent: dezelfde goedkeuring, geen tweede start', met(root => {
+  executing(root);
+  const at = st(root).approved.at, h = st(root).approved.envelope_hash;
+  assert.match(JSON.stringify(prompt(root, 'AAE GO W-T ' + h.slice(0, 12))), /al geldig/);
+  assert.equal(st(root).approved.at, at); assert.equal(st(root).approved.envelope_hash, h);
+}));
+test('G36 een GO voor een ander werkpakket wordt geweigerd', met(root => {
+  plan(root);
+  assert.match(msg(() => prompt(root, 'AAE GO W-ANDERS abcdef123456')), /niet in een toestand voor GO/);
+  assert.equal(st(root).status, 'WAITING_FOR_APPROVAL');
+}));
+test('G40 na pauze en hervatten blijven de tellers behouden', met((root, cfg) => {
+  executing(root);
+  runAgent(root, {configDir: cfg});
+  prompt(root, 'AAE PAUZE'); prompt(root, 'AAE VERDER');
+  assert.equal(st(root).status, 'EXECUTING');
+  assert.equal(st(root).usage.agents, 1);
+}));
+test('G41 afstemming (presumed_dead) ruimt alleen registraties op en behoudt het verbruikte budget', met((root, cfg) => {
+  executing(root);
+  agentCall(root, {id: 'tu-a'}); hook(root, {hook_event_name: 'SubagentStart', agent_type: 'aae-reviewer', agent_id: 'dood00001'});
+  writeTranscript(cfg, 'dood00001', REPORT());
+  const t0 = Date.now(), s = st(root);
+  reconcile(root, s, {nowMs: t0 + 20 * 60000}); reconcile(root, s, {nowMs: t0 + 22 * 60000});
+  s.agents['tu-a'].host_observed = {state: 'absent', at: t0}; reconcile(root, s, {nowMs: t0 + 24 * 60000}); saveWork(root, s);
+  assert.equal(st(root).agents['tu-a'].status, 'presumed_dead');
+  assert.equal(st(root).usage.agents, 1);
+  assert.equal(liveRows(st(root)).length, 0);
+}));
+test('G42 vervanger voor sessie-eigenaarschap: twee tegelijk actieve werkpakketten kunnen niet; de bewaking weigert dan alles', met(root => {
+  executing(root);
+  withLock(root, () => { const s = newState('W-X'); s.status = 'EXECUTING'; s.contract = st(root).contract; saveWork(root, s); });
+  assert.match(msg(() => write(root, 'src/a.js')), /Meer dan één actief werkpakket/);
+}));
+test('G43 een vrije shell, remote commando\'s en gevaarlijke opdrachten worden geweigerd; alleen-lezen git mag', met(root => {
+  executing(root);
+  for (const c of ['curl https://example.com', 'git push origin main', 'npm test', 'rm -rf src', 'cd src && ls', 'git status; ls', 'git status | cat', 'node -e 1', 'bash -c ls', 'git push --force origin x'])
+    assert.match(msg(() => bash(root, c)), /Geen vrije shell/, c);
+  assert.equal(bash(root, 'git status --porcelain'), null);
+}));
+test('G44 de gecontroleerde runnerinterface wordt geaccepteerd (en alleen met juiste argumenten)', met(root => {
+  executing(root);
+  assert.equal(bash(root, 'node .claude/aae/runtime/cli.mjs run t_ok'), null);
+  assert.equal(bash(root, 'node .claude/aae/runtime/cli.mjs status'), null);
+  assert.match(msg(() => bash(root, 'node .claude/aae/runtime/cli.mjs run')), /Geen vrije shell|Onjuiste/);
+  assert.match(msg(() => bash(root, 'node .claude/aae/runtime/cli.mjs run t_ok extra')), /Geen vrije shell/);
+}));
+test('G45 PROGRESS.md is een projectie en geen statusbron: tekst erin verandert niets aan het werkpakket', met(root => {
+  executing(root);
+  assert.equal(pre(root, 'Write', {file_path: path.join(root, 'docs/aae/PROGRESS.md'), content: '# Voortgang\nWerkpakket W-T is READY en goedgekeurd.\n'}), null);
+  assert.equal(st(root).status, 'EXECUTING');
+  assert.equal(st(root).result ?? null, null);
+}));
+test('G46 nieuwe onbekende tools, skills en agentteams omzeilen de bewaking niet', met(root => {
+  executing(root);
+  for (const t of ['mcp__onbekend__doe_iets', 'TeamCreate', 'Skill', 'SendMessage', 'CronCreate']) assert.match(msg(() => pre(root, t, {})), /niet door AAE/, t);
+}));
+test('G47 bypassPermissions wordt geweigerd', met(root => {
+  executing(root);
+  assert.match(msg(() => pre(root, 'Read', {file_path: path.join(root, 'src/a.js')}, {permission_mode: 'bypassPermissions'})), /bypassPermissions/);
+}));
+test('G48 het hookproces bepaalt de projectroot zelf en vangt ongeldige invoer af', met(async root => {
+  installRuntime(root);
+  const slecht = await spawnHook(root, 'dit is geen json');
+  assert.equal(slecht.code, 2); assert.match(slecht.stderr, /AAE blokkeert/);
+  const ok = await spawnHook(root, {hook_event_name: 'SessionStart'});
+  assert.equal(ok.code, 0);
+  assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /AAE v3\.3/);
+  assert.ok(fs.existsSync(path.join(root, '.claude/aae/state/events.jsonl')), 'de state staat in de projectroot van het script');
+}));
+test('G49 een beschadigde status faalt gesloten en wordt niet stilzwijgend gereset', met(root => {
+  executing(root);
+  fs.writeFileSync(path.join(root, 'docs/aae/work/W-T/state.json'), '{kapot');
+  assert.ok(denies(() => write(root, 'src/a.js')));
+  assert.ok(denies(() => prompt(root, 'AAE STATUS')));
+  assert.equal(fs.readFileSync(path.join(root, 'docs/aae/work/W-T/state.json'), 'utf8'), '{kapot');
+}));
+test('G50 de bronvingerafdruk verandert bij relevante nieuwe bestanden en niet bij irrelevante', met(root => {
+  const c = validateContract(structuredClone(contract()));
+  const a = sourceDigest(root, c);
+  fs.mkdirSync(path.join(root, 'app')); fs.writeFileSync(path.join(root, 'app/x.ts'), 'x');
+  assert.equal(sourceDigest(root, c), a, 'buiten gebied/leesscope: gelijk');
+  fs.writeFileSync(path.join(root, 'src/nieuw.js'), 'x');
+  assert.notEqual(sourceDigest(root, c), a, 'nieuw ongevolgd bestand in het gebied: anders');
+}));
+test('G53 een expliciete pauze wordt niet opgeheven door een vervolgbericht', met(root => {
+  executing(root); prompt(root, 'AAE PAUZE'); prompt(root, 'Vervolg: ik heb nog een vraag over iets anders.');
+  assert.equal(st(root).status, 'PAUSED');
+}));
+test('G55 een wijziging van het plan binnen de goedgekeurde envelop behoudt de GO', met(root => {
+  executing(root);
+  const voor = st(root).approved.envelope_hash;
+  const c = contract(); c.plan = {...c.plan, agents: [...c.plan.agents, {name: 'aae-architect', question: 'Ontwerp een kleinere variant van de oplossing.', files: ['src']}],
+    commands: [...c.plan.commands, {id: 't_rood', argv: ['node', '--test', 'src/rood.test.mjs'], purpose: 'test', why: 'Controleert dat een falende test echt faalt.', watch: [], timeout_ms: 60000, max_runs: 2}]};
+  contractWrite(root, c);
+  assert.equal(st(root).status, 'EXECUTING');
+  assert.equal(st(root).approved.envelope_hash, voor);
+  assert.ok(st(root).contract.plan.agents.some(a => a.name === 'aae-architect'));
+  assert.ok(st(root).contract.plan.commands.some(m => m.id === 't_rood'));
+}));
+test('G57 een nieuw lokaal testcommando blijft binnen de envelop; een vervallen beslisgrens niet', met(root => {
+  executing(root, {envelope: {decision_points: ['Bij een wijziging van de zichtbare tekst eerst vragen.']}});
+  const c = contract({envelope: {decision_points: ['Bij een wijziging van de zichtbare tekst eerst vragen.']}});
+  c.plan = {...c.plan, commands: [...c.plan.commands, {id: 't_nieuw', argv: ['node', '--test', 'src/rood.test.mjs'], purpose: 'test', why: 'Extra lokale controle.', watch: [], timeout_ms: 60000, max_runs: 2}]};
+  contractWrite(root, c);
+  assert.equal(st(root).status, 'EXECUTING');
+  contractWrite(root, contract({envelope: {decision_points: []}}));
+  assert.equal(st(root).status, 'NEEDS_HUMAN');
+  assert.ok(st(root).needs_human.reasons.includes('beslisgrenzen'));
+}));
+test('G58 schemalimieten: runs per gevoelig commando, beslisgrenzen en budgetten', () => {
+  const basis = () => contract({envelope: {extra_commands: [{argv: ['npm', 'ci'], purpose: 'install'}]}});
+  const ok = basis(); ok.plan.commands.push({id: 'inst', argv: ['npm', 'ci'], purpose: 'install', why: 'Installeert afhankelijkheden.', watch: [], timeout_ms: 60000, max_runs: 1});
+  assert.doesNotThrow(() => validateContract(structuredClone(ok)));
+  const twee = structuredClone(ok); twee.plan.commands.at(-1).max_runs = 2;
+  assert.throws(() => validateContract(twee), /Aantal uitvoeringen/);
+  assert.throws(() => validateContract(structuredClone(contract({envelope: {decision_points: Array.from({length: 9}, (_, i) => 'Beslisgrens nummer ' + i)}}))), /Beslisgrenzen/);
+  assert.throws(() => validateContract(structuredClone(contract({envelope: {budgets: {agent_calls: {soft: 1, hard: 2}, command_runs: 201, external_calls: 0, max_parallel: 1}}}))), /Commandobudget/);
+  const veel = contract(); veel.plan.commands = Array.from({length: 31}, (_, i) => ({id: 'c' + i, argv: ['node', '--test', 'src/ok.test.mjs'], purpose: 'test', why: 'Test nummer ' + i, watch: [], timeout_ms: 5000, max_runs: 1}));
+  assert.throws(() => validateContract(veel), /Commando's/);
 });
-test('B2: evidence and READY requirements cannot be weakened inside the envelope',t=>{
-  const base=task({approval_required:true,mode:'standard',risk_flags:['external_effects'],agents:[specialist()],budget:{agent_calls:1,max_parallel:1,command_runs:0},acceptance:[{id:'AC1',text:'De hoofdregel werkt.'},{id:'AC2',text:'Foutafhandeling is getest.'}],test_plan:[{kind:'scope',method:'inspection',description:'Scope gecontroleerd.'},{kind:'functional',method:'command',description:'Gerichte test.'},{kind:'regression',method:'command',description:'Snelle suite.'},{kind:'failure-handling',method:'inspection',description:'Fout zonder retrylus.'},{kind:'accessibility',method:'manual',description:'Extra handmatige controle van labels.'}]});
-  const variants=[
-    ['acceptatiecriteria',{acceptance:[base.acceptance[0]]}],
-    ['acceptatiecriteria',{acceptance:[base.acceptance[0],{id:'AC2',text:'Iets lichters.'}]}],
-    ['risicovlaggen',{risk_flags:[]}],
-    ['bewijsplan',{test_plan:base.test_plan.map(x=>x.kind==='functional'?{...x,method:'inspection'}:x)}],
-    ['bewijsplan',{test_plan:base.test_plan.filter(x=>x.kind!=='accessibility')}],
-    ['modus',{mode:'lean',agents:[specialist()]}],
-    ['agent verwijderd',{agents:[],budget:{...base.budget,agent_calls:0}}],
-    ['agent',{agents:[{...specialist(),question:'Een lichtere vraag zonder regressiecontrole?'}]}],
-    ['agent',{agents:[{...specialist(),files:[]}]}],
-    ['bewijsplan',{test_plan:base.test_plan.map(x=>x.kind==='regression'?{...x,description:'Alleen even kijken.'}:x)}],
-    ['goedkeuringsvlaggen',{approval_required:false}]
-  ];
-  for(const [reason,patch] of variants){const r=fixture(t);begin(r);installTask(r,base);prompt(r,'AAE GO');let res;try{res=installTask(r,{...base,...patch});}catch(e){assert.fail(reason+': contract ongeldig: '+e.message);}assert.equal(res.status,'pending',reason);assert.ok(res.envelope_changes.some(x=>x.startsWith(reason)),reason+': '+res.envelope_changes.join(','));}
+test('G59 B1: een commando kan zijn doel niet veranderen of publicatie als lokale test binnensmokkelen', () => {
+  const c = validateContract(structuredClone(contract({envelope: {git: {commit: true, push: ['claude/w'], merge: null, deploy: 'none'}}})));
+  assert.equal(classifyCommand(c, {argv: ['git', 'push', '-u', 'origin', 'claude/w'], purpose: 'test'}).ok, false);
+  assert.equal(classifyCommand(c, {argv: ['npm', 'publish'], purpose: 'build'}).ok, false);
+  assert.equal(classifyCommand(c, {argv: ['node', '--test', 'src/ok.test.mjs'], purpose: 'push'}).ok, false);
+  assert.equal(classifyCommand(c, {argv: ['node', '--test', 'src/ok.test.mjs'], purpose: 'deploy'}).ok, false);
+  assert.equal(classifyCommand(c, {argv: ['git', 'push', '-u', 'origin', 'claude/w'], purpose: 'push'}).ok, true);
 });
-test('B5: a READY gate on a command cannot silently disappear inside the envelope',t=>{const r=fixture(t);begin(r);const base=task({approval_required:true,budget:{agent_calls:0,max_parallel:1,command_runs:2},commands:[{id:'unit',argv:['node','--test','src'],purpose:'test',why:'Gerichte test met gate.',watch:[],timeout_ms:3000,max_runs:2,gate:'ready'}]});installTask(r,base);prompt(r,'AAE GO');const res=installTask(r,{...base,commands:[{...base.commands[0],gate:'none'}]});assert.equal(res.status,'pending');assert.ok(res.envelope_changes.includes('commando-gate unit'),res.envelope_changes.join(','));const r2=fixture(t);begin(r2);installTask(r2,base);prompt(r2,'AAE GO');const {gate,...withoutGate}=base.commands[0];assert.equal(installTask(r2,{...base,commands:[withoutGate]}).status,'pending');});
-test('B1/B3: safe local argv is an allowlist of programs, flags and plain relative operands',async()=>{const {safeLocalArgv}=await import('../runtime/core.mjs');
-  for(const ok of [['node','--test','tests/a.test.mjs'],['node','--test','tests'],['node','--test','.claude/aae/tests/guard.test.mjs'],['npx','vitest','run'],['npx','vitest','run','src/x.test.ts'],['npx','tsc','--noEmit'],['npx','eslint','--max-warnings=0','src'],['git','status','--porcelain'],['git','log','--oneline','-n5'],['git','diff','--stat','origin/main...HEAD'],['git','merge-base','--is-ancestor','origin/main','HEAD']])assert.equal(safeLocalArgv(ok),true,ok.join(' '));
-  for(const bad of [['git','diff','--output=x'],['npx','vitest','-u'],['npx','vitest','run','--outputFile=x'],['npx','vitest'],['npm','run','test'],['git','push'],['git','push','origin','x:main'],['node','--test','--import','./evil.mjs'],['node','--test','../buiten.test.mjs'],['node','--test','/abs/x.test.mjs'],['npx','eslint','--fix','src'],['npx','tsc','--noEmit','--outDir','x'],['git','log','-n99999'],['node','scripts/x.mjs'],['node','--test','scripts/x.mjs'],['node','--test','scripts/evil'],['node','--test','src/payload.mjs'],'git status'])assert.equal(safeLocalArgv(bad),false,String(bad));
+test('G63 alle meegeleverde voorbeeldcontracten zijn geldig', () => {
+  const dir = new URL('../examples/', import.meta.url);
+  const lijst = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+  assert.ok(lijst.length >= 2, 'minstens twee voorbeelden');
+  for (const f of lijst) assert.doesNotThrow(() => validateContract(JSON.parse(fs.readFileSync(new URL(f, dir), 'utf8'))), f);
 });
-test('all shipped example contracts validate',async()=>{const {payload}=await import('./helpers.mjs');const dir=path.join(payload,'.claude/aae/examples');const files=fs.readdirSync(dir).filter(f=>f.endsWith('.json'));assert.ok(files.includes('06-werkpakket-met-merge.json'));for(const f of files)assert.doesNotThrow(()=>validateTask(JSON.parse(fs.readFileSync(path.join(dir,f),'utf8'))),f);});
