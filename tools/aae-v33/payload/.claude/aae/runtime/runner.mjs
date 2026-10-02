@@ -2,25 +2,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {
-  STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, addAllowed, VERSION
+  STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, addAllowed, checkLevel, VERSION
 } from './core.mjs';
-import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition, needsHuman, resultFile, listWork, TERMINAL} from './state.mjs';
+import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition, needsHuman, resultFile, listWork, TERMINAL, tellers} from './state.mjs';
 import {liveRows} from './reports.mjs';
 import {assertReady, assertGate} from './gates.mjs';
 import {extraKey} from './commands.mjs';
-import {gitHead, candidateFiles, stagedFiles, secretHits, unpushedFiles, trackedFingerprint} from './gitops.mjs';
+import {gitHead, candidateFiles, stagedFiles, secretHits, unpushedFiles, trackedFingerprint, remoteRefCommit} from './gitops.mjs';
 
 const hasLive = st => liveRows(st).some(r => ['reserved', 'running'].includes(r.status));
 const NON_LOCAL = ['install', 'destructive', 'merge', 'deploy'];
 
 /** Voert een in het plan vastgelegd argv uit zonder shell. De bewaking controleert de klasse tegen de envelop; projectprogramma's blijven krachtige code, geen sandbox. */
-export async function runCommand(root, cmdId) {
+export async function runCommand(root, cmdId, adhoc = null) {
   const launch = withLock(root, () => {
     const st = activeWork(root);
     requireThat(st, 'Geen actief werkpakket.');
     requireThat(st.status === 'EXECUTING', 'Werkpakket is niet in uitvoering (' + st.status + '). Een commando draait alleen binnen een goedgekeurd werkpakket.');
     guardApproval(root, st);
-    const c = st.contract, m = c.plan.commands.find(x => x.id === cmdId);
+    const c = st.contract, m = adhoc || c.plan.commands.find(x => x.id === cmdId);
     requireThat(m, 'Commando niet in het plan: ' + cmdId);
     const k = classifyCommand(c, m);
     requireThat(k.ok, 'Commando valt buiten de envelop: ' + k.reason);
@@ -111,7 +111,63 @@ export function reportTemplate(root) {
     const c = st.contract;
     return {schema_version: 4, id: c.id, envelope_hash: envelopeHash(c), source_digest: sourceDigest(root, c), git_head: gitHead(root), status: 'PARTIAL', summary: 'Vul in wat aantoonbaar is uitgevoerd; geen verondersteld bewijs.',
       criteria: c.envelope.acceptance.map(a => ({id: a.id, status: 'not_run', evidence: [], note: ''})),
-      checks: c.plan.test_plan.map(t => ({kind: t.kind, method: t.method, status: 'not_run', evidence: [], note: ''}))};
+      checks: c.plan.test_plan.map(t => ({kind: t.kind, method: t.method, level: checkLevel(c, t.kind), status: 'not_run', evidence: [], note: ''})),
+      review: st.human_review || null, tellers: tellers(st)};
+  });
+}
+/** v3.4: een commit met een vrij bericht (niet aan het plan gebonden), met dezelfde controles als een geplande commit (capability, gestagede bestanden, geheimen). */
+export async function commitVrij(root, id, bericht) {
+  const b = String(bericht || '').trim();
+  requireThat(b.length >= 3 && b.length <= 300 && !/[\x00-\x1f]/.test(b), 'Een commitbericht heeft 3 tot 300 tekens zonder besturingstekens.');
+  const st = withLock(root, () => activeWork(root));
+  requireThat(st && st.id === id, 'Werkpakket ' + id + ' is niet het werkpakket in uitvoering.');
+  return runCommand(root, 'commit-vrij', {id: 'commit-vrij', argv: ['git', 'commit', '-m', b], purpose: 'commit', why: 'Commit met een vrij bericht.', watch: [], timeout_ms: 30000, max_runs: 30});
+}
+const ADMIN_TERMIJN = 24 * 3600 * 1000;
+const gitSync = (root, args) => spawnSync('git', args, {cwd: root, encoding: 'utf8', shell: false, timeout: 60000});
+/** Voorwaarden voor administratie na close: hetzelfde, net afgesloten pakket (READY of PARTIAL), binnen 24 uur, geen ander pakket actief, op de eigen werkbranch. */
+function adminVoorwaarden(root, id) {
+  const st = loadWork(root, id);
+  requireThat(st && st.closed_at && ['READY', 'PARTIAL'].includes(st.result) && ['READY', 'BLOCKED'].includes(st.status), 'Administratie na close kan alleen voor een net afgesloten werkpakket (READY of PARTIAL).');
+  requireThat(Date.now() - Date.parse(st.closed_at) <= ADMIN_TERMIJN, 'De termijn voor administratie na close (24 uur) is verlopen.');
+  const ander = activeWork(root); requireThat(!ander, 'Er is een ander werkpakket actief (' + (ander?.id || '') + '); administratie na close kan dan niet.');
+  const tak = gitSync(root, ['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+  requireThat(st.contract.envelope.git.commit && st.contract.envelope.git.push.includes(tak), 'Administratie na close alleen op de eigen werkbranch van het pakket (' + st.contract.envelope.git.push.join(', ') + '), niet op ' + tak + '.');
+  return {st, tak, paden: ['docs/aae/PROGRESS.md', 'docs/aae/work/' + id]};
+}
+const binnen = (paden, f) => paden.some(p => f === p || f.startsWith(p + '/'));
+/** v3.4: alleen git add -A -- docs/aae/PROGRESS.md docs/aae/work/<id> en een commit; staat er iets anders klaar, dan wordt er niets gecommit. */
+export function adminCommit(root, id, bericht) {
+  return withLock(root, () => {
+    const {st, paden} = adminVoorwaarden(root, id);
+    const b = String(bericht || '').trim();
+    requireThat(b.length >= 3 && b.length <= 300 && !/[\x00-\x1f]/.test(b), 'Een commitbericht heeft 3 tot 300 tekens zonder besturingstekens.');
+    const voor = stagedFiles(root);
+    requireThat(voor.every(f => binnen(paden, f)), 'Er staat al iets anders klaar (' + voor.filter(f => !binnen(paden, f)).slice(0, 3).join(', ') + '); administratie na close commit alleen de eigen voortgang en werkmap.');
+    const add = gitSync(root, ['add', '-A', '--', ...paden]); requireThat(add.status === 0, 'git add faalde: ' + String(add.stderr).slice(0, 160));
+    const klaar = stagedFiles(root);
+    requireThat(klaar.length > 0, 'Er is niets te committen.');
+    requireThat(klaar.every(f => binnen(paden, f)), 'Er staat iets anders klaar; niets gecommit.');
+    const geheimen = secretHits(root, klaar); requireThat(!geheimen.length, 'Mogelijk geheim in de administratie (' + geheimen.map(h => h.path).join(', ') + ').');
+    const r = gitSync(root, ['commit', '-m', b]); requireThat(r.status === 0, 'git commit faalde: ' + String(r.stderr || r.stdout).slice(0, 200));
+    log(st, 'admin_na_close', {soort: 'commit', bestanden: klaar.length}); saveWork(root, st);
+    return {id, gecommit: klaar, commit: gitHead(root)};
+  });
+}
+/** v3.4: push van de administratie naar de eigen werkbranch; nieuwe commits mogen alleen gebieden van het pakket en de eigen administratie raken. */
+export function adminPush(root, id) {
+  return withLock(root, () => {
+    const {st, tak, paden} = adminVoorwaarden(root, id);
+    // Wat nieuw is: sinds de remote werkbranch, of (bij een eerste push) sinds de commit waarop het pakket startte. Onbekend = weigeren.
+    const basis = remoteRefCommit(root, tak) || st.start_head;
+    requireThat(basis, 'Onbekend wat er nieuw is op ' + tak + ' (geen remote branch en geen startcommit van het pakket).');
+    const d = gitSync(root, ['diff', '--name-only', '-z', basis + '..HEAD']); requireThat(d.status === 0, 'git diff faalde: ' + String(d.stderr).slice(0, 160));
+    const nieuw = (d.stdout || '').split('\0').filter(Boolean);
+    requireThat(nieuw.every(f => binnen(paden, f) || addAllowed(st.contract, f)), 'De te pushen commits raken bestanden buiten het pakket (' + nieuw.filter(f => !(binnen(paden, f) || addAllowed(st.contract, f))).slice(0, 3).join(', ') + ').');
+    const geheimen = secretHits(root, nieuw); requireThat(!geheimen.length, 'Mogelijk geheim in de te pushen commits.');
+    const r = gitSync(root, ['push', 'origin', tak]); requireThat(r.status === 0, 'git push faalde: ' + String(r.stderr).slice(0, 200));
+    log(st, 'admin_na_close', {soort: 'push', branch: tak}); saveWork(root, st);
+    return {id, gepusht: tak};
   });
 }
 export function closeTask(root) {
@@ -127,14 +183,18 @@ export function closeTask(root) {
     requireThat(['READY', 'PARTIAL', 'BLOCKED'].includes(r.status), 'Ongeldige eindstatus.');
     requireThat(typeof r.summary === 'string' && r.summary.trim().length >= 5, 'Samenvatting ontbreekt.');
     requireThat(Array.isArray(r.criteria) && Array.isArray(r.checks), 'Resultaat mist criteria of controles.');
-    if (r.status === 'READY') assertReady(root, st, c, '');
+    const ready = r.status === 'READY' ? assertReady(root, st, c, '') : null;
     st.result = r.status;
-    // Alleen een bewezen READY sluit af. PARTIAL en BLOCKED laten het pakket open (BLOCKED), met de reden zichtbaar; VERDER hervat binnen dezelfde GO.
+    // Alleen een bewezen READY sluit af. PARTIAL en BLOCKED laten het pakket open (BLOCKED), met de reden zichtbaar; een aangepast voorstel wacht dan op één GO.
     if (r.status !== 'READY') st.blockers = [(r.status === 'PARTIAL' ? 'Gedeeltelijk afgerond: ' : 'Vastgelopen: ') + r.summary.trim().slice(0, 300)];
     transition(st, r.status === 'READY' ? 'READY' : 'BLOCKED', 'close ' + r.status);
-    atomicJson(root, STATE_DIR + '/results/' + c.id + '.json', r);
+    st.closed_at = now();
+    // v3.4: het resultaat toont altijd de review van Jurgen (als die er is), de tellers en wat bewust niet is gecontroleerd; de runtime schrijft dat zelf in result.json.
+    const af = {...r, review: st.human_review || null, tellers: tellers(st), niet_gecontroleerd: [...new Set([...(r.niet_gecontroleerd || []), ...(ready?.niet_gecontroleerd || [])])]};
+    atomicJson(root, resultFile(c.id), af);
+    atomicJson(root, STATE_DIR + '/results/' + c.id + '.json', af);
     saveWork(root, st);
-    return {id: c.id, status: r.status, work_status: st.status, not_deployed: true, note: 'Administratief afgerond. READY is geen publicatie- of deploymenttoestemming.'};
+    return {id: c.id, status: r.status, work_status: st.status, not_deployed: true, review: af.review ? {verdict: af.review.verdict, sha: af.review.sha.slice(0, 12)} : null, tellers: af.tellers, niet_gecontroleerd: af.niet_gecontroleerd, note: 'Administratief afgerond. READY is geen publicatie- of deploymenttoestemming.'};
   });
 }
 const digestBytes = b => digest(b.toString('base64'));

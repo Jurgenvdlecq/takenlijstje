@@ -1,0 +1,210 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V34-FLOW-001",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-02T22:56:22.254Z",
+  "source": "AAE GO",
+  "hash": "b0234d4b9921c50a11d53c087606f137f3ae2f7f4875face4cf08f6c50b48ed0",
+  "short_hash": "b0234d4b9921",
+  "envelope": {
+    "id": "AAE-V34-FLOW-001",
+    "goal": "AAE v3.4 helpt Jurgen vooruitkomen met zo weinig mogelijk berichten en pakketten per doel, met harde grenzen alleen waar echte schade kan ontstaan (gevolgde bestanden, installatie, merge/deploy, database, geheimen, destructieve en externe acties). Hefbomen: een PARTIAL-pakket neemt een aangepast voorstel aan met één GO; een kleine cli diagnose zonder GO in een wegwerpkopie; ruimer read-only git met een geheimenfilter; vrije commitberichten en een zeer smalle administratiecommit na close; bewijs in required/supporting/optional; reviews als hulpmiddel met het expliciete AAE REVIEW <id> <sha12> READY|BLOCKED van Jurgen als vervanger van het vereiste HIGH-reviewbewijs; het overdrachtbericht van een agent als rapportbron en een eindige afhandeling van rapportconflicten; zichtbare tellers voor GO, NEEDS_HUMAN, BLOCKED en agentruns. Alleen in tools/aae-v33; niet live, geen main, geen installatie.",
+    "phase": "implementation",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "V1",
+        "text": "Read-only git zonder GO, veilig voor geheimen: breed (zonder paden) alleen git diff/show met --stat of --name-only, git log (ook -- <pad>), ls-files, rev-parse (ook HEAD^{tree}), merge-base, branch en status; inhoudelijk alleen met expliciete paden die door het geheimenfilter gaan: git diff <rev> <rev> -- <pad>, git show <rev>:<pad>, git cat-file -p <rev>:<pad>, git grep <patroon> <rev> -- <pad>, git blame -- <pad>. Geweigerd blijven: .env* (behalve .env.example), .claude/aae/private, test-auth- en sessiebestanden en bekende geheime bestandsnamen, ook uit oude commits en in elke hoofdletter- of padvariant; cat-file met een kale blob-hash; grep zonder pad; pathspec-magie, jokertekens en .. in paden. Inhoudelijke uitvoer met een bekend geheimpatroon wordt geweigerd. Dezelfde regels gelden voor subagents. Negatieve tests bewijzen dit."
+      },
+      {
+        "id": "V2",
+        "text": "cli diagnose <expliciet testbestand> [revisie] zonder GO: alleen node --test op precies één concreet *.test.mjs-bestand; geen map, geen brede suite, geen package script, geen build en geen install. Het draait in een tijdelijke git-worktree buiten de werkmap met alleen gevolgde bestanden minus wat het geheimenfilter raakt, met een schone omgeving (alleen PATH, tijdelijke HOME, geen sessievariabelen), onder het permissiemodel van Node (lezen in de kopie, schrijven alleen in de eigen tijdmap), met een verplichte timeout van hoogstens 5 minuten, begrensde uitvoer en altijd opruimen (ook na fout of timeout). Is netwerkblokkade op de draaiende Node-versie niet aantoonbaar werkzaam, dan weigert diagnose te starten. Gevolgde bestanden en werkmap zijn vóór en na aantoonbaar gelijk. Alle andere test-, build- en projectcode blijft GO-plichtig."
+      },
+      {
+        "id": "V3",
+        "text": "Bewijsniveaus: elke controle in het bewijsplan heeft niveau required, supporting of optional; de kwaliteitsondergrens (scope, functional, regression) en alle risicogebonden controles zijn altijd required en kunnen niet worden verlaagd. READY eist dat alle required-controles geslaagd zijn. Een supporting-controle die niet is gedraaid komt onder NIET GECONTROLEERD en blokkeert READY niet; een supporting-controle die wél is gedraaid en faalt maakt het resultaat PARTIAL. Optional blokkeert nooit. Het verlagen van een goedgekeurd niveau is een wezenlijke wijziging."
+      },
+      {
+        "id": "V4",
+        "text": "AAE REVIEW <id> <sha12> READY|BLOCKED geldt alleen als Jurgens losse bericht exact die vorm heeft (hoofdletters, ID, 12 hextekens, READY of BLOCKED); een parafrase, extra tekst, een bestand, tooluitvoer, een agent of een hook-melding telt nooit. De sha12 moet de huidige HEAD zijn; de volledige SHA, het oordeel, het tijdstip en 'door Jurgen' staan in de geschiedenis en in result.json en worden door present en close getoond. READY vervangt het vereiste HIGH-reviewbewijs (ook in de merge-gate) zolang HEAD en de gebieden schoon op die commit staan; na een nieuwe commit vervalt het. BLOCKED blokkeert READY tot een nieuwe review op een nieuwe commit."
+      },
+      {
+        "id": "V5",
+        "text": "Rapportconflicten: het overdrachtbericht van een agent (de hand-back) telt als rapportbron, zodat de in v3.3.1 waargenomen vorm (toolrespons alleen een verwijzing) als bevestigd telt. Blijft er toch een conflict, dan volgt één eerlijke melding met de uitweg AAE REVIEW en geen automatische herhaling; een identieke reviewvraag op dezelfde bron wordt geweigerd. Een agentreview is standaard supporting; alleen bij HIGH is een reviewoordeel required."
+      },
+      {
+        "id": "V6",
+        "text": "Minder BLOCKED en NEEDS_HUMAN: een PARTIAL- of BLOCKED-pakket neemt een aangepast voorstel aan en wacht dan op precies één GO (geen AAE VERDER vooraf). Commitberichten zijn vrij en niet meer aan het plan gebonden. Na close is alleen voor hetzelfde, net afgesloten pakket (READY of PARTIAL), binnen 24 uur en zolang geen ander pakket actief is, nog git add -A -- docs/aae/PROGRESS.md docs/aae/work/<id>, een commit en een push naar de eigen werkbranch toegestaan; staat er iets anders klaar (broncode, systeembestanden, ander pakket), dan wordt het geweigerd. Een scenariotest speelt het v3.3.1-verloop na en eindigt met hoogstens 3 GO's en 0 onnodige NEEDS_HUMAN."
+      },
+      {
+        "id": "V7",
+        "text": "Breder dan techniek: ENTRY.md (kort) en REFERENTIE.md beschrijven de hefbomen, de bewijsniveaus, cli diagnose en AAE REVIEW; result.json en cli status tonen per pakket het aantal GO's, NEEDS_HUMAN, BLOCKED en agentruns; de zijproject- en NEEDS_HUMAN-regels van v3.3.1 blijven staan. De versie is overal 3.4.0 (runtime, installer en manifestverwachting in de installertest), zodat de installer zijn eigen doctor-controle doorstaat."
+      },
+      {
+        "id": "V8",
+        "text": "Harde grenzen aantoonbaar intact: de v3.3-suite en de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van de baseline b1ea42a (gemeten in tijdelijke worktrees); negatieve tests voor schrijven zonder GO en buiten het gebied, database klasse C, merge en deploy buiten de gates, installatie zonder GO, geheimen via alle nieuwe leespaden, schrijven of netwerk via cli diagnose, en een vervalste AAE REVIEW. Elke bewust aangepaste bestaande test staat met reden in het eindrapport."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/README.md",
+      "tools/aae-v33/REVIEW-OPDRACHT.md",
+      "tools/aae-v33/installer/install.mjs",
+      "tools/aae-v33/pariteit/nulmeting.mjs",
+      "tools/aae-v33/payload",
+      "tools/aae-v33/tests"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v34-flow-001"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 3,
+      "command_runs": 80,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf.",
+      "Stop en leg aan Jurgen voor als de wijziging buiten de genoemde gebieden moet, zoals het live systeem.",
+      "Stop en leg aan Jurgen voor als een harde grens (GO-binding, schrijfgebied, geheimen, database default-deny, destructieve gates, merge/deploy-gates, padbewaking, snapshots, schrijven buiten het project, externe acties) verzwakt zou moeten worden.",
+      "Stop en leg aan Jurgen voor als netwerkblokkade voor cli diagnose op deze Node-versie niet aantoonbaar werkt: dan blijft diagnose geweigerd en vraag ik of het pakket zonder diagnose door moet."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: verbeterpunten gaan naar docs/aae/notes/verbeterpunten.md.",
+      "Reviewbevindingen binnen deze gebieden worden hersteld zonder nieuwe GO.",
+      "Technische keuzes (naamgeving, bestandsindeling, testopzet, volgorde) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "AAE v3.4: minder bureaucratie, ruimer veilig lezen, eerlijk bewijs",
+    "goal": "AAE v3.4 helpt Jurgen vooruitkomen met zo weinig mogelijk berichten en pakketten per doel, met harde grenzen alleen waar echte schade kan ontstaan (gevolgde bestanden, installatie, merge/deploy, database, geheimen, destructieve en externe acties). Hefbomen: een PARTIAL-pakket neemt een aangepast voorstel aan met één GO; een kleine cli diagnose zonder GO in een wegwerpkopie; ruimer read-only git met een geheimenfilter; vrije commitberichten en een zeer smalle administratiecommit na close; bewijs in required/supporting/optional; reviews als hulpmiddel met het expliciete AAE REVIEW <id> <sha12> READY|BLOCKED van Jurgen als vervanger van het vereiste HIGH-reviewbewijs; het overdrachtbericht van een agent als rapportbron en een eindige afhandeling van rapportconflicten; zichtbare tellers voor GO, NEEDS_HUMAN, BLOCKED en agentruns. Alleen in tools/aae-v33; niet live, geen main, geen installatie.",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.4 bron, tests, documentatie en installerversie",
+          "write": [
+            "tools/aae-v33/payload",
+            "tools/aae-v33/tests",
+            "tools/aae-v33/installer/install.mjs",
+            "tools/aae-v33/pariteit/nulmeting.mjs",
+            "tools/aae-v33/README.md",
+            "tools/aae-v33/REVIEW-OPDRACHT.md"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v34-flow-001"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "command_runs": 80,
+        "external_calls": 0,
+        "max_parallel": 1,
+        "agent_calls": {
+          "soft": 2,
+          "hard": 3
+        }
+      },
+      "acceptance": [
+        {
+          "id": "V1",
+          "text": "Read-only git zonder GO, veilig voor geheimen: breed (zonder paden) alleen git diff/show met --stat of --name-only, git log (ook -- <pad>), ls-files, rev-parse (ook HEAD^{tree}), merge-base, branch en status; inhoudelijk alleen met expliciete paden die door het geheimenfilter gaan: git diff <rev> <rev> -- <pad>, git show <rev>:<pad>, git cat-file -p <rev>:<pad>, git grep <patroon> <rev> -- <pad>, git blame -- <pad>. Geweigerd blijven: .env* (behalve .env.example), .claude/aae/private, test-auth- en sessiebestanden en bekende geheime bestandsnamen, ook uit oude commits en in elke hoofdletter- of padvariant; cat-file met een kale blob-hash; grep zonder pad; pathspec-magie, jokertekens en .. in paden. Inhoudelijke uitvoer met een bekend geheimpatroon wordt geweigerd. Dezelfde regels gelden voor subagents. Negatieve tests bewijzen dit."
+        },
+        {
+          "id": "V2",
+          "text": "cli diagnose <expliciet testbestand> [revisie] zonder GO: alleen node --test op precies één concreet *.test.mjs-bestand; geen map, geen brede suite, geen package script, geen build en geen install. Het draait in een tijdelijke git-worktree buiten de werkmap met alleen gevolgde bestanden minus wat het geheimenfilter raakt, met een schone omgeving (alleen PATH, tijdelijke HOME, geen sessievariabelen), onder het permissiemodel van Node (lezen in de kopie, schrijven alleen in de eigen tijdmap), met een verplichte timeout van hoogstens 5 minuten, begrensde uitvoer en altijd opruimen (ook na fout of timeout). Is netwerkblokkade op de draaiende Node-versie niet aantoonbaar werkzaam, dan weigert diagnose te starten. Gevolgde bestanden en werkmap zijn vóór en na aantoonbaar gelijk. Alle andere test-, build- en projectcode blijft GO-plichtig."
+        },
+        {
+          "id": "V3",
+          "text": "Bewijsniveaus: elke controle in het bewijsplan heeft niveau required, supporting of optional; de kwaliteitsondergrens (scope, functional, regression) en alle risicogebonden controles zijn altijd required en kunnen niet worden verlaagd. READY eist dat alle required-controles geslaagd zijn. Een supporting-controle die niet is gedraaid komt onder NIET GECONTROLEERD en blokkeert READY niet; een supporting-controle die wél is gedraaid en faalt maakt het resultaat PARTIAL. Optional blokkeert nooit. Het verlagen van een goedgekeurd niveau is een wezenlijke wijziging."
+        },
+        {
+          "id": "V4",
+          "text": "AAE REVIEW <id> <sha12> READY|BLOCKED geldt alleen als Jurgens losse bericht exact die vorm heeft (hoofdletters, ID, 12 hextekens, READY of BLOCKED); een parafrase, extra tekst, een bestand, tooluitvoer, een agent of een hook-melding telt nooit. De sha12 moet de huidige HEAD zijn; de volledige SHA, het oordeel, het tijdstip en 'door Jurgen' staan in de geschiedenis en in result.json en worden door present en close getoond. READY vervangt het vereiste HIGH-reviewbewijs (ook in de merge-gate) zolang HEAD en de gebieden schoon op die commit staan; na een nieuwe commit vervalt het. BLOCKED blokkeert READY tot een nieuwe review op een nieuwe commit."
+        },
+        {
+          "id": "V5",
+          "text": "Rapportconflicten: het overdrachtbericht van een agent (de hand-back) telt als rapportbron, zodat de in v3.3.1 waargenomen vorm (toolrespons alleen een verwijzing) als bevestigd telt. Blijft er toch een conflict, dan volgt één eerlijke melding met de uitweg AAE REVIEW en geen automatische herhaling; een identieke reviewvraag op dezelfde bron wordt geweigerd. Een agentreview is standaard supporting; alleen bij HIGH is een reviewoordeel required."
+        },
+        {
+          "id": "V6",
+          "text": "Minder BLOCKED en NEEDS_HUMAN: een PARTIAL- of BLOCKED-pakket neemt een aangepast voorstel aan en wacht dan op precies één GO (geen AAE VERDER vooraf). Commitberichten zijn vrij en niet meer aan het plan gebonden. Na close is alleen voor hetzelfde, net afgesloten pakket (READY of PARTIAL), binnen 24 uur en zolang geen ander pakket actief is, nog git add -A -- docs/aae/PROGRESS.md docs/aae/work/<id>, een commit en een push naar de eigen werkbranch toegestaan; staat er iets anders klaar (broncode, systeembestanden, ander pakket), dan wordt het geweigerd. Een scenariotest speelt het v3.3.1-verloop na en eindigt met hoogstens 3 GO's en 0 onnodige NEEDS_HUMAN."
+        },
+        {
+          "id": "V7",
+          "text": "Breder dan techniek: ENTRY.md (kort) en REFERENTIE.md beschrijven de hefbomen, de bewijsniveaus, cli diagnose en AAE REVIEW; result.json en cli status tonen per pakket het aantal GO's, NEEDS_HUMAN, BLOCKED en agentruns; de zijproject- en NEEDS_HUMAN-regels van v3.3.1 blijven staan. De versie is overal 3.4.0 (runtime, installer en manifestverwachting in de installertest), zodat de installer zijn eigen doctor-controle doorstaat."
+        },
+        {
+          "id": "V8",
+          "text": "Harde grenzen aantoonbaar intact: de v3.3-suite en de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van de baseline b1ea42a (gemeten in tijdelijke worktrees); negatieve tests voor schrijven zonder GO en buiten het gebied, database klasse C, merge en deploy buiten de gates, installatie zonder GO, geheimen via alle nieuwe leespaden, schrijven of netwerk via cli diagnose, en een vervalste AAE REVIEW. Elke bewust aangepaste bestaande test staat met reden in het eindrapport."
+        }
+      ],
+      "assumptions": [
+        "Jurgen heeft de werkbranch claude/aae-v34-flow-001 vanaf main (b1ea42a) aangemaakt; er wordt nooit op main gecommit.",
+        "Dit pakket wordt nog onder v3.3.1 gebouwd; agentreviews tellen daar door REPORT_CONFLICT formeel niet, dus het eindigt vermoedelijk PARTIAL plus Jurgens eigen read-only review op de eind-SHA.",
+        "Het meetscript voor de eigen suite is tijdelijk, wordt niet gecommit en verwijdert zichzelf na de eindmeting.",
+        "Installatie op het live systeem is een apart vervolgpakket met eigen GO."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (naamgeving, bestandsindeling, testopzet, volgorde) beslist de hoofdsessie zelf.",
+        "Reviewbevindingen binnen deze gebieden worden hersteld zonder nieuwe GO.",
+        "Geen zijprojecten: verbeterpunten gaan naar docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als een harde grens (GO-binding, schrijfgebied, geheimen, database default-deny, destructieve gates, merge/deploy-gates, padbewaking, snapshots, schrijven buiten het project, externe acties) verzwakt zou moeten worden.",
+        "Stop en leg aan Jurgen voor als netwerkblokkade voor cli diagnose op deze Node-versie niet aantoonbaar werkt: dan blijft diagnose geweigerd en vraag ik of het pakket zonder diagnose door moet.",
+        "Stop en leg aan Jurgen voor als de wijziging buiten de genoemde gebieden moet, zoals het live systeem.",
+        "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat tonen alleen wijzigingen in de genoemde gebieden en de voortgang; geen live systeem, geen main, geen installatie; het meetscript is weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De v3.3-suite (tools/aae-v33/tests/v33-suite.test.mjs) slaagt, inclusief de nieuwe v3.4-tests voor V1 t/m V8."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De installertests slagen en eigen.test.mjs voegt in tijdelijke worktrees geen nieuwe failures toe ten opzichte van b1ea42a."
+    }
+  ],
+  "snapshot_digest": "5388f48ef351d99a2b79f8e612e4a5607917fffebff25cbb0172cee42ffb8dd4"
+}

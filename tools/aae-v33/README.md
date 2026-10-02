@@ -26,6 +26,14 @@ Dit is het resultaat van werkpakket **AAE-V33-001**, aangepast in **AAE-V33-001B
 - **Samenvoegen is gebonden aan de exacte PR-versie** (owner, repo, branch en `expectedHeadSha` moeten overeenkomen met de remote PR-head, het READY-resultaat en de lokale branch) en uitrollen aan de READY-commit.
 - **Samenvoegen en uitrollen zijn aparte, bewijsgebonden stappen.** Destructieve databasehandelingen vragen altijd een expliciete bevestiging.
 
+## Wat is er anders in 3.4 (werkpakket AAE-V34-FLOW-001, nog niet geïnstalleerd)
+Doel: minder bureaucratie, harde grenzen alleen waar echte schade kan ontstaan.
+- **Zonder GO lezen en diagnosticeren:** brede alleen-lezen git (namen, hashes, statistiek, ook `HEAD^{tree}`) direct; inhoud via `cli git` met geheimenfilter en uitvoerscan; `cli diagnose <pad.test.mjs>` draait één testbestand in een wegwerpkopie zonder netwerk (aangetoond met een verbindingsproef), zonder schrijven in het project en zonder kindprocessen.
+- **Bewijsniveaus** required/supporting/optional: supporting niet gedraaid = NIET GECONTROLEERD, gedraaid en gefaald = PARTIAL.
+- **`AAE REVIEW <id> <sha12> READY|BLOCKED`** van Jurgen (exact, los bericht, gebonden aan HEAD) vervangt het vereiste HIGH-reviewbewijs; een hand-back telt als rapportbron; een rapportconflict wordt één keer gemeld en niet herhaald.
+- **Minder stappen:** PARTIAL bijsturen met één GO, `cli commit` met vrij bericht, smalle `cli admin-commit`/`admin-push` na close; tellers voor GO, NEEDS_HUMAN, BLOCKED en agentruns.
+- Tests: `payload/.claude/aae/tests/v34.test.mjs` (V34-01 t/m V34-17). Versie 3.4.0 in runtime en installer.
+
 ## Wat is er anders in 3.3.1 (werkpakket AAE-V331-001, nog niet geïnstalleerd)
 Doel: minder overhead bij kleine wijzigingen, zonder de harde grenzen te verzwakken.
 - **GO-binding smaller:** plan-, bewijs-, aannames- en administratieve tekst en het agentplafond tellen niet meer mee. Een risicoverlaging vraagt nooit een nieuwe GO; een risicoverhoging, ander doel/criteria, nieuw gebied, meer database/git/merge/deploy, extra commando's of hogere budgetten (commando's, extern, parallel) wel. Bewijs wordt nooit stil lichter: een controlesoort verdwijnt niet en de methode wordt niet zwakker.

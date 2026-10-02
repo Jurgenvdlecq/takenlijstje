@@ -44,16 +44,8 @@ export function stagedFiles(root) {
   return (r.stdout || '').split('\0').filter(Boolean);
 }
 
-// Namen en inhoud die nooit in een commit horen. De inhoud van een treffer wordt nooit getoond of bewaard.
-const SECRET_NAME = [/(^|\/)\.env(\.[^/]*)?$/, /\.(pem|key|p12|pfx|jks|keystore)$/i, /(^|\/)id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/, /(^|\/)\.npmrc$/, /(^|\/)\.netrc$/, /(^|\/)credentials(\.json)?$/i, /service[-_]?account[^/]*\.json$/i];
-const SECRET_OK = [/(^|\/)\.env\.example$/];
-const SECRET_CONTENT = [
-  [new RegExp('-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----'), 'privésleutel'],
-  [/\bAKIA[0-9A-Z]{16}\b/, 'AWS-sleutel'],
-  [/\bgh[pousr]_[A-Za-z0-9]{36,}\b/, 'GitHub-token'], [/\bgithub_pat_[A-Za-z0-9_]{40,}\b/, 'GitHub-token'],
-  [/\bsk-[A-Za-z0-9_-]{32,}\b/, 'API-sleutel'], [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, 'Slack-token'],
-  [/SUPABASE_SERVICE_ROLE_KEY\s*[=:]\s*['"]?[A-Za-z0-9._-]{20,}/, 'Supabase service-role-sleutel']
-];
+// Namen en inhoud die nooit in een commit horen (één gedeelde lijst in secrets.mjs). De inhoud van een treffer wordt nooit getoond of bewaard.
+import {SECRET_NAME, SECRET_OK, SECRET_CONTENT} from './secrets.mjs';
 export function secretHits(root, files) {
   const hits = [];
   for (const f of files) {

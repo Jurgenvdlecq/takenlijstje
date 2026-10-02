@@ -1,6 +1,6 @@
 /** READY-bewijs en de gates voor merge en deployment. Eén logica voor sluiten en gate-commando's. */
 import fs from 'node:fs';
-import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks, areaWrite, SUPPORT_ROOTS} from './core.mjs';
+import {requireThat, safePath, readJson, sourceDigest, envelopeHash, requiredChecks, checkLevel, areaWrite, SUPPORT_ROOTS} from './core.mjs';
 import {gitHead, refCommit, remoteRefCommit, dirtyPaths} from './gitops.mjs';
 import {snapshotCommitted, assertSnapshotValid} from './snapshot.mjs';
 import {resultFile, guardApproval} from './state.mjs';
@@ -31,16 +31,36 @@ export function assertReady(root, st, c, prefix = '') {
   requireThat(Array.isArray(r.criteria) && Array.isArray(r.checks), prefix + 'Resultaat mist criteria of controles.');
   requireThat(new Set(r.criteria.map(a => a.id)).size === r.criteria.length, prefix + 'Dubbele criteria in rapport.');
   for (const a of c.envelope.acceptance) { const x = r.criteria.find(y => y.id === a.id); requireThat(x?.status === 'passed', prefix + 'Criterium niet bewezen: ' + a.id); checkedEvidence(root, st, c, x.evidence, 'inspection', src); requireThat(typeof x.note === 'string' && x.note.length >= 5, prefix + 'Criterium mist toelichting: ' + a.id); }
+  const nietGecontroleerd = [];
   for (const kind of [...new Set([...requiredChecks(c), ...c.plan.test_plan.map(t => t.kind)])]) {
-    const x = r.checks.find(y => y.kind === kind), planned = c.plan.test_plan.find(y => y.kind === kind);
-    requireThat(x?.status === 'passed', prefix + 'Verplichte controle niet geslaagd: ' + kind);
+    const x = r.checks.find(y => y.kind === kind), planned = c.plan.test_plan.find(y => y.kind === kind), niveau = checkLevel(c, kind);
+    if (niveau === 'optional') continue; // optional blokkeert nooit
+    if (niveau === 'supporting') {
+      // Niet gedraaid: NIET GECONTROLEERD, geen blokkade. Gedraaid en gefaald: een echt signaal, dus PARTIAL en geen READY met kanttekening.
+      if (!x || x.status === 'not_run') { nietGecontroleerd.push(kind); continue; }
+      requireThat(x.status === 'passed', prefix + 'Ondersteunende controle ' + kind + ' is gedraaid en gefaald: het resultaat is PARTIAL, niet READY.');
+    } else requireThat(x?.status === 'passed', prefix + 'Verplichte controle niet geslaagd: ' + kind);
     requireThat(x.method === planned.method, prefix + 'Bewijsmethode wijkt af van plan: ' + kind);
     checkedEvidence(root, st, c, x.evidence, x.method, src);
     requireThat(typeof x.note === 'string' && x.note.length >= 5, prefix + 'Controle mist toelichting: ' + kind);
   }
-  if (c.envelope.phase === 'implementation' && c.risk_class === 'HIGH') requireThat(independentReview(st, c, src), prefix + 'HIGH mist een actueel onafhankelijk READY-oordeel van een reviewer.');
+  if (c.envelope.phase === 'implementation' && c.risk_class === 'HIGH') {
+    // v3.4: een BLOCKED-oordeel van Jurgen blokkeert READY tot een nieuwe review op een nieuwe commit; READY van Jurgen vervangt het agentoordeel.
+    requireThat(st.human_review?.verdict !== 'BLOCKED', prefix + 'Jurgen gaf AAE REVIEW BLOCKED op commit ' + String(st.human_review?.sha || '').slice(0, 12) + '; READY kan pas na een nieuwe review op een nieuwe commit.');
+    requireThat(independentReview(st, c, src) || menselijkeReview(root, st, c), prefix + 'HIGH mist een actueel onafhankelijk READY-oordeel: een bevestigd reviewerrapport op deze bron, of AAE REVIEW <id> <sha12> READY van Jurgen op de huidige, schone commit.');
+  }
   // READY: de lokale snapshot van de goedgekeurde envelop klopt (geldige keten, juiste hash). Een commit is hier niet vereist; de merge- en deploy-gate eisen die wel (assertGate).
   assertSnapshotValid(root, st);
+  return {niet_gecontroleerd: nietGecontroleerd};
+}
+/** v3.4: AAE REVIEW <id> <sha12> READY van Jurgen telt alleen zolang HEAD exact die commit is en de gebieden daar schoon op staan. */
+export function menselijkeReview(root, st, c) {
+  const h = st.human_review;
+  if (!h || h.verdict !== 'READY' || h.door !== 'Jurgen' || h.bron !== 'UserPromptSubmit') return false;
+  const head = gitHead(root);
+  if (!head || head !== h.sha) return false;
+  const paden = [...areaWrite(c), ...c.envelope.areas.flatMap(a => (a.support || []).flatMap(k => SUPPORT_ROOTS[k] || []))];
+  return dirtyPaths(root, paden).length === 0;
 }
 /**
  * Merge via een pull request: bovenop de gewone merge-gate moet de remote head van de PR (zoals gelezen met pull_request_read of uit de create-respons) gelijk zijn aan

@@ -6,7 +6,9 @@ import {requireThat, readJson, validateContract, now, atomicText, safePath, trac
 import {recoverWork} from './recover.mjs';
 import {withLock, activeWork, guardApproval, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
 import {liveRows, reconcile, finalizeRun, findTranscript, transcriptFinalText} from './reports.mjs';
-import {runCommand, closeTask, reportTemplate, doctor} from './runner.mjs';
+import {runCommand, closeTask, reportTemplate, doctor, commitVrij, adminCommit, adminPush} from './runner.mjs';
+import {inhoudLezen} from './gitlezen.mjs';
+import {diagnose} from './diagnose.mjs';
 import {runPreflight, bundleActions, deployInfo} from './preflight.mjs';
 import {plainSummary, bindProbe, presentProposal} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
@@ -45,10 +47,27 @@ function prune(root) {
 
 try {
   const [verb, arg, ...extra] = process.argv.slice(2);
-  requireThat(extra.length === 0, 'Te veel argumenten.');
-  if (verb !== 'doctor') importLegacy(root); // doctor is strikt alleen-lezen (ook de installer gebruikt hem)
+  const MEER = ['git', 'diagnose', 'commit', 'admin-commit']; // v3.4: opdrachten met meer argumenten
+  requireThat(extra.length === 0 || MEER.includes(verb), 'Te veel argumenten.');
+  if (verb !== 'doctor' && verb !== 'git' && verb !== 'diagnose') importLegacy(root); // doctor, git en diagnose zijn strikt alleen-lezen
   let result;
   switch (verb) {
+    case 'git': { // v3.4: inhoudelijk alleen-lezen git zonder GO, met geheimenfilter en uitvoerscan
+      requireThat(arg, 'Gebruik: cli git <opdracht> ...');
+      const r = inhoudLezen(root, [arg, ...extra]);
+      process.stdout.write(r.uitvoer + (r.uitvoer && !r.uitvoer.endsWith('\n') ? '\n' : ''));
+      if (r.weggelaten) console.error('AAE: ' + r.weggelaten + ' geheim(e) bestand(en) weggelaten.');
+      process.exit(0);
+    }
+    case 'diagnose': { // v3.4: één testbestand in een wegwerpkopie, zonder GO
+      requireThat(arg && extra.length <= 1, 'Gebruik: cli diagnose <testbestand.test.mjs> [revisie]');
+      result = await diagnose(root, arg, extra[0] || 'HEAD');
+      if (!result.ok) process.exitCode = 1;
+      break;
+    }
+    case 'commit': requireThat(arg && extra.length, 'Gebruik: cli commit <werkpakket-ID> <bericht>'); result = await commitVrij(root, arg, extra.join(' ')); if (result.exit_code !== 0) process.exitCode = 1; break;
+    case 'admin-commit': requireThat(arg && extra.length, 'Gebruik: cli admin-commit <werkpakket-ID> <bericht>'); result = adminCommit(root, arg, extra.join(' ')); break;
+    case 'admin-push': requireThat(arg, 'Gebruik: cli admin-push <werkpakket-ID>'); result = adminPush(root, arg); break;
     case 'status': result = plainSummary(root); break;
     case 'plan': {
       requireThat(arg, 'Werkpakket-ID ontbreekt.');
@@ -116,7 +135,7 @@ try {
     }); break;
     case 'prune': result = prune(root); break;
     case 'report-template': result = reportTemplate(root); break;
-    default: throw new Error('Gebruik status | plan <id> | present <id> | recover <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template.');
+    default: throw new Error('Gebruik status | plan <id> | present <id> | recover <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template | git <opdracht> | diagnose <testbestand> [revisie] | commit <id> <bericht> | admin-commit <id> <bericht> | admin-push <id>.');
   }
   console.log(JSON.stringify(result, null, 2));
 } catch (e) { console.error('AAE: ' + e.message); process.exitCode = 2; }
