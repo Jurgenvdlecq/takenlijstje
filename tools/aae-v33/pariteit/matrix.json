@@ -152,6 +152,21 @@
     "B5": {"omschrijving": "Een READY-gate (nu: de merge-gate) verdwijnt niet stil.", "v33": ["B5 behouden", "R27", "R28", "T11"]},
     "B6": {"omschrijving": "node --test accepteert alleen concrete testbestanden, nooit mappen of scripts.", "v33": ["B6 behouden"]}
   },
+  "wijzigingen_001c": {
+    "bron": "Onafhankelijke review van commit 5e64919 (VERDICT: BLOCKED, bewaard als docs/aae/notes/review-5e64919.md) en besluiten van Jurgen (verplichte AAE GO <id> <korte hash>, read-allowlist, herstel als PAUSED met AAE VERDER, duurzame snapshot).",
+    "regels": {
+      "1 U&-identifiers en zoekpad": ["RB01"],
+      "2 bijwerkingenfuncties en positieve read-allowlist": ["RB02"],
+      "3 functiebodies en latere aanroep": ["RB03"],
+      "4 RLS- en auth-escalaties": ["RB04"],
+      "5 extra_commands zichtbaar en veilig; echte GO-pad": ["RB05"],
+      "6 PR-merge gebonden aan remote head en READY-commit; deploy-gate": ["RB06"],
+      "7 geen gevolgd bestand zonder GO (prune, voorstel, analyse)": ["RB07"],
+      "8 legacy-overname nooit stil approved": ["RB08"],
+      "9 installer crash-safe": ["RB09"],
+      "10 duurzame snapshot en herstel": ["RB10"]
+    }
+  },
   "wijzigingen_001b": {
     "bron": "Besluiten van Jurgen 2026-10-01 (AAE-V33-001B): één GO ook voor LIGHT, GO gebonden aan werkpakket-ID + volledige envelop-hash, één simpele regel voor gevolgde bestanden.",
     "regels": {

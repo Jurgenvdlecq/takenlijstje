@@ -12,8 +12,9 @@ import {
   withLock, listWork, loadWork, saveWork, activeWork, guardApproval, log, needsHuman, registerContractUnlocked, loadGlobal, saveGlobal, eventLog, contractFile
 } from './state.mjs';
 import {liveRows, LIVE, reconcile, finalizeRun, safeFinalize, findTranscript, transcriptFinalText, contentText, duplicateOf, questionHash} from './reports.mjs';
-import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
-import {assertGate} from './gates.mjs';
+import {snapshotCommitted, orphanedSnapshots} from './snapshot.mjs';
+import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNumberFromResponse, prHeadShaFromResponse, responseDigest, safeExternalSummary, migrationName, migrationSql} from './integrations.mjs';
+import {assertGate, assertPrMerge} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
 
@@ -24,8 +25,8 @@ const SYSTEM_READ = ['.claude/aae/ENTRY.md', '.claude/aae/docs', '.claude/aae/ro
 const WHY = /^\s*WAAROM-AGENT:\s*(.+)$/m;
 const FOCUS_LINE = /^\s*FOCUS:\s*([a-z]+)\s*$/m;
 const GENERIC = /^(standaard|voor de zekerheid|best practice|zoals altijd|omdat het kan|iedere|elke|altijd)\b/i;
-const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template|present)(?: ([A-Za-z0-9_-]+))?$/;
-const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight', 'present']);
+const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template|present|recover)(?: ([A-Za-z0-9_-]+))?$/;
+const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight', 'present', 'recover']);
 const isSubagent = e => Boolean(e.agent_id || e.agent_type);
 const toolPath = (root, e) => relativeInput(root, e.tool_input.file_path || e.tool_input.notebook_path, e.cwd || root);
 
@@ -86,7 +87,7 @@ function delegation(root, st, e) {
   const focus = role === 'aae-reviewer' ? (fm ? fm[1] : 'code') : null;
   if (focus) choice(focus, FOCI, 'Focus');
   const entry = c.plan.agents.find(a => a.name === role && (!a.focus || a.focus === focus));
-  requireThat(entry, 'Deze rol/focus staat niet in het plan (voeg hem toe in contract.json; dat is vrij binnen de envelop).');
+  requireThat(entry, 'Deze rol/focus staat niet in het plan (voeg hem toe in proposal.json; dat is vrij binnen de envelop).');
   reconcile(root, st);
   const hash = questionHash(role, focus, input.prompt);
   requireThat(!duplicateOf(st, hash), 'Dezelfde vraag loopt nog of is niet aantoonbaar afgerond. Stem eerst af (cli reconcile) of stel een kleinere, andere vraag.');
@@ -133,7 +134,7 @@ function writePermission(root, st, e) {
         const bestaand = loadWork(root, wk.id);
         if (bestaand) requireThat(!hasLive(bestaand) && !bestaand.command_running, 'Wijzig het contract niet tijdens lopend werk.');
         const obj = JSON.parse(input.content);
-        if (wk.kind === 'contract') { validateContract(obj); requireThat(obj.id === wk.id, 'Het ID in het contract moet bij de mapnaam passen.'); }
+        if (wk.kind === 'proposal') { validateContract(obj); requireThat(obj.id === wk.id, 'Het ID in het voorstel moet bij de mapnaam passen.'); }
       }
       continue;
     }
@@ -142,6 +143,8 @@ function writePermission(root, st, e) {
     guardApproval(root, st);
     const c = st.contract;
     requireThat(c.envelope.phase === 'implementation', 'Analyse-only: geen applicatiecode wijzigen.');
+    // Snapshot eerst: hoort commit bij de envelop, dan moet de duurzame snapshot van de goedgekeurde envelop in HEAD staan vóór de eerste bronwijziging.
+    if (c.envelope.git.commit) requireThat(snapshotCommitted(root, st) !== false, 'Commit eerst de snapshot van de goedgekeurde envelop (' + (st.snapshot?.path || 'docs/aae/work/' + st.id + '/approved') + ') met de commit-commando\'s uit het plan, vóór de eerste bronwijziging; anders overleeft de goedkeuring verlies van de container niet.');
     requireThat(!hasLive(st) && !st.command_running && !liveExternal(st).length, 'Geen bronwijzigingen tijdens agent-, externe tool- of testuitvoering.');
     if (!areaAllows(c, p)) denied(root, st, p, 'Bestand valt buiten de goedgekeurde gebieden: ' + p + '. Binnen een goedgekeurd gebied mag ik vrij bestanden toevoegen; een ander onderdeel van de applicatie vraagt een nieuwe beslissing (cli scope-change).');
     if (!st.files_touched.includes(p)) { st.files_touched.push(p); if (st.files_touched.length > 500) st.files_touched = st.files_touched.slice(-500); saveWork(root, st); }
@@ -222,8 +225,9 @@ function preExternal(root, e, call) {
   if (call.provider === 'github' && call.level === 'change') {
     requireThat(typeof input.base === 'string' && input.base.length > 0, 'PR-aanmaak vereist expliciete base.');
     requireThat(typeof input.head === 'string' && input.head.length > 0, 'PR-aanmaak vereist expliciete head.');
+    requireThat(input.owner === cfg.owner && input.repo === cfg.repo, 'PR-aanmaak wijkt af van de vastgepinde repository in de envelop (' + cfg.owner + '/' + cfg.repo + ').');
+    requireThat(input.head === cfg.head, 'PR-head wijkt af van de vastgepinde werkbranch in de envelop (' + cfg.head + ').');
     if (cfg.base) requireThat(input.base === cfg.base, 'PR-base wijkt af van de envelop.');
-    if (cfg.head) requireThat(input.head === cfg.head, 'PR-head wijkt af van de envelop.');
     // Wordt samenvoegen via een PR toegestaan, dan moet de PR naar precies het afgesproken merge-doel wijzen (anders valt de deploy-check op het verkeerde doel).
     if (cfg.tools.includes('merge_pull_request') && c.envelope.git.merge) requireThat(input.base === c.envelope.git.merge.to, 'PR-base moet het merge-doel uit de envelop zijn (' + c.envelope.git.merge.to + ').');
   }
@@ -233,7 +237,10 @@ function preExternal(root, e, call) {
     const rec = (st.created_prs || []).find(p => p.number === nr && p.owner === input.owner && p.repo === input.repo);
     requireThat(Number.isInteger(nr) && rec, 'merge_pull_request alleen voor een pull request die dit werkpakket zelf heeft gemaakt, met dezelfde owner/repo als bij create_pull_request.');
     requireThat(rec.base === c.envelope.git.merge?.to, 'De pull request wijst niet naar het merge-doel uit de envelop.');
-    assertGate(root, st, c, 'merge');
+    requireThat(input.owner === cfg.owner && input.repo === cfg.repo, 'merge_pull_request wijkt af van de vastgepinde repository in de envelop (' + cfg.owner + '/' + cfg.repo + ').');
+    // De merge is gebonden aan de remote PR-head én aan de gereviewde READY-commit: expectedHeadSha is verplicht en alle sha's moeten gelijk zijn.
+    requireThat(typeof input.expectedHeadSha === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(input.expectedHeadSha), 'merge_pull_request vereist expectedHeadSha (de volledige sha van de PR-head die is gereviewd).');
+    assertPrMerge(root, st, c, {number: nr, expectedHeadSha: input.expectedHeadSha.toLowerCase()});
   }
   st.usage.external++;
   st.external_calls[e.tool_use_id] = {id: e.tool_use_id, provider: call.provider, action: call.action, level: call.level, status: 'reserved', at: now(), summary: safeExternalSummary(call, input)};
@@ -275,7 +282,16 @@ function findRow(root, pred) {
   }
   return null;
 }
+/** Een gelezen pull request (pull_request_read get) legt vast welke head-sha de remote op dat moment heeft; alleen dat telt als waarneming voor een merge. */
+function observePullRequest(root, e) {
+  const werk = findProviderWork(root, 'github'); if (!werk || werk.status !== 'EXECUTING') return false;
+  const nr = Number(e.tool_input?.pullNumber ?? e.tool_input?.pull_number), sha = prHeadShaFromResponse(e.tool_response);
+  if (!Number.isInteger(nr) || !sha) return false;
+  werk.pr_observed = {...(werk.pr_observed || {}), [String(nr)]: {sha, at: now(), owner: e.tool_input?.owner, repo: e.tool_input?.repo, bron: 'pull_request_read'}};
+  log(werk, 'pr_gelezen', {nummer: nr, sha: sha.slice(0, 12)}); saveWork(root, werk); return true;
+}
 function externalLifecycle(root, e) {
+  if (e.hook_event_name === 'PostToolUse' && /^mcp__github__pull_request_read$/i.test(String(e.tool_name)) && (e.tool_input?.method ?? 'get') === 'get') { observePullRequest(root, e); return false; }
   const hit = listWork(root).map(id => loadWork(root, id)).find(s => s && s.external_calls[e.tool_use_id]);
   if (!hit) {
     if (e.hook_event_name === 'PostToolUse' && /get_project_url$/i.test(String(e.tool_name))) {
@@ -299,7 +315,13 @@ function externalLifecycle(root, e) {
       else { st.supabase_verified = {ref, at: now()}; log(st, 'supabase_project_geverifieerd', {project_ref: ref}); }
     }
   }
-  if (row.provider === 'github' && row.action === 'create_pull_request') { const nr = prNumberFromResponse(e.tool_response); if (nr) st.created_prs = [...(st.created_prs || []).filter(p => !(p.number === nr && p.owner === e.tool_input?.owner && p.repo === e.tool_input?.repo)), {number: nr, owner: e.tool_input?.owner, repo: e.tool_input?.repo, base: e.tool_input?.base}]; }
+  if (row.provider === 'github' && row.action === 'create_pull_request') {
+    const nr = prNumberFromResponse(e.tool_response);
+    if (nr) {
+      st.created_prs = [...(st.created_prs || []).filter(p => !(p.number === nr && p.owner === e.tool_input?.owner && p.repo === e.tool_input?.repo)), {number: nr, owner: e.tool_input?.owner, repo: e.tool_input?.repo, base: e.tool_input?.base, head: e.tool_input?.head}];
+      const sha = prHeadShaFromResponse(e.tool_response); if (sha) st.pr_observed = {...(st.pr_observed || {}), [String(nr)]: {sha, at: now(), owner: e.tool_input?.owner, repo: e.tool_input?.repo, bron: 'create_pull_request'}};
+    }
+  }
   const index = st.external_receipts.length + 1;
   const receipt = {schema_version: 1, id: st.id, envelope_hash: envelopeHash(st.contract), provider: row.provider, action: row.action, level: row.level, status: row.status, summary: row.summary, result_digest: row.result_digest, observed_project_ref: row.observed_project_ref || null, finished: row.finished};
   const rp = 'docs/aae/evidence/' + st.id + '/external-' + index + '.json'; atomicJson(root, rp, receipt);
@@ -367,7 +389,7 @@ export function lifecycle(root, e) {
     if (ev === 'PostToolUse' && WRITE_TOOLS.has(e.tool_name)) {
       try {
         const p = toolPath(root, e), wk = workIdFromPath(p);
-        if (wk && wk.kind === 'contract') {
+        if (wk && wk.kind === 'proposal') {
           const c = validateContract(JSON.parse(fs.readFileSync(safePath(root, p, {allowMissing: false}), 'utf8')));
           registerContractUnlocked(root, c);
         }
@@ -382,7 +404,8 @@ function sessionStart(root, e) {
     const st = activeWork(root);
     if (st) { const w = reconcile(root, st); if (w.length) saveWork(root, st); }
     eventLog(root, 'session_start', {sessie: e.session_id});
-    return context('SessionStart', 'AAE v' + VERSION + ' geladen. ' + (st ? 'Werkpakket ' + st.id + ': ' + st.status + (st.activity ? ' (' + st.activity + ')' : '') + '.' : 'Geen actief werkpakket.') + ' Zie .claude/aae/ENTRY.md.');
+    let orphan = []; try { orphan = orphanedSnapshots(root, id => { try { return Boolean(loadWork(root, id)); } catch { return false; } }); } catch { /* geen hint */ }
+    return context('SessionStart', 'AAE v' + VERSION + ' geladen. ' + (st ? 'Werkpakket ' + st.id + ': ' + st.status + (st.activity ? ' (' + st.activity + ')' : '') + '.' : 'Geen actief werkpakket.') + (orphan.length ? ' De lokale status van ' + orphan.join(', ') + ' ontbreekt of is beschadigd terwijl er een goedgekeurde snapshot is: herstel met node .claude/aae/runtime/cli.mjs recover <id> (het pakket komt terug als PAUSED en hervat pas na AAE VERDER).' : '') + ' Zie .claude/aae/ENTRY.md.');
   });
 }
 export function handleEvent(root, e) {

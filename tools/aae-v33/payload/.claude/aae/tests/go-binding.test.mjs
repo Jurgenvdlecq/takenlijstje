@@ -25,17 +25,18 @@ const area = (name, ...write) => ({name, write, support: ['tests']});
 const git = (root, ...args) => spawnSync('git', args, {cwd: root, encoding: 'utf8'});
 
 // ---- GO is gebonden aan wat is getoond ----
-test('GB01 een GO zonder getoond voorstel wordt geweigerd; niets is goedgekeurd', met(root => {
+test('GB01 een kale GO, een GO zonder hash of een GO voor een niet getoond voorstel wordt geweigerd; niets is goedgekeurd', met(root => {
   plan(root);
-  const r = prompt(root, 'AAE GO');
-  assert.match(tekst(r), /GO geweigerd/); assert.match(tekst(r), /cli\.mjs present W-T/);
+  for (const t of ['AAE GO', 'AAE GO W-T']) { const r = prompt(root, t); assert.match(tekst(r), /GO geweigerd/, t); assert.match(tekst(r), /AAE GO <werkpakket-ID> <korte hash>/); }
+  const r = prompt(root, 'AAE GO W-T ' + shortHash(h({})));
+  assert.match(tekst(r), /GO geweigerd/); assert.match(tekst(r), /nog niet getoond/); assert.match(tekst(r), /present W-T/);
   assert.equal(st(root).status, 'WAITING_FOR_APPROVAL'); assert.equal(st(root).approved, null);
 }));
-test('GB02 het doel verandert na het voorstel: de oude GO is ongeldig en het nieuwe voorstel moet opnieuw worden getoond', met(root => {
-  plan(root); presentProposal(root, 'W-T');
+test('GB02 het doel verandert na het voorstel: de oude GO (met de oude hash) is ongeldig en het nieuwe voorstel moet opnieuw worden getoond', met(root => {
+  plan(root); const oud = presentProposal(root, 'W-T');
   herplan(root, {goal: 'Een ander doel dan het getoonde voorstel, dat de gebruiker niet heeft gezien.'});
-  const r = prompt(root, 'AAE GO');
-  assert.match(tekst(r), /gewijzigd sinds het is getoond/);
+  const r = prompt(root, oud.exacte_go);
+  assert.match(tekst(r), /hoort niet bij het huidige voorstel/);
   assert.equal(st(root).status, 'WAITING_FOR_APPROVAL'); assert.equal(st(root).approved, null);
   go(root); assert.equal(st(root).status, 'EXECUTING', 'na opnieuw tonen telt een nieuwe GO wel');
 }));
@@ -67,7 +68,7 @@ test('GB05 alleen de titel verandert: dezelfde hash, de GO blijft staan, geen ni
   assert.equal(write(root, 'src/a.js'), null);
   // ook vóór de GO: een hernoemd voorstel hoeft niet opnieuw getoond te worden
   const root2 = fixture();
-  try { plan(root2); presentProposal(root2, 'W-T'); herplan(root2, {title: 'Nieuwe naam'}); prompt(root2, 'AAE GO'); assert.equal(st(root2).status, 'EXECUTING'); } finally { cleanup(root2); }
+  try { plan(root2); const p = presentProposal(root2, 'W-T'); herplan(root2, {title: 'Nieuwe naam'}); prompt(root2, p.exacte_go); assert.equal(st(root2).status, 'EXECUTING'); } finally { cleanup(root2); }
 }));
 test('GB06 alleen plan of technische aanpak verandert (agents, commando\'s, leesscope, extra controle; de bestaande bewijsvloer blijft gelijk): dezelfde hash, de GO blijft staan', met(root => {
   const basis = contract().plan;
@@ -134,10 +135,10 @@ test('GB09 de hash bindt minimaal ID, doel, criteria, schrijfgebied, risico, fla
 
 // ---- elke bewakingshandeling controleert tegen de goedgekeurde volledige hash ----
 test('GB10 elke bewakingshandeling controleert de goedgekeurde hash en de envelop; bij een afwijking wordt geweigerd en wacht het pakket op een beslissing', met(async root => {
-  const extern = {envelope: {providers: {github: {tools: ['create_pull_request'], max_calls: 1}}, budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 1, max_parallel: 1}}};
+  const extern = {envelope: {git: {commit: true, push: ['claude/werk'], merge: null, deploy: 'none'}, providers: {github: {tools: ['create_pull_request'], max_calls: 1, owner: 'o', repo: 'r', head: 'claude/werk'}}, budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 1, max_parallel: 1}}};
   executing(root, extern);
   assert.equal(write(root, 'src/a.js'), null);
-  const pr = {owner: 'o', repo: 'r', title: 'Titel van de pull request', head: 'claude/werk', base: 'main'};
+  const pr = {owner: 'o', repo: 'r', title: 'Titel van de pull request', head: 'claude/werk', base: 'main'}; // base is niet vastgepind: elke base is toegestaan
   const acties = {
     schrijven: () => write(root, 'src/a.js'),
     'gevolgd document': () => write(root, 'docs/aae/PROGRESS.md'),
@@ -173,7 +174,11 @@ test('GB11 de GO-melding noemt werkpakket-ID en korte hash; `present` toont deze
   const p = presentProposal(root, 'W-T');
   assert.equal(p.id, 'W-T'); assert.equal(p.short_hash, shortHash(h({}))); assert.match(p.vraag, new RegExp('AAE GO W-T.*' + p.short_hash));
   assert.ok(p.samenvatting.some(r => /^Doel: /.test(r)) && p.samenvatting.some(r => /Mag wijzigen: src/.test(r)));
-  const r = prompt(root, 'AAE GO');
+  assert.equal(p.exacte_go, 'AAE GO W-T ' + p.short_hash);
+  assert.match(tekst(prompt(root, 'AAE GO W-T 00000000')), /hoort niet bij het huidige voorstel/, 'een verkeerde hash telt niet');
+  assert.ok(denies(() => prompt(root, 'AAE GO W-ANDERS ' + p.short_hash)), 'een verkeerd ID telt niet');
+  assert.equal(st(root).approved, null);
+  const r = prompt(root, p.exacte_go);
   assert.match(tekst(r), new RegExp('W-T \\(envelop ' + p.short_hash + '\\)'));
   assert.equal(st(root).approved.envelope_hash, h({}));
 }));
@@ -190,7 +195,7 @@ test('GB12 LIGHT vraagt precies één GO; een pure analyse start zonder GO maar 
 }));
 test('GB13 een implementatiepakket of een analyse met een externe schrijftool start nooit zonder GO', met(root => {
   assert.equal(plan(root, {id: 'W-I'}).status, 'WAITING_FOR_APPROVAL');
-  const extern = {id: 'W-A2', envelope: {phase: 'analysis', areas: [], providers: {github: {tools: ['create_pull_request'], max_calls: 1}}, budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 1, max_parallel: 1}},
+  const extern = {id: 'W-A2', envelope: {phase: 'analysis', areas: [], providers: {supabase: {project_ref: 'abcdefghij', tools: ['get_project_url', 'execute_sql'], max_calls: 2}}, budgets: {agent_calls: {soft: 2, hard: 4}, command_runs: 20, external_calls: 2, max_parallel: 1}},
     plan: {...contract().plan, agents: [], commands: [], test_plan: [{kind: 'analysis', method: 'inspection', description: 'Beschrijf de bevindingen en wat niet is gecontroleerd.'}]}};
   assert.equal(plan(root, extern).status, 'WAITING_FOR_APPROVAL');
 }));

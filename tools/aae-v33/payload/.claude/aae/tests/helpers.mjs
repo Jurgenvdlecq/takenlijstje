@@ -67,8 +67,8 @@ export function executing(root, over = {}) {
 /** Toont het voorstel (zoals de Lead met cli present doet) en geeft daarna de exacte GO: een GO telt alleen voor het getoonde voorstel. */
 export function go(root, id = 'W-T') {
   if (loadWork(root, id)?.status === 'EXECUTING') return null; // bijvoorbeeld een pure analyse: start zonder GO
-  presentProposal(root, id);
-  return prompt(root, 'AAE GO');
+  const p = presentProposal(root, id);
+  return prompt(root, p.exacte_go); // exact de getoonde opdracht: AAE GO <id> <korte hash>
 }
 export const st = (root, id = 'W-T') => loadWork(root, id);
 export const pre = (root, tool_name, tool_input, extra = {}) => hook(root, {hook_event_name: 'PreToolUse', tool_name, tool_input, tool_use_id: 'tu-' + Math.random().toString(36).slice(2, 8), ...extra});

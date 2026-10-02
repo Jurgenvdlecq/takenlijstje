@@ -230,6 +230,7 @@ function gitFixture(root) { sh(root, 'init', '-q'); sh(root, 'add', '-A'); sh(ro
 test('review: de merge-gate bindt het bewijs aan de commit: HEAD moet gelijk zijn aan de vastgelegde commit en de branch aan HEAD', met(async root => {
   gitFixture(root);
   executing(root, metCmds([mergeCmd], [], mergeEnv));
+  sh(root, 'add', '-A', '--', 'docs/aae/work'); sh(root, 'commit', '-q', '-m', 'snapshot van de goedgekeurde envelop'); // READY en de merge-gate eisen dat de snapshot in HEAD staat
   const r = await runCommand(root, 't_ok');
   const t = makeResult(root, r.evidence_path);
   assert.match(t.git_head, /^[0-9a-f]{40,64}$/, 'het rapportsjabloon legt HEAD vast');

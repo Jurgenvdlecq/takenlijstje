@@ -8,6 +8,7 @@ import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, 
 import {validateContract, sourceDigest, classifyCommand, clock} from '../runtime/core.mjs';
 import {loadWork, saveWork, withLock, contractFile, newState} from '../runtime/state.mjs';
 import {liveRows, reconcile} from '../runtime/reports.mjs';
+import {presentProposal} from '../runtime/commands.mjs';
 
 const met = fn => async () => { const root = fixture(); const cfg = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33cfg-'))); process.env.CLAUDE_CONFIG_DIR = cfg; try { await fn(root, cfg); } finally { cleanup(root); cleanup(cfg); delete process.env.CLAUDE_CONFIG_DIR; clock.ms = () => Date.now(); } };
 const msg = (fn) => { const e = denies(fn); assert.ok(e, 'verwacht een weigering'); return e.message; };
@@ -110,7 +111,8 @@ test('G20 een tweede werkpakket start niet zolang een ander actief is; één bou
   executing(root);
   plan(root, {id: 'W-U'});
   assert.equal(st(root, 'W-U').status, 'WAITING_FOR_APPROVAL');
-  assert.match(msg(() => prompt(root, 'AAE GO W-U')), /nog actief/);
+  const p = presentProposal(root, 'W-U');
+  assert.match(msg(() => prompt(root, p.exacte_go)), /nog actief/);
   assert.equal(st(root, 'W-U').status, 'WAITING_FOR_APPROVAL');
   assert.equal(st(root).status, 'EXECUTING');
 }));
@@ -172,12 +174,12 @@ test('G32 ook een LIGHT-pakket start niet zonder GO; een expliciete pauze wint d
 test('G34 een dubbele GO is idempotent: dezelfde goedkeuring, geen tweede start', met(root => {
   executing(root);
   const at = st(root).approved.at, h = st(root).approved.envelope_hash;
-  prompt(root, 'AAE GO');
+  assert.match(JSON.stringify(prompt(root, 'AAE GO W-T ' + h.slice(0, 8))), /al geldig/);
   assert.equal(st(root).approved.at, at); assert.equal(st(root).approved.envelope_hash, h);
 }));
 test('G36 een GO voor een ander werkpakket wordt geweigerd', met(root => {
   plan(root);
-  assert.match(msg(() => prompt(root, 'AAE GO W-ANDERS')), /niet in een toestand voor GO/);
+  assert.match(msg(() => prompt(root, 'AAE GO W-ANDERS abcdef12')), /niet in een toestand voor GO/);
   assert.equal(st(root).status, 'WAITING_FOR_APPROVAL');
 }));
 test('G40 na pauze en hervatten blijven de tellers behouden', met((root, cfg) => {

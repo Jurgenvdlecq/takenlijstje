@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {fixture, cleanup, put, st, prompt, pre, write, bash, hook, denies} from './helpers.mjs';
+import {fixture, cleanup, put, st, prompt, go, pre, write, bash, hook, denies} from './helpers.mjs';
 import {importLegacy, adaptLegacyContract, mapRole} from '../runtime/legacy.mjs';
 import {validateContract} from '../runtime/core.mjs';
 import {loadWork} from '../runtime/state.mjs';
@@ -44,17 +44,27 @@ function v32State(t, over = {}) {
 const zet = (root, t, s) => { put(root, 'docs/aae/TASK.json', t); put(root, '.claude/aae/state/local.json', s); };
 const met = fn => async () => { const root = fixture(); try { await fn(root); } finally { cleanup(root); } };
 
-test('legacy: een goedgekeurde v3.2-route wordt een lopend v3.3-werkpakket met behoud van GO, verbruik en agentregistraties', met(root => {
+test('RB08 legacy: een actieve v3.2-route met kloppende digest en identiek TASK.json wordt nooit stil approved of EXECUTING; verbruik en agentregistraties blijven behouden en een expliciete GO is nodig (eenmalige migratiegrens)', met(root => {
   const t = v32Task(); zet(root, t, v32State(t));
   const uit = importLegacy(root);
-  assert.deepEqual(uit, {id: 'AAE-OUD-1', status: 'EXECUTING'});
+  assert.deepEqual(uit, {id: 'AAE-OUD-1', status: 'WAITING_FOR_APPROVAL'});
   const s = st(root, 'AAE-OUD-1');
-  assert.equal(s.legacy, true); assert.equal(s.status, 'EXECUTING'); assert.ok(s.approved, 'GO blijft geldig');
+  assert.equal(s.legacy, true); assert.equal(s.status, 'WAITING_FOR_APPROVAL'); assert.equal(s.approved, null, 'een v3.2-GO telt niet');
+  assert.ok(denies(() => write(root, 'src/nieuw.js')), 'zonder nieuwe GO geen schrijfrechten');
   assert.deepEqual(s.usage, {agents: 1, commands: 2, external: 0}); assert.equal(s.command_counts.t_local, 2);
   const agent = s.agents['tu-oud']; assert.equal(agent.role, 'aae-reviewer'); assert.equal(agent.focus, 'security'); assert.equal(agent.reported_status, 'READY');
   assert.equal(s.receipts.length, 1);
   assert.equal(importLegacy(root), null, 'idempotent');
+  assert.match(JSON.stringify(prompt(root, 'AAE GO AAE-OUD-1 abcdef12')), /GO geweigerd/, 'een GO zonder getoond voorstel telt niet');
+  go(root, 'AAE-OUD-1'); assert.equal(st(root, 'AAE-OUD-1').status, 'EXECUTING', 'na present en de exacte GO start het pakket');
 }));
+test('RB08 legacy: een v3.2-route met apply_migration of sensitive_migrations wordt geen algemene B-vrijheid en een gevoelige migratie wordt niet overgenomen', () => {
+  const t = v32Task({integrations: {supabase: {project_ref: 'abcdefghij', tools: ['get_project_url', 'apply_migration'], max_calls: 4, sensitive_migrations: ['verwijder_oude_tabel']}}});
+  t.budget = {...t.budget, external_calls: 4};
+  const {contract, notes} = adaptLegacyContract(t);
+  assert.equal(contract.envelope.db_max, 'A', 'nooit automatisch B');
+  assert.ok(notes.some(x => /verwijder_oude_tabel/.test(x)), 'de gevoelige migratie is zichtbaar als niet overgenomen');
+});
 test('legacy: de rollen worden afgebeeld op de drie nieuwe agents', () => {
   assert.deepEqual(mapRole('aae-security-reviewer'), ['aae-reviewer', 'security']);
   assert.deepEqual(mapRole('aae-code-reviewer'), ['aae-reviewer', 'code']);
@@ -72,6 +82,7 @@ test('legacy: commando\'s krijgen de juiste v3.3-capabilities (commit, push, mer
 });
 test('legacy: na de overgang werkt de route: schrijven in het oude gebied, een lokaal commando, een gewoon bericht verandert niets', met(async root => {
   const t = v32Task(); zet(root, t, v32State(t));
+  importLegacy(root); go(root, 'AAE-OUD-1');
   assert.equal(write(root, 'src/nieuw.js'), null);
   assert.ok(denies(() => write(root, 'app/x.ts')));
   assert.equal((await runCommand(root, 't_local')).exit_code, 0);
@@ -85,14 +96,14 @@ test('legacy: terugdraaien blijft toegestaan: het rollbackcommando van de oude r
   const v = validateContract(structuredClone(contract));
   assert.ok(v.plan.commands.some(m => m.id === 'rollback' && v.envelope.extra_commands.some(x => x.argv.join(' ') === m.argv.join(' '))));
 }));
-test('legacy: een nog niet goedgekeurde v3.2-route wacht op de GO; een gepauzeerde blijft gepauzeerd; een gesloten route is afgerond', met(root => {
+test('legacy: een nog niet goedgekeurde v3.2-route wacht op de GO; ook een gepauzeerde wacht op een expliciete GO; een gesloten route is afgerond', met(root => {
   let t = v32Task(), s = v32State(t, {status: 'pending', approval: null}); zet(root, t, s);
   importLegacy(root);
   assert.equal(st(root, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL');
   const root2 = fixture();
   try {
     zet(root2, t, v32State(t, {status: 'paused'})); importLegacy(root2);
-    assert.equal(st(root2, 'AAE-OUD-1').status, 'PAUSED');
+    assert.equal(st(root2, 'AAE-OUD-1').status, 'WAITING_FOR_APPROVAL', 'ook een gepauzeerde v3.2-route start pas na een expliciete GO');
     zet(root2, v32Task({id: 'AAE-OUD-2'}), v32State(v32Task({id: 'AAE-OUD-2'}), {status: 'closed', result: 'READY'})); importLegacy(root2);
     assert.equal(st(root2, 'AAE-OUD-2').status, 'READY');
   } finally { cleanup(root2); }

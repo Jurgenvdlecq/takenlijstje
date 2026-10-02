@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {fixture, cleanup, contract, plan, executing, go, st, prompt, hook, pre, write, bash, denies, agentCall, runAgent, REPORT, WHY, writeTranscript, put} from './helpers.mjs';
-import {loadWork, saveWork, withLock, activeWork, contractFile, TERMINAL} from '../runtime/state.mjs';
+import {loadWork, saveWork, withLock, activeWork, contractFile, registerContract, TERMINAL} from '../runtime/state.mjs';
 import {reconcile, liveRows, finalizeRun, DIGEST_MAX, KEEP_RAW_FILE, KEEP_RAW_TOTAL} from '../runtime/reports.mjs';
 import {classifyDb} from '../runtime/integrations.mjs';
 import {validateContract, envelopeHash, clock} from '../runtime/core.mjs';
@@ -97,7 +97,8 @@ test('T6 stale registratie: tijd alleen is geen bewijs; pas stilstand + hosthint
   // Een late afronding wordt gewoon verwerkt, ook na lang wachten.
   runLate(root);
   assert.equal(st(root).agents['tu-a'].status, 'stopped');
-  assert.equal(st(root).agents['tu-a'].report.status === 'COMPLETED' || st(root).agents['tu-a'].report.status === 'REPORT_UNVERIFIED', true);
+  // Twee bronnen komen overeen (last_assistant_message en de respons van de agent): precies COMPLETED, niet iets vaags.
+  assert.equal(st(root).agents['tu-a'].report.status, 'COMPLETED'); assert.equal(st(root).agents['tu-a'].report.verified, true);
 }));
 function runLate(root) {
   hook(root, {hook_event_name: 'SubagentStop', agent_type: 'aae-reviewer', agent_id: 'stale001', last_assistant_message: REPORT()});
@@ -212,6 +213,14 @@ test('T14 preflight-blokkade: een ontbrekende voorwaarde wordt vooraf gebundeld 
   assert.ok(checks.some(x => x.status === 'fail' && x.human));
   assert.equal(bundleActions(checks).length, 1);
   assert.match(bundleActions(checks)[0], /AAE_TEST_ONTBREEKT_1/);
+  // "start niet": met een falende preflight staat het pakket op PLANNING, een GO wordt geweigerd en er is geen schrijfrecht.
+  put(root, contractFile(c.id), c); registerContract(root, c);
+  withLock(root, () => { const s = loadWork(root, c.id); s.preflight = {at: new Date().toISOString(), checks}; saveWork(root, s); });
+  const u = registerContract(root, c);
+  assert.equal(u.status, 'PLANNING'); assert.match(u.blockers.join(' '), /Preflight meldt blokkades/);
+  assert.ok(denies(() => go(root, c.id)), 'een GO op een pakket met een preflight-blokkade wordt geweigerd');
+  assert.equal(st(root, c.id).status, 'PLANNING'); assert.equal(st(root, c.id).approved, null);
+  assert.ok(denies(() => write(root, 'src/a.js')), 'zonder start geen schrijfrechten');
 }));
 
 test('T15 geen Stop-hook: een Stop-event wordt nooit geblokkeerd en verandert niets', metRoot(root => {
@@ -317,7 +326,7 @@ test('T22 een open productvraag blokkeert WAITING_FOR_APPROVAL; zonder vraag sta
   const s = plan(root, {plan: {...contract().plan, open_product_questions: ['Moet de lijst op de startpagina komen?']}});
   assert.equal(s.status, 'PLANNING');
   assert.match(s.blockers.join(' '), /productvragen open/);
-  go(root);
+  assert.ok(denies(() => go(root)), 'een GO op een plan met open vragen wordt geweigerd');
   assert.equal(st(root).status, 'PLANNING', 'een GO op een plan met open vragen doet niets');
   const s2 = plan(root, {id: 'W-U'});
   assert.equal(s2.status, 'WAITING_FOR_APPROVAL');

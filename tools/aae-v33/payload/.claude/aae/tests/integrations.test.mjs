@@ -26,6 +26,9 @@ const ext = (root, tool, input, response = {content: [{type: 'text', text: 'ok'}
   return r;
 };
 const run = (root, over = {}) => { probe(root); return executing(root, {envelope: {providers: prov(), db_max: 'A', budgets: BUDGET(10)}, ...over}); };
+// GitHub-provider: owner, repo en head zijn verplicht vastgepind in de envelop; head is een werkbranch uit git.push.
+const GIT = {commit: true, push: ['claude/w'], merge: null, deploy: 'none'};
+const GHP = (tools, max, extra = {}) => { const p = {tools, max_calls: max, owner: 'o', repo: 'r', head: 'claude/w', base: 'main', ...extra}; for (const k of Object.keys(p)) if (p[k] === undefined) delete p[k]; return {github: p}; };
 
 test('I01 get_project_url is de enige begrensde Supabase-probe vóór een werkpakket', met(root => {
   probe(root);
@@ -100,8 +103,8 @@ test('I12 GitHub: PR-aanmaak is aan de envelop gebonden, lezen is vrij en samenv
   assert.equal(pre(root, 'mcp__github__get_file_contents', {path: 'README.md'}), null);
   assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'g0'})), /Maak eerst een werkpakket met github/);
   assert.match(msg(() => pre(root, 'mcp__github__push_files', {}, {tool_use_id: 'g9'})), /niet toegestaan/);
-  executing(root, {envelope: {providers: {github: {tools: ['create_pull_request'], max_calls: 2, base: 'main', head: 'claude/w'}}, budgets: BUDGET(2)}});
-  assert.equal(pre(root, 'mcp__github__create_pull_request', {base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'g1'}), null);
+  executing(root, {envelope: {git: GIT, providers: GHP(['create_pull_request'], 2), budgets: BUDGET(2)}});
+  assert.equal(pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'g1'}), null);
   hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'g1', tool_input: {}, tool_response: {}});
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'g2'})), /staat niet in de goedgekeurde envelop/);
 }));
@@ -116,10 +119,11 @@ test('I14 de SQL-classificatie weigert bijwerkingen in SELECT en meerdere statem
     assert.equal(classifySql(s).level, 'change', s);
   assert.equal(classifySql('').level, 'blocked');
 });
-test('I15 DML in een functielichaam wordt niet aangezien voor een directe DELETE', () => {
+test('I15 een functielichaam telt mee: een body met DELETE is DB-C (de oude test die klasse A vastpinde is vervangen; zie RB03)', () => {
   const f = 'CREATE OR REPLACE FUNCTION opruim() RETURNS void LANGUAGE plpgsql AS $$ BEGIN DELETE FROM oud; END; $$;';
-  assert.equal(classifyDb(f).klasse, 'A');
+  assert.equal(classifyDb(f).klasse, 'C', 'de body voert een DELETE uit zodra de functie draait');
   assert.equal(classifyDb('CREATE FUNCTION f() RETURNS int LANGUAGE sql SECURITY DEFINER AS $$ SELECT 1 $$;').klasse, 'B');
+  assert.equal(classifyDb('CREATE FUNCTION g() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;').klasse, 'A', 'een onschuldige functiebody blijft additief');
   assert.equal(classifyDb('DELETE FROM oud;').klasse, 'C');
 });
 test('I16 een gewoon bericht mag opnieuw proben zonder een oud werkpakket te heractiveren', met(root => {
@@ -139,10 +143,12 @@ test('I18 apply_migration faalt gesloten zonder expliciete naam of SQL', met(roo
   assert.match(msg(() => pre(root, 'mcp__supabase__apply_migration', {name: 'leeg', project_id: REF}, {tool_use_id: 'n2'})), /migratie-SQL/);
 }));
 test('I19 PR-aanmaak vereist een expliciete, passende base en head', met(root => {
-  executing(root, {envelope: {providers: {github: {tools: ['create_pull_request'], max_calls: 3, base: 'main', head: 'claude/w'}}, budgets: BUDGET(3)}});
+  executing(root, {envelope: {git: GIT, providers: GHP(['create_pull_request'], 3), budgets: BUDGET(3)}});
   assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {head: 'claude/w'}, {tool_use_id: 'a1'})), /expliciete base/);
   assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {base: 'main'}, {tool_use_id: 'a2'})), /expliciete head/);
-  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {base: 'develop', head: 'claude/w'}, {tool_use_id: 'a3'})), /PR-base wijkt af/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'develop', head: 'claude/w'}, {tool_use_id: 'a3'})), /PR-base wijkt af/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'andere', base: 'main', head: 'claude/w'}, {tool_use_id: 'a4'})), /vastgepinde repository/);
+  assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/ander'}, {tool_use_id: 'a5'})), /vastgepinde werkbranch/);
 }));
 test('I20 een bevestiging (AAE BEVESTIG) overleeft een vervolgbericht niet (R8)', met(root => {
   run(root, {envelope: {providers: prov(), db_max: 'B', budgets: BUDGET(10)}});
@@ -169,7 +175,7 @@ test('I22 het verbreden van de Supabase-integratie is een wezenlijke wijziging',
 test('DB-klassen: A (additief), B (middel), C (destructief) op echte SQL; onbekend is nooit stilzwijgend A', () => {
   const k = s => classifyDb(s).klasse;
   for (const s of ['CREATE TABLE a (id int);', 'ALTER TABLE a ADD COLUMN b text;', 'CREATE INDEX i ON a (b);', 'ALTER TABLE a ENABLE ROW LEVEL SECURITY;']) assert.equal(k(s), 'A', s);
-  for (const s of ['CREATE POLICY p ON a FOR SELECT USING (true);', 'UPDATE a SET b = 1 WHERE id = 1;', 'ALTER TABLE a ADD CONSTRAINT c UNIQUE (b);', 'GRANT SELECT ON a TO x;', 'ALTER TABLE a ALTER COLUMN b SET NOT NULL;', "SELECT cron.schedule('j','* * * * *','SELECT 1');", 'ALTER TABLE a RENAME TO b;', 'VACUUM a;']) assert.equal(k(s), 'B', s);
+  for (const s of ['CREATE POLICY p ON a FOR SELECT USING (b = current_user);', 'UPDATE a SET b = 1 WHERE id = 1;', 'ALTER TABLE a ADD CONSTRAINT c UNIQUE (b);', 'GRANT SELECT ON a TO x;', 'ALTER TABLE a ALTER COLUMN b SET NOT NULL;', "SELECT cron.schedule('j','* * * * *','SELECT 1');", 'ALTER TABLE a RENAME TO b;', 'VACUUM a;']) assert.equal(k(s), 'B', s);
   for (const s of ['DROP TABLE a;', 'TRUNCATE a;', 'DELETE FROM a;', 'UPDATE a SET b = 1;', 'ALTER TABLE a DISABLE ROW LEVEL SECURITY;', 'ALTER TABLE a ALTER COLUMN b TYPE int;', "INSERT INTO auth.users (id) VALUES (1);", 'ALTER TABLE a DROP COLUMN b;', '']) assert.equal(k(s), 'C', s);
   assert.equal(k('CREATE TABLE a (id int); DROP TABLE b;'), 'C', 'de hoogste klasse van alle statements telt');
 });
@@ -194,7 +200,8 @@ test('DB-klassen (review ronde 4): niet-ASCII $-tags en identifiers, EXPLAIN ANA
     assert.equal(k(s), 'C', s);
   for (const s of ["SELECT $é$ ' $é$; DROP TABLE x; SELECT $é$ ' $é$", 'SELECT é$a$; DROP TABLE x; SELECT é$a$', 'SELECT $ ; DROP TABLE x']) assert.notEqual(classifySql(s).level, 'read', s);
   assert.equal(k('CREATE TABLE b (a int REFERENCES t (id) ON DELETE CASCADE);'), 'A', 'ON DELETE CASCADE is een verwijzingsactie');
-  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (true);'), 'B', 'een beleid beschrijft alleen een regel');
+  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (b = current_user);'), 'B', 'een beleid beschrijft alleen een regel');
+  assert.equal(k('CREATE POLICY p ON a FOR DELETE USING (true);'), 'C', 'een beleid dat voor iedereen alles toestaat is een escalatie');
   assert.equal(k('INSERT INTO a (b) VALUES (1) ON CONFLICT (b) DO UPDATE SET b = 2;'), 'B');
   assert.equal(k('GRANT DELETE ON a TO x;'), 'B');
   assert.equal(k('SELECT $1'), 'B', 'een gewone parameter blijft leesbaar');
@@ -217,19 +224,20 @@ test('DB-klassen (review ronde 6): geciteerde functienamen/schema\'s verbergen n
 });
 test('review: een pull request kan alleen worden samengevoegd als dit werkpakket hem zelf heeft gemaakt, en dan nog achter de gate', met(root => {
   const git = {commit: true, push: ['claude/w'], merge: {to: 'main'}, deploy: 'verify'};
-  executing(root, {envelope: {git, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4, base: 'main', head: 'claude/w'}}, budgets: BUDGET(4)}});
+  executing(root, {envelope: {git, providers: GHP(['create_pull_request', 'merge_pull_request'], 4), budgets: BUDGET(4)}});
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 1}, {tool_use_id: 'k0'})), /zelf heeft gemaakt/);
   const maak = {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'};
   pre(root, 'mcp__github__create_pull_request', maak, {tool_use_id: 'k1'});
   hook(root, {hook_event_name: 'PostToolUse', tool_name: 'mcp__github__create_pull_request', tool_use_id: 'k1', tool_input: maak, tool_response: {content: [{type: 'text', text: '{"number": 12, "url": "https://github.com/o/r/pull/12"}'}]}});
-  assert.deepEqual(st(root).created_prs, [{number: 12, owner: 'o', repo: 'r', base: 'main'}]);
+  assert.deepEqual(st(root).created_prs, [{number: 12, owner: 'o', repo: 'r', base: 'main', head: 'claude/w'}]);
   assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'develop', head: 'claude/w', title: 'x'}, {tool_use_id: 'k5'})), /PR-base wijkt af|merge-doel/);
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {pullNumber: 99}, {tool_use_id: 'k2'})), /zelf heeft gemaakt/);
   assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'andere', pullNumber: 12}, {tool_use_id: 'k4'})), /dezelfde owner\/repo/);
-  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12}, {tool_use_id: 'k6'})), /expectedHeadSha/);
+  assert.match(msg(() => pre(root, 'mcp__github__merge_pull_request', {owner: 'o', repo: 'r', pullNumber: 12, expectedHeadSha: 'a'.repeat(40)}, {tool_use_id: 'k3'})), /result\.json ontbreekt/);
 }));
 test('review ronde 4: een PR die samengevoegd mag worden, moet naar het merge-doel wijzen (anders valt de deploy-check op het verkeerde doel)', met(root => {
-  executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'staging'}, deploy: 'verify'}, providers: {github: {tools: ['create_pull_request', 'merge_pull_request'], max_calls: 4}}, budgets: BUDGET(4)}});
+  executing(root, {envelope: {git: {commit: true, push: ['claude/w'], merge: {to: 'staging'}, deploy: 'verify'}, providers: GHP(['create_pull_request', 'merge_pull_request'], 4, {base: undefined}), budgets: BUDGET(4)}});
   assert.match(msg(() => pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'main', head: 'claude/w', title: 'x'}, {tool_use_id: 'm1'})), /merge-doel/);
   assert.equal(pre(root, 'mcp__github__create_pull_request', {owner: 'o', repo: 'r', base: 'staging', head: 'claude/w', title: 'x'}, {tool_use_id: 'm2'}), null);
 }));

@@ -56,7 +56,8 @@ export function adaptLegacyContract(t) {
     envelope: {
       phase: t.phase,
       areas: writes.length ? [{name: 'Bestaande schrijfscope (overgenomen uit v3.2)', write: writes, support: []}] : [],
-      db_max: sup && (sup.tools.includes('apply_migration') || (sup.sensitive_migrations || []).length) ? 'B' : 'none',
+      // Nooit automatisch B: een apart goedgekeurde gevoelige migratie mag geen algemene B-vrijheid worden (zie notes).
+      db_max: sup && (sup.tools.includes('apply_migration') || (sup.sensitive_migrations || []).length) ? 'A' : 'none',
       providers, git,
       budgets: {agent_calls: {soft: Math.min(3, hard), hard}, command_runs: Math.min(t.budget.command_runs, 200), external_calls: t.budget.external_calls || 0, max_parallel: Math.min(Math.max(t.budget.max_parallel || 1, 1), 3)},
       acceptance: t.acceptance, assumptions: [], decision_defaults: [], decision_points: t.decision_points || [], extra_commands: uniek
@@ -67,7 +68,10 @@ export function adaptLegacyContract(t) {
       commands: commands.map(({_legacyPurpose, ...rest}) => rest), open_product_questions: [], keep_raw: false
     }
   };
-  return {contract: c, legacyPurposes: Object.fromEntries(commands.map(m => [m.id, m._legacyPurpose]))};
+  const notes = [];
+  if (sup && (sup.tools.includes('apply_migration') || (sup.sensitive_migrations || []).length)) notes.push('De database-ruimte is bij overname klasse A (niet automatisch B). Verhoog hem alleen bewust in een nieuw voorstel.');
+  if (sup && (sup.sensitive_migrations || []).length) notes.push('Apart goedgekeurde gevoelige migratie(s) uit v3.2 zijn niet overgenomen: ' + sup.sensitive_migrations.map(x => typeof x === 'string' ? x : (x?.name || x?.id || 'onbekend')).join(', ') + '. Ze vragen opnieuw een expliciete goedkeuring.');
+  return {contract: c, notes, legacyPurposes: Object.fromEntries(commands.map(m => [m.id, m._legacyPurpose]))};
 }
 
 /** Neemt de lopende v3.2-taak over als v3.3-werkpakket (alleen als daar nog geen status voor bestaat). */
@@ -81,7 +85,8 @@ export function importLegacy(root) {
   return withLock(root, () => {
     if (loadWork(root, t.id)) return null;
     let c, legacyPurposes;
-    try { const adapted = adaptLegacyContract(t); legacyPurposes = adapted.legacyPurposes; c = validateContract(adapted.contract); }
+    let notes = [];
+    try { const adapted = adaptLegacyContract(t); legacyPurposes = adapted.legacyPurposes; notes = adapted.notes || []; c = validateContract(adapted.contract); }
     catch (e) {
       const st = newState(t.id); st.legacy = true; st.status = 'BLOCKED'; st.blockers = ['Overgenomen v3.2-contract past niet in v3.3: ' + e.message];
       log(st, 'legacy_import_mislukt', {fout: e.message}); saveWork(root, st); eventLog(root, 'legacy_import_mislukt', {id: t.id}); return {id: t.id, status: 'BLOCKED'};
@@ -104,13 +109,11 @@ export function importLegacy(root) {
     }
     // Alleen een bewezen READY telt als READY; PARTIAL en BLOCKED blijven zichtbaar open (zoals v3.3 zelf afsluit).
     if (lt.status === 'closed') { st.status = lt.result === 'READY' ? 'READY' : 'BLOCKED'; st.result = lt.result; if (st.status === 'BLOCKED') st.blockers = ['Overgenomen v3.2-taak was afgesloten als ' + String(lt.result || 'onbekend') + '.']; }
-    else if (lt.status === 'pending') { st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; }
-    else if (lt.status === 'paused') { st.proposed = c; st.status = 'PAUSED'; st.paused_from = 'EXECUTING'; }
     else {
-      if (goedgekeurd) { st.approved = {envelope_hash: hash, contract: c, at: lt.approval.at || now(), source: 'v3.2 GO (overgenomen)'}; st.status = 'EXECUTING'; st.activity = 'BUILDING'; }
-      // Alleen een pure analyse start zonder GO; een v3.2-route zonder GO-eis (ook LIGHT) die iets wil wijzigen wacht op precies één AAE GO.
-      else if (t.approval_required === false && analysisFree(c)) { st.proposed = c; approve(st, c, 'ANALYSE (v3.2-route zonder GO-eis, alleen lezen)'); }
-      else { st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; log(st, 'legacy_zonder_geldige_go', {reden: 'geen of verouderde v3.2-goedkeuring; een nieuwe AAE GO is nodig'}); }
+      // Eenmalige migratiegrens (besluit van Jurgen): een lopende, wachtende of gepauzeerde v3.2-route wordt NOOIT stil approved of EXECUTING, ook niet met een kloppende v3.2-GO,
+      // ook niet als LIGHT of zonder GO-eis. Na de overgang vraagt elk pakket een expliciete cli present en AAE GO <id> <korte hash>. Verbruik, receipts en agents blijven behouden.
+      st.proposed = c; st.status = 'WAITING_FOR_APPROVAL'; st.legacy_notes = notes;
+      log(st, 'legacy_wacht_op_go', {v32_status: lt.status, v32_go_geldig: goedgekeurd, reden: 'eenmalige migratiegrens: expliciete AAE GO na installatie van v3.3'});
     }
     // Niet-lokale commando's blijven alleen goedgekeurd als hun bronnen sinds de v3.2-GO niet zijn veranderd.
     st.extra_fp = {};

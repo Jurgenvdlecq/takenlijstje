@@ -6,10 +6,12 @@ import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRe
 import {
   withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
 } from './state.mjs';
+import {writeSnapshot} from './snapshot.mjs';
+import {runsArbitraryCode} from './core.mjs';
 import {liveRows, reconcile} from './reports.mjs';
 import {importLegacy} from './legacy.mjs';
 
-const CMD = /^AAE (GO|PAUZE|VERDER|STATUS|ANNULEER|BEVESTIG)(?: ([A-Za-z0-9_-]+))?$/; // exacte tekst, hoofdletters; geen afgeleide of vermomde varianten
+const CMD = /^AAE (GO|PAUZE|VERDER|STATUS|ANNULEER|BEVESTIG)(?: ([A-Za-z0-9_-]+))?(?: ([0-9a-f]{8}))?$/; // exacte tekst, hoofdletters; geen afgeleide of vermomde varianten. GO: AAE GO <id> <korte hash>.
 export const context = (event, msg) => ({hookSpecificOutput: {hookEventName: event, additionalContext: msg}});
 export const extraKey = m => digest({argv: m.argv, purpose: m.purpose});
 
@@ -55,19 +57,35 @@ export function presentProposal(root, id) {
   return withLock(root, () => {
     const st = loadWork(root, id); requireThat(st, 'Onbekend werkpakket ' + id + '.');
     requireThat(['PLANNING', 'WAITING_FOR_APPROVAL', 'PAUSED', 'NEEDS_HUMAN'].includes(st.status), 'Werkpakket ' + id + ' wacht niet op goedkeuring (' + st.status + ').');
-    const c = st.proposed || st.contract; requireThat(c, 'Nog geen contract voor ' + id + '. Maak eerst contract.json en voer cli plan uit.');
-    const e = c.envelope, hash = envelopeHash(c);
+    const c = st.proposed || st.contract; requireThat(c, 'Nog geen voorstel voor ' + id + '. Maak eerst proposal.json en voer cli plan uit.');
+    const e = c.envelope, hash = envelopeHash(c), kort = shortHash(hash);
+    const providers = Object.entries(e.providers).map(([naam, p]) => naam === 'supabase'
+      ? 'supabase (project ' + p.project_ref + '; tools: ' + p.tools.join(', ') + '; max ' + p.max_calls + ' aanroepen)'
+      : 'github (' + p.owner + '/' + p.repo + '; werkbranch ' + p.head + (p.base ? ' naar ' + p.base : '') + '; tools: ' + p.tools.join(', ') + '; max ' + p.max_calls + ' aanroepen)');
+    const steun = [...new Set(e.areas.flatMap(a => a.support || []))];
+    const extra = e.extra_commands.map(x => {
+      const reden = (c.plan.commands.find(m => m.purpose === x.purpose && stable(m.argv) === stable(x.argv)) || {}).why;
+      return '  - [' + x.purpose + '] ' + x.argv.join(' ') + (reden ? ' — reden: ' + reden : '') + ' — BUITEN de standaardlijst' + (runsArbitraryCode(x.argv) ? ' en voert willekeurige code uit' : '');
+    });
     const regels = [
+      'Werkpakket ' + id + ' — korte hash ' + kort + ' (alleen ter herkenning; intern telt de volledige hash).',
       'Doel: ' + c.goal,
-      e.areas.length ? 'Mag wijzigen: ' + [...new Set(e.areas.flatMap(a => a.write))].join(', ') : 'Wijzigt geen projectbestanden (alleen lezen en onderzoeken).',
+      'Fase: ' + (e.phase === 'analysis' ? 'analyse (alleen lezen en onderzoeken)' : 'implementatie') + '. Risico: ' + c.risk_class + (c.risk_flags.length ? ' (' + c.risk_flags.join(', ') + ')' : '') + '.',
+      e.areas.length ? 'Mag wijzigen: ' + [...new Set(e.areas.flatMap(a => a.write))].join(', ') + (steun.length ? ' (ondersteunend: ' + steun.join(', ') + ')' : '') : 'Wijzigt geen projectbestanden (alleen lezen en onderzoeken).',
       'Git: ' + [e.git.commit ? 'committen' : 'niet committen', e.git.push.length ? 'pushen naar ' + e.git.push.join(', ') : 'niet pushen', e.git.merge ? 'samenvoegen naar ' + e.git.merge.to : 'geen samenvoeging', e.git.deploy === 'none' ? 'geen uitrol' : 'uitrol: ' + e.git.deploy].join('; ') + '.',
-      'Database: ' + (dbTekst[e.db_max] || e.db_max) + '. Externe diensten: ' + (Object.keys(e.providers).join(', ') || 'geen') + '.',
-      'Risico: ' + c.risk_class + (c.risk_flags.length ? ' (' + c.risk_flags.join(', ') + ')' : '') + '. Harde budgetten: ' + e.budgets.agent_calls.hard + ' agents, ' + e.budgets.command_runs + ' commando\'s, ' + (e.budgets.external_calls ?? 0) + ' externe aanroepen.',
-      'Acceptatiecriteria: ' + e.acceptance.length + '. Stopmomenten voor jou: ' + (e.decision_points.length ? e.decision_points.join(' | ') : 'geen vastgelegd') + '.'
+      'Database: ' + (dbTekst[e.db_max] || e.db_max) + '.',
+      'Externe diensten: ' + (providers.length ? providers.join(' | ') : 'geen') + '.',
+      'Harde budgetten: ' + e.budgets.agent_calls.hard + ' agents (zacht ' + e.budgets.agent_calls.soft + '), ' + e.budgets.command_runs + ' commando\'s, ' + (e.budgets.external_calls ?? 0) + ' externe aanroepen, ' + (e.budgets.max_parallel ?? 2) + ' tegelijk.',
+      'Acceptatiecriteria (' + e.acceptance.length + '):', ...e.acceptance.map(a => '  - ' + a.id + ': ' + a.text),
+      'Extra commando\'s buiten de standaardlijst (' + e.extra_commands.length + ')' + (e.extra_commands.length ? ':' : ': geen.'), ...extra,
+      'Beslisstandaarden: ' + (e.decision_defaults.length ? e.decision_defaults.join(' | ') : 'geen') + '.',
+      'Aannames: ' + (e.assumptions.length ? e.assumptions.join(' | ') : 'geen') + '.',
+      'Stopmomenten voor jou: ' + (e.decision_points.length ? e.decision_points.join(' | ') : 'geen vastgelegd') + '.'
     ];
+    for (const n of st.legacy_notes || []) regels.push('Let op (overname uit v3.2): ' + n);
     if (st.blockers?.length) regels.push('Let op, nog niet klaar om te starten: ' + st.blockers.join(' '));
-    st.presented = {hash, at: now()}; log(st, 'voorstel_getoond', {hash: shortHash(hash)}); saveWork(root, st);
-    return {id, short_hash: shortHash(hash), status: st.status, samenvatting: regels, vraag: 'Stuur als los bericht: AAE GO ' + id + ' (alleen geldig voor envelop ' + shortHash(hash) + '). Verandert het voorstel, dan vraag ik opnieuw.'};
+    st.presented = {hash, at: now()}; log(st, 'voorstel_getoond', {hash: kort}); saveWork(root, st);
+    return {id, short_hash: kort, status: st.status, samenvatting: regels, exacte_go: 'AAE GO ' + id + ' ' + kort, vraag: 'Stuur als los bericht exact: AAE GO ' + id + ' ' + kort + ' (alleen geldig voor envelop ' + kort + '). Verandert het voorstel, dan vraag ik opnieuw.'};
   });
 }
 function pauzeer(st, why) { st.paused_from = st.status; st.confirmed = null; transition(st, 'PAUSED', why); st.activity = null; } // een bevestiging overleeft een pauze niet
@@ -97,7 +115,7 @@ export function handlePrompt(root, e) {
       const st = kies(root, id, s => ['PLANNING', 'WAITING_FOR_APPROVAL', 'EXECUTING', 'NEEDS_HUMAN'].includes(s.status), 'PAUZE');
       if (!st) return context('UserPromptSubmit', 'AAE: er is niets om te pauzeren.');
       pauzeer(st, 'AAE PAUZE'); saveWork(root, st); eventLog(root, 'pauze', {id: st.id});
-      return context('UserPromptSubmit', 'AAE: ' + st.id + ' is gepauzeerd. Stop lopend werk; er wordt geen proces geannuleerd. AAE VERDER of AAE GO hervat dezelfde envelop.');
+      return context('UserPromptSubmit', 'AAE: ' + st.id + ' is gepauzeerd. Stop lopend werk; er wordt geen proces geannuleerd. AAE VERDER hervat dezelfde goedgekeurde envelop (geen nieuwe GO).');
     }
     if (actie === 'ANNULEER') {
       const st = kies(root, id, s => !TERMINAL.has(s.status), 'ANNULEER');
@@ -116,44 +134,59 @@ export function handlePrompt(root, e) {
     }
     if (actie === 'VERDER') {
       // Hervatten kan vanuit PAUSED, BLOCKED en een wachtende beslissing zonder gevoelige actie (extern, scope); een gevoelige DB-stap vraagt AAE BEVESTIG.
-      const st = kies(root, id, s => ['PAUSED', 'BLOCKED'].includes(s.status) || (s.status === 'NEEDS_HUMAN' && ['extern', 'scope_change'].includes(s.needs_human?.kind) && !s.pending_decision), 'VERDER');
+      const st = kies(root, id, s => ['PAUSED', 'BLOCKED'].includes(s.status) || (s.status === 'NEEDS_HUMAN' && ['extern', 'scope_change', 'snapshot'].includes(s.needs_human?.kind) && !s.pending_decision), 'VERDER');
       if (!st) return context('UserPromptSubmit', 'AAE: er is geen gepauzeerd, vastgelopen of wachtend werkpakket om te hervatten.');
       if (st.approved) {
+        // VERDER hervat uitsluitend dezelfde eerder goedgekeurde envelop en is nooit een nieuwe GO: een afwijkend contract of een ontbrekende snapshot houdt het pakket tegen.
         const ander = kandidaten(root, s => s.id !== st.id && ['EXECUTING', 'NEEDS_HUMAN'].includes(s.status));
         requireThat(!ander.length, 'Werkpakket ' + ander[0]?.id + ' is nog actief; er is één bouwer per werkmap.');
+        try { assertApproval(st); if (st.approved.snapshot_required) writeSnapshot(root, st, st.approved.source); }
+        catch (err) { saveWork(root, st); eventLog(root, 'verder_geweigerd', {id: st.id}); return context('UserPromptSubmit', 'AAE: VERDER hervat alleen de eerder goedgekeurde envelop en dat lukt nog niet: ' + String(err.message).slice(0, 300) + ' Een gewijzigd voorstel vraagt cli present en AAE GO <id> <korte hash>.'); }
         transition(st, 'EXECUTING', 'AAE VERDER'); st.activity = 'BUILDING'; st.blockers = []; st.result = null;
       } else if (st.status === 'NEEDS_HUMAN') { st.preflight = null; st.blockers = ['Preflight opnieuw uitvoeren (cli preflight).']; transition(st, 'PLANNING', 'AAE VERDER'); }
       else transition(st, st.status === 'BLOCKED' ? 'PLANNING' : 'WAITING_FOR_APPROVAL', 'AAE VERDER');
       saveWork(root, st); eventLog(root, 'verder', {id: st.id});
       return context('UserPromptSubmit', 'AAE: ' + st.id + ' hervat binnen dezelfde envelop (' + st.status + ').');
     }
-    // GO
+    // GO: alleen exact "AAE GO <werkpakket-ID> <korte hash>"; een kale GO, een ander ID of een andere hash telt niet en keurt niets goed.
+    const korteHash = m[3] || null;
+    if (!id || !korteHash) {
+      eventLog(root, 'go_geweigerd', {reden: 'ID of hash ontbreekt'});
+      return context('UserPromptSubmit', 'AAE: GO geweigerd: een GO heeft de vorm AAE GO <werkpakket-ID> <korte hash> en alleen voor een voorstel dat is getoond. Voer cli present <id> uit, toon de gebruiker ID en korte hash met de volledige inhoud, en wacht op de exacte GO-opdracht. Er is niets goedgekeurd.');
+    }
     const st = kies(root, id, s => s.status === 'WAITING_FOR_APPROVAL' || s.status === 'PAUSED' || s.status === 'EXECUTING' || (s.status === 'NEEDS_HUMAN' && s.needs_human?.kind === 'material_change'), 'GO');
     if (!st) {
       const wacht = kandidaten(root, s => s.status === 'NEEDS_HUMAN');
       return context('UserPromptSubmit', wacht.length ? 'AAE: ' + wacht[0].id + ' wacht op een andere beslissing dan een GO (' + (wacht[0].needs_human?.summary || 'zie status') + ').' : 'AAE: er is geen werkpakket dat op een GO wacht.');
     }
-    if (st.status === 'EXECUTING') return context('UserPromptSubmit', 'AAE: de GO voor ' + st.id + ' is al geldig.');
+    const weiger = (reden, hint) => { eventLog(root, 'go_geweigerd', {id: st.id, reden}); return context('UserPromptSubmit', 'AAE: GO geweigerd voor ' + st.id + ': ' + reden + '. ' + hint + ' Er is niets goedgekeurd.'); };
+    if (st.status === 'EXECUTING') {
+      return korteHash === shortHash(st.approved.envelope_hash) ? context('UserPromptSubmit', 'AAE: de GO voor ' + st.id + ' (envelop ' + korteHash + ') is al geldig.') : weiger('de goedgekeurde envelop heeft hash ' + shortHash(st.approved.envelope_hash) + ', niet ' + korteHash, 'Een andere envelop vraagt eerst cli present en een nieuwe GO.');
+    }
     const ander = kandidaten(root, s => s.id !== st.id && ['EXECUTING', 'NEEDS_HUMAN'].includes(s.status));
     requireThat(!ander.length, 'Werkpakket ' + ander[0]?.id + ' is nog actief. Rond het af of pauzeer het (AAE PAUZE ' + ander[0]?.id + ') voordat ' + st.id + ' start; er is één bouwer per werkmap.');
-    if (st.status === 'PAUSED' && st.approved) { assertApproval(st); transition(st, 'EXECUTING', 'AAE GO na pauze'); st.activity = 'BUILDING'; }
-    else {
+    if (st.status === 'PAUSED' && st.approved) {
+      if (korteHash !== shortHash(st.approved.envelope_hash)) return weiger('de goedgekeurde envelop heeft hash ' + shortHash(st.approved.envelope_hash) + ', niet ' + korteHash, 'Gebruik AAE VERDER om dezelfde envelop te hervatten.');
+      assertApproval(st); transition(st, 'EXECUTING', 'AAE GO na pauze'); st.activity = 'BUILDING';
+    } else {
       const c = st.proposed || st.contract;
       requireThat(c, 'Geen contract om goed te keuren voor ' + st.id + '.');
       const hash = envelopeHash(c);
-      // Een GO telt alleen voor het voorstel dat de gebruiker is getoond (ID + korte hash). Is het voorstel sindsdien veranderd, dan eerst opnieuw tonen.
-      if (!st.presented || st.presented.hash !== hash) {
-        eventLog(root, 'go_geweigerd', {id: st.id, reden: st.presented ? 'voorstel gewijzigd' : 'niet getoond'});
-        return context('UserPromptSubmit', 'AAE: GO geweigerd voor ' + st.id + ': ' + (st.presented ? 'het voorstel is gewijzigd sinds het is getoond' : 'het voorstel is nog niet getoond') +
-          '. Voer node .claude/aae/runtime/cli.mjs present ' + st.id + ' uit, toon de gebruiker het werkpakket-ID en de korte hash (' + shortHash(hash) + ') met de samenvatting, en wacht op een nieuw los bericht AAE GO ' + st.id + '. Er is niets goedgekeurd.');
-      }
+      // Een GO telt alleen voor het voorstel dat de gebruiker is getoond (ID + korte hash): de getypte hash moet gelijk zijn aan de hash van het huidige voorstel én aan wat cli present heeft getoond.
+      if (korteHash !== shortHash(hash)) return weiger('de hash ' + korteHash + ' hoort niet bij het huidige voorstel (' + shortHash(hash) + ')', 'Voer cli present ' + st.id + ' uit, toon de gebruiker het actuele voorstel met ID en korte hash en wacht op een nieuwe exacte GO.');
+      if (!st.presented || st.presented.hash !== hash) return weiger(st.presented ? 'het voorstel is gewijzigd sinds het is getoond' : 'het voorstel is nog niet getoond', 'Voer cli present ' + st.id + ' uit, toon de gebruiker ID en korte hash (' + shortHash(hash) + ') met de volledige inhoud en wacht op de exacte GO-opdracht.');
       if (st.status === 'PAUSED') transition(st, 'WAITING_FOR_APPROVAL', 'terug naar goedkeuring');
       requireThat(st.status === 'NEEDS_HUMAN' || !st.blockers.length, 'Plan is nog niet klaar: ' + st.blockers.join(' '));
-      approve(st, c, st.status === 'NEEDS_HUMAN' ? 'AAE GO (envelopewijziging)' : 'AAE GO');
+      const bron = st.status === 'NEEDS_HUMAN' ? 'AAE GO (envelopewijziging)' : 'AAE GO';
+      approve(st, c, bron);
+      // Als eerste schrijfactie na de GO legt de runtime de goedgekeurde envelop duurzaam vast (gevolgde, append-only snapshot). Lukt dat niet, dan wacht het pakket op een beslissing.
+      st.approved.snapshot_required = true;
+      try { writeSnapshot(root, st, bron); }
+      catch (err) { needsHuman(st, 'snapshot', 'De goedgekeurde envelop kon nog niet duurzaam worden vastgelegd (' + String(err.message).slice(0, 200) + '). Los het op en stuur AAE VERDER.'); }
       recordExtraFingerprints(root, st); bindProbe(root, st);
     }
     saveWork(root, st); eventLog(root, 'go', {id: st.id, hash: shortHash(st.approved.envelope_hash)});
-    return context('UserPromptSubmit', 'AAE: GO geldt voor ' + st.id + ' (envelop ' + shortHash(st.approved.envelope_hash) + ') en blijft geldig tot het klaar, gepauzeerd of geannuleerd is, of de envelop materieel wijzigt. Gewone berichten veranderen dit niet.');
+    return context('UserPromptSubmit', st.status === 'NEEDS_HUMAN' ? 'AAE: GO ontvangen voor ' + st.id + ', maar de snapshot ontbreekt nog: ' + st.needs_human.summary : 'AAE: GO geldt voor ' + st.id + ' (envelop ' + shortHash(st.approved.envelope_hash) + ') en blijft geldig tot het klaar, gepauzeerd of geannuleerd is, of de envelop materieel wijzigt. De goedgekeurde envelop is vastgelegd in ' + (st.snapshot?.path || 'de snapshot') + '; commit die vóór de eerste bronwijziging. Gewone berichten veranderen dit niet.');
   });
 }
 export const _internal = {stable};

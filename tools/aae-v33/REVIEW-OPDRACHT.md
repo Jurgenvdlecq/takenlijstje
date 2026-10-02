@@ -2,7 +2,9 @@
 
 Doel: een onafhankelijk oordeel over de **definitieve bron** van AAE 3.3 voordat er iets wordt geïnstalleerd (AAE-V33-002). Deze review draait in een **aparte Claude Code-sessie**, read-only, **zonder subagents**, op een **schone kloon**, gebonden aan één commit.
 
-De **commit-sha** staat in het eindbericht van AAE-V33-001B. Deze opdracht noemt hem bewust niet zelf: de sha van een commit kan niet in een bestand van diezelfde commit staan. Vul hem hieronder in (vervang `<SHA>`) vóór je start. De **tree-hash** (de inhoud van die commit) stelt de reviewer zelf vast in de schone kloon en noemt hem in het rapport; de sha bepaalt de tree volledig, dus een tweede waarde vanuit de hoofdsessie voegt niets toe.
+**Let op: dit is de opdracht voor de tweede review, op de nieuwe commit na het herstelpakket AAE-V33-001C.** De eerdere review van commit `5e64919fbd282f69cdf7a5fd443cdefe6054b3d7` is afgerond met VERDICT: BLOCKED en **blijft BLOCKED**; ze telt nooit voor een nieuwere commit. Oordeel zelfstandig over de nieuwe commit; neem het eerdere rapport niet als uitgangspunt over, maar controleer wel of de daarin beschreven omzeilingen echt dicht zijn en zoek actief naar nieuwe.
+
+De **commit-sha** staat in het eindbericht van AAE-V33-001C. Deze opdracht noemt hem bewust niet zelf: de sha van een commit kan niet in een bestand van diezelfde commit staan. Vul hem hieronder in (vervang `<SHA>`) vóór je start. De **tree-hash** (de inhoud van die commit) stelt de reviewer zelf vast in de schone kloon en noemt hem in het rapport; de sha bepaalt de tree volledig, dus een tweede waarde vanuit de hoofdsessie voegt niets toe.
 
 ## Starten (Jurgen, 4 stappen)
 ```
@@ -33,6 +35,19 @@ Controleer specifiek, met aandacht voor omzeilingen:
 8. Installer (installer/install.mjs): back-up, terugdraaien, falen halverwege, .gitignore-blok; kan hij iets buiten .claude/ en docs/archief/ aanraken?
 9. Tests: testen ze echt wat ze beweren, of bewijzen ze niets (altijd groen, geneste node --test, lege suites)?
 
+Extra aandachtspunten sinds het herstelpakket 001C (controleer elk met omzeilingen in gedachten; de afzonderlijke regressietests RB01–RB10 staan in payload/.claude/aae/tests/rb.test.mjs, legacy.test.mjs en tests/installer.test.mjs, maar bewijs zelf dat ze het scenario echt dekken):
+10. SQL-scanner (integrations.mjs scanSql): U&-identifiers/-strings en andere onleesbare geciteerde identifiers (ok=false), geciteerde sleutelwoorden, statement-niveau SET search_path/set_config.
+11. Positieve read-allowlist in execute_sql (READ_FUNCTIONS, unsafeCalls): is elke aanroep buiten de lijst echt een wijziging, ook vóór de GO, via classifySql én classifyDb? Gaten via schema-prefixen, hoofdletters, geciteerde namen, functies als kolomdefault of in AS SELECT?
+12. Functiebodies en latere aanroepen (bodyKlasse, fns-map, overerving), cron.schedule-commandotekst, net.http/http_*, COPY met bestand.
+13. RLS-/auth-escalaties (ESCALATIE): BYPASSRLS, SUPERUSER, CREATEROLE, NO FORCE RLS, SET ROLE, OWNER TO, ALTER DEFAULT PRIVILEGES, rollidmaatschap, USING (true)/WITH CHECK (true).
+14. extra_commands: present toont ze volledig; `AAE GO <id> <korte hash>` verplicht (commands.mjs, core.mjs extraRefusal/runsArbitraryCode/GIT_VIA_CAPABILITY); geheimencontrole bij push; commit weigert gestagede bestanden buiten de gebieden (runner.mjs).
+15. PR-/merge-/deploy-binding (events.mjs observePullRequest, gates.mjs assertPrMerge/assertGate): expectedHeadSha = geobserveerde remote PR-head = READY git_head = lokale HEAD = origin/<head>, gelezen na de laatste push; owner/repo/head verplicht in de envelop.
+16. Gevolgde bestanden zonder GO: prune (alleen ongevolgd), proposal.json (genegeerd), bescherming van contract.json en approved/*, analysis-samenvattingen naar genegeerde notitiepaden, analyse alleen leescommando's met tracked-fingerprintcontrole (runner.mjs).
+17. Legacy-overname (legacy.mjs): nooit approved/EXECUTING, db_max ≤ A, gevoelige migraties niet overgenomen, notities zichtbaar in present.
+18. Installer crash-safe (installer/install.mjs): RESTORE.json in_progress vóór de eerste mutatie, undo_failed, openstaande back-ups, symlink-wortels, downgrade, .gitignore-blok zonder newline.
+19. Duurzame snapshot en recover (snapshot.mjs, recover.mjs, state.mjs guardApproval): append-only keten, hashcontrole, snapshot in HEAD vóór READY/merge, recover → PAUSED, AAE VERDER hervat alleen dezelfde envelop. Wat gaat mis bij een beschadigde of ontbrekende snapshot, of een snapshot-schrijffout?
+Bekend en bewust ongewijzigd gelaten (zie docs/aae/PROGRESS.md, sectie 001C; beoordeel of dat verantwoord is): agentlevenscyclus (niet-blokkerend 7), fail-closed vergrendeling (8), sourceDigest-uitsluitingen van build/dist/coverage en toolnaamherkenning (rest van 10). Bekende beperking: verbruik (usage/budget) is na `recover` niet te herstellen.
+
 Rapporteer exact in dit formaat (kort, geen werklogboek):
 SHA: <sha> TREE: <tree of "niet vast te stellen">
 BLOKKEREND: genummerd; per punt bestand:regel, het concrete scenario waarmee het omzeild wordt, en waarom het blokkerend is.
@@ -44,5 +59,5 @@ Als je niets blokkerends vindt, zeg dat uitdrukkelijk en noem wat je daarvoor he
 
 ## Daarna
 1. Plak het volledige rapport terug in de hoofdsessie. Het wordt als notitie bewaard (`docs/aae/notes/`) en aan de commit-sha gebonden.
-2. Zijn er blokkerende punten, dan volgt een herstelpakket met nieuwe commit; de review gaat dan opnieuw over de nieuwe sha. Een rapport voor een andere sha telt niet.
+2. Zijn er blokkerende punten, dan volgt een herstelpakket met nieuwe commit; de review gaat dan opnieuw over de nieuwe sha. Een rapport voor een andere sha telt niet (de review van 5e64919 blijft BLOCKED).
 3. Pas bij `READY` op de uiteindelijke sha kan AAE-V33-002 (installatie, terugdraaicontrole, rooktest, gate-beschermde merge naar `main`) met een eigen `AAE GO` starten. De gate van 002 controleert dat de sha waarop de review sloeg gelijk is aan de sha die wordt geïnstalleerd.

@@ -2,13 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {
-  STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, VERSION
+  STATE_DIR, requireThat, safePath, readJson, atomicJson, now, digest, sourceDigest, envelopeHash, classifyCommand, commandFingerprint, commandRefs, areaWrite, scopeContains, addAllowed, VERSION
 } from './core.mjs';
-import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition, resultFile, listWork, TERMINAL} from './state.mjs';
+import {withLock, activeWork, guardApproval, loadWork, saveWork, log, transition, needsHuman, resultFile, listWork, TERMINAL} from './state.mjs';
 import {liveRows} from './reports.mjs';
 import {assertReady, assertGate} from './gates.mjs';
 import {extraKey} from './commands.mjs';
-import {gitHead, candidateFiles, stagedFiles, secretHits} from './gitops.mjs';
+import {gitHead, candidateFiles, stagedFiles, secretHits, unpushedFiles, trackedFingerprint} from './gitops.mjs';
 
 const hasLive = st => liveRows(st).some(r => ['reserved', 'running'].includes(r.status));
 const NON_LOCAL = ['install', 'destructive', 'merge', 'deploy'];
@@ -39,6 +39,13 @@ export async function runCommand(root, cmdId) {
       const kandidaten = m.argv[1] === 'add' ? candidateFiles(root, m.argv.slice(4)) : m.argv[1] === 'commit' ? stagedFiles(root) : [];
       const geheimen = secretHits(root, kandidaten);
       requireThat(!geheimen.length, 'Mogelijk geheim in de commit (' + geheimen.slice(0, 5).map(h => h.path + ': ' + h.reden).join('; ') + '). Verwijder of negeer het bestand (.gitignore) en probeer opnieuw.');
+      // Een commit neemt alles mee wat al klaarstaat: bestanden buiten de goedgekeurde gebieden horen er niet in.
+      if (m.argv[1] === 'commit') { const buiten = stagedFiles(root).filter(p => !addAllowed(c, p)); requireThat(!buiten.length, 'Er staan bestanden klaar (staging) buiten de goedgekeurde gebieden: ' + buiten.slice(0, 5).join(', ') + '. Vraag de gebruiker ze uit de staging te halen; een commit neemt ze anders mee.'); }
+    }
+    if (m.purpose === 'push' && m.argv[0] === 'git') {
+      // Ook bij een push: alle commits die nog niet op de remote staan worden op geheimen gecontroleerd, ook als ze eerder buiten AAE zijn gemaakt.
+      const geheimen = secretHits(root, unpushedFiles(root, m.argv.at(-1)));
+      requireThat(!geheimen.length, 'Mogelijk geheim in de te pushen commits (' + geheimen.slice(0, 5).map(h => h.path + ': ' + h.reden).join('; ') + '). Push niet; verwijder het uit de geschiedenis of vraag de gebruiker.');
     }
     if (m.purpose === 'merge') assertGate(root, st, c, 'merge', m.argv[0] === 'git' ? m.argv : null);
     if (m.purpose === 'deploy') assertGate(root, st, c, 'deploy');
@@ -53,7 +60,7 @@ export async function runCommand(root, cmdId) {
     st.activity = m.purpose === 'merge' ? 'MERGING' : m.purpose === 'deploy' ? 'DEPLOYING' : ['test', 'build', 'preview'].includes(m.purpose) ? 'TESTING' : 'BUILDING';
     log(st, 'commando_gestart', {commando: cmdId, doel: m.purpose, run: runId});
     saveWork(root, st);
-    return {m, fp, src, id: st.id, runId, eh: envelopeHash(c), contract: c};
+    return {m, fp, src, id: st.id, runId, eh: envelopeHash(c), contract: c, trackedVoor: c.envelope.phase === 'analysis' ? trackedFingerprint(root) : null};
   });
   const logRel = STATE_DIR + '/logs/' + launch.id + '-' + launch.runId + '.txt';
   const logPath = safePath(root, logRel); fs.mkdirSync(path.dirname(logPath), {recursive: true, mode: 0o700});
@@ -89,6 +96,9 @@ export async function runCommand(root, cmdId) {
     const nu = envelopeHash(st.contract);
     st.receipts.push({...receipt, evidence_path: receiptPath, envelope_hash: nu === launch.eh ? launch.eh : null});
     atomicJson(root, receiptPath, receipt);
+    if (launch.m.purpose === 'push' && receipt.exit_code === 0) st.last_push = {at: now(), branch: launch.m.argv.at(-1)};
+    // Een analyse mag niets gevolgds veranderen: zelfs een leescommando wordt daarop gecontroleerd.
+    if (launch.trackedVoor !== null && trackedFingerprint(root) !== launch.trackedVoor) needsHuman(st, 'scope_change', 'Een analyse-commando (' + launch.m.id + ') heeft gevolgde bestanden veranderd. Een analyse wijzigt niets gevolgds; beslis wat er met die wijziging moet gebeuren.');
     if (st.status === 'EXECUTING') st.activity = 'BUILDING';
     log(st, 'commando_klaar', {commando: launch.m.id, exit: receipt.exit_code});
     saveWork(root, st);

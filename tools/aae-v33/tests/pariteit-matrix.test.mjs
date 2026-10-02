@@ -51,6 +51,14 @@ test('pariteit: elke 001B-regel (GO-binding en administratieregel) heeft bestaan
   for (const [naam, codes] of regels) { assert.ok(codes.length > 0, naam); for (const c of codes) assert.ok(alle.some(t => t.startsWith(c + ' ')), '001B-test bestaat niet: ' + c + ' (bij: ' + naam + ')'); }
   for (let i = 1; i <= 17; i++) assert.ok(alle.some(t => t.startsWith('GB' + String(i).padStart(2, '0') + ' ')), 'GB' + i + ' ontbreekt');
 });
+test('pariteit: elke 001C-regel (reviewbevindingen en durability) heeft bestaande RB-tests', () => {
+  // RB09 staat in tools/aae-v33/tests/installer.test.mjs, de rest in de payload.
+  const eigen = fs.readdirSync(here).filter(f => f.endsWith('.test.mjs')).flatMap(f => [...fs.readFileSync(path.join(here, f), 'utf8').matchAll(/(?:^|\n)test\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)].map(m => m[2]));
+  const rb = [...alle, ...eigen];
+  const regels = Object.entries(matrix.wijzigingen_001c.regels); assert.equal(regels.length, 10);
+  for (const [naam, codes] of regels) { assert.ok(codes.length > 0, naam); for (const c of codes) assert.ok(rb.some(t => t.startsWith(c + ' ')), '001C-test bestaat niet: ' + c + ' (bij: ' + naam + ')'); }
+  for (let i = 1; i <= 10; i++) assert.ok(rb.some(t => t.startsWith('RB' + String(i).padStart(2, '0') + ' ')), 'RB' + i + ' ontbreekt');
+});
 test('pariteit: scenario\'s T1 t/m T22 bestaan alle als test', () => {
   for (let i = 1; i <= 22; i++) assert.ok(alle.some(t => new RegExp('^T' + i + '[ b]').test(t)), 'T' + i + ' ontbreekt');
 });

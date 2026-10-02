@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath, pathToFileURL} from 'node:url';
 import {planInstall, apply, planRollback, rollback, payloadFiles, VERSION} from '../installer/install.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -82,14 +82,22 @@ test('installer: een tweede installatie is een no-op', metProject(dir => {
   assert.equal(apply(dir).noop, true);
 }));
 
-test('overgang: een lopende, goedgekeurde v3.2-route blijft werken na installatie (GO, gebied, status) en de v3.2-bestanden blijven staan', metProject(dir => {
+test('overgang: een lopende v3.2-route wacht na installatie op een expliciete GO (eenmalige migratiegrens), werkt daarna door binnen het oude gebied en de v3.2-bestanden blijven staan', metProject(dir => {
   zetRoute(dir);
   const taak = sha(fs.readFileSync(path.join(dir, 'docs/aae/TASK.json'))), staat = sha(fs.readFileSync(path.join(dir, '.claude/aae/state/local.json')));
   apply(dir);
   const status = hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: 'AAE STATUS'});
   assert.equal(status.status, 0, status.stderr);
-  assert.match(JSON.parse(status.stdout).hookSpecificOutput.additionalContext, /AAE-OUD-1 is in uitvoering/);
-  assert.equal(hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't1', tool_input: {file_path: path.join(dir, 'src/nieuw.js'), content: 'x'}}).status, 0, 'schrijven in het oude gebied mag');
+  assert.match(JSON.parse(status.stdout).hookSpecificOutput.additionalContext, /AAE-OUD-1 wacht op jouw GO/);
+  const schrijf = () => hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't1', tool_input: {file_path: path.join(dir, 'src/nieuw.js'), content: 'x'}});
+  assert.equal(schrijf().status, 2, 'de v3.2-GO telt niet: zonder nieuwe GO geen schrijfrechten');
+  assert.equal(hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: 'AAE GO AAE-OUD-1 12345678'}).status, 0);
+  assert.equal(schrijf().status, 2, 'een GO zonder getoond voorstel keurt niets goed');
+  const toon = spawnSync(process.execPath, [path.join(dir, '.claude/aae/runtime/cli.mjs'), 'present', 'AAE-OUD-1'], {cwd: dir, encoding: 'utf8'});
+  assert.equal(toon.status, 0, toon.stderr);
+  const go = hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: JSON.parse(toon.stdout).exacte_go});
+  assert.equal(go.status, 0, go.stderr); assert.match(JSON.parse(go.stdout).hookSpecificOutput.additionalContext, /GO geldt voor AAE-OUD-1/);
+  assert.equal(schrijf().status, 0, 'na de expliciete GO mag schrijven in het oude gebied');
   const buiten = hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't2', tool_input: {file_path: path.join(dir, 'app/x.ts'), content: 'x'}});
   assert.equal(buiten.status, 2); assert.match(buiten.stderr, /buiten de goedgekeurde gebieden/);
   assert.equal(hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_use_id: 't3', tool_input: {command: 'node .claude/aae/runtime/cli.mjs run t_local'}}).status, 0);
@@ -195,6 +203,56 @@ test('installer: de payload bevat alleen .claude-bestanden, geen symlinks, preci
   assert.ok(!p.has('.claude/settings.json'), 'settings.json hoort niet bij de payload');
 });
 
+// ---- RB09: crash-safe installeren en terugdraaien ----
+const manifestVan = (dir, rel) => JSON.parse(fs.readFileSync(path.join(dir, rel, 'RESTORE.json'), 'utf8'));
+const backups = dir => fs.existsSync(path.join(dir, '.aae-backups')) ? fs.readdirSync(path.join(dir, '.aae-backups')).map(n => '.aae-backups/' + n) : [];
+test('RB09 een kill halverwege apply (de reviewopdracht: RESTORE.json stond pas aan het eind) laat een bruikbaar terugdraaimanifest achter; --rollback herstelt byte-exact en daarna kan opnieuw worden geïnstalleerd', metProject(dir => {
+  const voor = boom(dir), installer = pathToFileURL(path.join(here, '../installer/install.mjs')).href;
+  const kill = spawnSync(process.execPath, ['--input-type=module', '-e', "import('" + installer + "').then(m => m.apply(" + JSON.stringify(dir) + ", {crashAfter: 7}))"], {encoding: 'utf8'});
+  assert.ok(kill.signal === 'SIGKILL' || kill.status !== 0, 'het proces is hard gestopt halverwege');
+  assert.notDeepEqual(boom(dir), voor, 'er staat een gedeeltelijke installatie');
+  const [rel] = backups(dir); assert.ok(rel, 'er staat een back-up');
+  assert.equal(manifestVan(dir, rel).status, 'in_progress', 'het manifest stond al vóór de eerste mutatie op schijf');
+  assert.match(planInstall(dir).conflicts.join(' | '), /onafgemaakte installatie.*--rollback/, 'een nieuwe installatie weigert en wijst op terugdraaien');
+  const plan = planRollback(dir, rel); assert.deepEqual(plan.conflicts, [], plan.conflicts.join('; ')); assert.ok(plan.notes.some(n => /onderbroken installatie/.test(n)));
+  rollback(dir, rel);
+  assert.deepEqual(boom(dir), voor, 'volledig terug in de v3.2-toestand');
+  assert.equal(manifestVan(dir, rel).status, 'rolled_back');
+  assert.equal(planInstall(dir).conflicts.length, 0); apply(dir);
+}));
+test('RB09 een falende undo-stap laat de back-up staan (status undo_failed) en het terugdraaien daarna lukt wel', metProject(dir => {
+  const voor = boom(dir);
+  assert.throws(() => apply(dir, {failAfter: 30, failUndoAfter: 3}), /niet volledig gelukt[\s\S]*undo_failed[\s\S]*--rollback/);
+  const lijst = backups(dir); assert.equal(lijst.length, 1, 'de back-up is niet verwijderd');
+  const m = manifestVan(dir, lijst[0]); assert.equal(m.status, 'undo_failed'); assert.ok(m.undo_failures.length > 0);
+  assert.ok(fs.readdirSync(path.join(dir, lijst[0], 'blobs')).length > 0, 'de blobs zijn er nog');
+  assert.match(planInstall(dir).conflicts.join(' | '), /onafgemaakte installatie/);
+  rollback(dir, lijst[0]);
+  assert.deepEqual(boom(dir), voor);
+}));
+test('RB09 een onderbroken rollback is herhaalbaar (het manifest blijft ongewijzigd tot het klaar is)', metProject(dir => {
+  const voor = boom(dir), r = apply(dir);
+  assert.throws(() => rollback(dir, r.backup, {failAfter: 5}), /Gesimuleerde fout/);
+  assert.equal(manifestVan(dir, r.backup).status, 'applied');
+  rollback(dir, r.backup); assert.deepEqual(boom(dir), voor);
+}));
+test('RB09 een geslinkte .claude (of .gitignore) wordt als wortel geweigerd; een downgrade wordt geweigerd; een handmatig bewerkt .gitignore blokkeert het terugdraaien niet', metProject(dir => {
+  const andere = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aae33link-')));
+  try {
+    fs.symlinkSync(path.join(dir, '.claude'), path.join(andere, '.claude'));
+    assert.match(planInstall(andere).conflicts.join(' | '), /Symbolische link niet toegestaan als wortel: \.claude/);
+    assert.throws(() => apply(andere), /Conflicten[\s\S]*Symbolische link/);
+  } finally { fs.rmSync(andere, {recursive: true, force: true}); }
+  const voor = boom(dir), r = apply(dir);
+  // handmatig bewerkt .gitignore: het beheerde blok staat zonder afsluitende newline
+  const gi = path.join(dir, '.gitignore'); fs.writeFileSync(gi, fs.readFileSync(gi, 'utf8').replace(/\n$/, ''));
+  assert.deepEqual(planRollback(dir, r.backup).conflicts, []);
+  rollback(dir, r.backup); assert.ok(!fs.readFileSync(gi, 'utf8').includes('AAE 3.3'));
+  assert.deepEqual(boom(dir), voor);
+  // downgrade
+  const r2 = apply(dir), mf = path.join(dir, '.claude/aae/managed.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8')); m.version = '3.9.0'; fs.writeFileSync(mf, JSON.stringify(m, null, 2) + '\n');
+  assert.match(planInstall(dir).conflicts.join(' | '), /downgrade/); assert.ok(r2.backup);
+}));
 test('overgang (echte state): een kopie van de echte lopende route wordt overgenomen en blijft werken', async t => {
   const taakBron = path.join(repo, 'docs/aae/TASK.json'), staatBron = path.join(repo, '.claude/aae/state/local.json');
   let taak, staat;
@@ -212,13 +270,25 @@ test('overgang (echte state): een kopie van de echte lopende route wordt overgen
     assert.equal(status.status, 0, status.stderr);
     const tekst = JSON.parse(status.stdout).hookSpecificOutput.additionalContext;
     const actief = staat.task.status === 'active';
-    if (actief) assert.match(tekst, new RegExp(taak.id + ' is in uitvoering'));
+    // Eenmalige migratiegrens: een lopende v3.2-route wordt nooit stil goedgekeurd; ze wacht op een expliciete GO met ID en korte hash.
+    if (actief) assert.match(tekst, new RegExp(taak.id + ' wacht op jouw GO'));
     const werk = JSON.parse(fs.readFileSync(path.join(dir, 'docs/aae/work', taak.id, 'state.json'), 'utf8'));
     assert.equal(werk.legacy, true); assert.notEqual(werk.status, 'BLOCKED', 'de overgenomen route past in v3.3: ' + JSON.stringify(werk.blockers));
+    if (actief) { assert.equal(werk.status, 'WAITING_FOR_APPROVAL'); assert.equal(werk.approved, null); }
     const kopie = JSON.parse(fs.readFileSync(path.join(dir, '.claude/aae/state/local.json'), 'utf8'));
     assert.equal(werk.usage.agents, kopie.task.usage.agents); assert.equal(werk.usage.commands, kopie.task.usage.commands);
-    const toegestaan = actief ? hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't1', tool_input: {file_path: path.join(dir, gebied, 'proef.txt'), content: 'x'}}).status : 0;
-    const buiten = hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: 't2', tool_input: {file_path: path.join(dir, 'app/proef.txt'), content: 'x'}}).status;
+    const schrijf = (id, rel) => hook(dir, {hook_event_name: 'PreToolUse', tool_name: 'Write', tool_use_id: id, tool_input: {file_path: path.join(dir, rel), content: 'x'}}).status;
+    const voorGo = actief ? schrijf('t0', gebied + '/proef.txt') : 2;
+    assert.equal(voorGo, 2, 'zonder nieuwe GO geen schrijfrechten');
+    let toegestaan = 0;
+    if (actief) {
+      const toon = spawnSync(process.execPath, [path.join(dir, '.claude/aae/runtime/cli.mjs'), 'present', taak.id], {cwd: dir, encoding: 'utf8'});
+      assert.equal(toon.status, 0, toon.stderr);
+      const go = hook(dir, {hook_event_name: 'UserPromptSubmit', prompt: JSON.parse(toon.stdout).exacte_go});
+      assert.equal(go.status, 0, go.stderr); assert.match(JSON.parse(go.stdout).hookSpecificOutput.additionalContext, /GO geldt voor/);
+      toegestaan = schrijf('t1', gebied + '/proef.txt');
+    }
+    const buiten = schrijf('t2', 'app/proef.txt');
     assert.equal(toegestaan, 0); assert.equal(buiten, 2);
     const onaangeroerd = sha(fs.readFileSync(path.join(dir, 'docs/aae/TASK.json'))) === taakHash && sha(fs.readFileSync(path.join(dir, '.claude/aae/state/local.json'))) === staatHash;
     assert.equal(onaangeroerd, true, 'de v3.2-routebestanden blijven onaangeroerd');
@@ -229,8 +299,8 @@ test('overgang (echte state): een kopie van de echte lopende route wordt overgen
     const na = boom(dir);
     for (const p of Object.keys(voor)) assert.equal(na[p], voor[p], 'na terugdraaien gelijk: ' + p);
     for (const p of Object.keys(na)) if (!Object.hasOwn(voor, p)) assert.ok(p.startsWith('docs/aae/work/') || p.startsWith('.claude/aae/state/'), 'alleen v3.3-voortgang en -status mogen overblijven: ' + p);
-    const evidence = {schema: 1, bron: 'kopie van docs/aae/TASK.json en .claude/aae/state/local.json van de werkmap (alleen gelezen, in een wegwerpkopie)', route_overgenomen: taak.id, status_na_overgang: werk.status, go_behouden: Boolean(werk.approved), verbruik_overgenomen: true,
-      schrijven_in_gebied_toegestaan: toegestaan === 0, schrijven_buiten_gebied_geweigerd: buiten === 2, v32_bestanden_onaangeroerd: onaangeroerd, terugdraaien_getest: true};
+    const evidence = {schema: 2, bron: 'kopie van docs/aae/TASK.json en .claude/aae/state/local.json van de werkmap (alleen gelezen, in een wegwerpkopie)', route_overgenomen: taak.id, status_na_overgang: werk.status, go_stil_overgenomen: Boolean(werk.approved), expliciete_go_nodig_na_migratie: true, verbruik_overgenomen: true,
+      schrijven_zonder_nieuwe_go_geweigerd: voorGo === 2, schrijven_in_gebied_na_go_toegestaan: toegestaan === 0, schrijven_buiten_gebied_geweigerd: buiten === 2, v32_bestanden_onaangeroerd: onaangeroerd, terugdraaien_getest: true};
     const doel = path.join(here, '../evidence/overgang-echte-state.json'), nieuw = JSON.stringify(evidence, null, 2) + '\n';
     if (!fs.existsSync(doel) || fs.readFileSync(doel, 'utf8') !== nieuw) fs.writeFileSync(doel, nieuw);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }

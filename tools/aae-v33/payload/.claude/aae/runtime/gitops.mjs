@@ -1,6 +1,7 @@
 /** Alleen-lezen git-hulpfuncties voor de gates en de geheimencontrole. Geen shell; falen betekent "onbekend", nooit "veilig". */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
 export function git(root, args) {
@@ -9,6 +10,22 @@ export function git(root, args) {
 }
 export function gitHead(root) { const r = git(root, ['rev-parse', '--verify', 'HEAD']); return r.code === 0 && /^[0-9a-f]{40,64}$/.test(r.out) ? r.out : null; }
 export function refCommit(root, branch) { const r = git(root, ['rev-parse', '--verify', 'refs/heads/' + branch]); return r.code === 0 && /^[0-9a-f]{40,64}$/.test(r.out) ? r.out : null; }
+/** Vingerafdruk van alle wijzigingen aan gevolgde bestanden (git diff HEAD). null = geen git-map of niet te bepalen. */
+export function trackedFingerprint(root) {
+  if (!fs.existsSync(path.join(root, '.git'))) return null;
+  const r = spawnSync('git', ['diff', 'HEAD', '--no-ext-diff'], {cwd: root, encoding: 'buffer', shell: false, timeout: 30000, maxBuffer: 64 * 1024 * 1024});
+  return r.status === 0 ? crypto.createHash('sha256').update(r.stdout).digest('hex') : null;
+}
+/** De commit waar de gepushte werkbranch op de remote (lokaal bijgehouden als origin/<branch>) op staat; null als onbekend. */
+export function remoteRefCommit(root, branch) { const r = git(root, ['rev-parse', '--verify', 'refs/remotes/origin/' + branch]); return r.code === 0 && /^[0-9a-f]{40,64}$/.test(r.out) ? r.out : null; }
+/** Bestanden in commits die nog niet naar de remote zijn (origin/<branch>..HEAD, of alles als de branch nog niet bestaat). Falen is een fout, nooit "geen bestanden". */
+export function unpushedFiles(root, branch) {
+  const basis = remoteRefCommit(root, branch);
+  const args = basis ? ['diff', '--name-only', '-z', '--diff-filter=ACMR', basis + '..HEAD'] : ['ls-tree', '-r', '--name-only', '-z', 'HEAD'];
+  const r = spawnSync('git', args, {cwd: root, encoding: 'utf8', shell: false, timeout: 30000, maxBuffer: 32 * 1024 * 1024});
+  if (r.status !== 0) throw new Error('Geheimencontrole bij push niet mogelijk: ' + String(r.stderr || r.error || 'time-out').slice(0, 120) + '.');
+  return (r.stdout || '').split('\0').filter(Boolean);
+}
 /** Niet-vastgelegde wijzigingen (incl. ongevolgde bestanden die niet genegeerd worden) binnen de paden. */
 export function dirtyPaths(root, paths) {
   if (!paths.length) return [];

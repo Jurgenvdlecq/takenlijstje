@@ -3,7 +3,7 @@
 Alleen lezen als je iets precies moet weten. De korte werkwijze staat in `ENTRY.md`.
 
 ## Eén statusbron per werkpakket
-`docs/aae/work/<id>/contract.json` (wat is afgesproken) en `docs/aae/work/<id>/state.json` (wat is er gebeurd). Niets anders is een statusbron: `docs/aae/PROGRESS.md` is een gegenereerde projectie (`cli project`), een chatbericht verandert niets.
+`docs/aae/work/<id>/proposal.json` (het voorstel vóór de GO: lokaal en ongevolgd), `docs/aae/work/<id>/approved/<volgnr>-<hash>.json` (de duurzame, gevolgde snapshot van wat is goedgekeurd) en `docs/aae/work/<id>/state.json` (wat is er gebeurd; lokaal en ongevolgd). Niets anders is een statusbron: `docs/aae/PROGRESS.md` is een gegenereerde projectie (`cli project`), een chatbericht verandert niets.
 
 Statussen: `PLANNING` (plan wordt klaargemaakt of heeft blokkades) → `WAITING_FOR_APPROVAL` → `EXECUTING` (activiteit: BUILDING, TESTING, WAITING_FOR_AGENT, REVIEWING, MERGING, DEPLOYING) → `READY`. Daarnaast `NEEDS_HUMAN` (wacht op een beslissing), `PAUSED`, `BLOCKED` (ook een gedeeltelijk afgerond pakket), `CANCELLED`. Er is één actief pakket per werkmap.
 

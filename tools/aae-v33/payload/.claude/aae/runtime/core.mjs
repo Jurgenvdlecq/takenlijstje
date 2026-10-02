@@ -71,16 +71,15 @@ export function protectedPath(p) {
     l.split('/').some(s => /^\.env(?:\.|$)/.test(s) && s !== '.env.example') || l.startsWith('docs/aae/') || l === 'docs/aae';
 }
 export function controlDocument(p) {
-  return DOCS.has(p) || /^docs\/aae\/notes\/[A-Za-z0-9_-]+\.md$/.test(p) || /^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/(contract|result)\.json$/.test(p);
+  return DOCS.has(p) || /^docs\/aae\/notes\/[A-Za-z0-9_-]+\.md$/.test(p) || /^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/(proposal|result)\.json$/.test(p);
 }
 /**
  * Eén simpele regel. 'tracked': projectbesluiten in gevolgde bestanden (PROGRESS, DECISIONS, PROJECT_PROFILE): alleen onder een GO.
- * 'contract': het voorstel van een werkpakket zelf (plan registreren is technische administratie; goedkeuring blijft aan de hash gebonden).
- * 'technical': lokale genegeerde administratie (notities, resultaat): vrij, tenzij het bestand in deze repository toch gevolgd wordt (dan GO).
+ * 'technical': lokale genegeerde administratie (notities, resultaat en het voorstel proposal.json van een werkpakket): vrij, tenzij het bestand
+ * in deze repository toch gevolgd wordt (dan GO). De duurzame, gevolgde snapshots (approved/) en contract.json schrijft alleen de runtime, nooit het model.
  */
 export function controlKind(p) {
   if (DOCS.has(p)) return 'tracked';
-  if (/^docs\/aae\/work\/[A-Za-z0-9][A-Za-z0-9_-]{0,63}\/contract\.json$/.test(p)) return 'contract';
   if (controlDocument(p)) return 'technical';
   return null;
 }
@@ -91,7 +90,22 @@ export function isTracked(root, p) {
   // Status 1 = "pathspec did not match": niet gevolgd (taalonafhankelijk). Elke andere uitkomst (0 = gevolgd, 128/fout/timeout) geldt als gevolgd.
   return r.error || r.status === null ? true : r.status !== 1;
 }
-export function workIdFromPath(p) { const m = /^docs\/aae\/work\/([A-Za-z0-9][A-Za-z0-9_-]{0,63})\/(contract|result)\.json$/.exec(p); return m ? {id: m[1], kind: m[2]} : null; }
+/** Gevolgde bestanden onder een pad. Geen git-map: geen. Git faalt: onbekend, dus als gevolgd behandelen (fout=true). */
+export function trackedUnder(root, rel) {
+  if (!fs.existsSync(path.join(fs.realpathSync(root), '.git'))) return {bestanden: [], fout: false};
+  const r = spawnSync('git', ['ls-files', '-z', '--', rel], {cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true});
+  if (r.error || r.status !== 0) return {bestanden: [], fout: true};
+  return {bestanden: (r.stdout || '').split('\0').filter(Boolean), fout: false};
+}
+/** Staat dit bestand in de laatste commit (HEAD) én is het sindsdien niet gewijzigd? Geen git-map: onbekend (null). */
+export function committedInHead(root, rel) {
+  if (!fs.existsSync(path.join(fs.realpathSync(root), '.git'))) return null;
+  const inHead = spawnSync('git', ['cat-file', '-e', 'HEAD:' + rel], {cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true});
+  if (inHead.error || inHead.status !== 0) return false;
+  const schoon = spawnSync('git', ['diff', '--quiet', 'HEAD', '--', rel], {cwd: root, encoding: 'utf8', timeout: 15000, windowsHide: true});
+  return !schoon.error && schoon.status === 0;
+}
+export function workIdFromPath(p) { const m = /^docs\/aae\/work\/([A-Za-z0-9][A-Za-z0-9_-]{0,63})\/(proposal|result)\.json$/.exec(p); return m ? {id: m[1], kind: m[2]} : null; }
 /** Reject symlinks in every existing path component, including symlinked parents. */
 export function safePath(root, relative, {allowMissing = true} = {}) {
   const p = relName(relative), base = fs.realpathSync(root);
@@ -166,9 +180,10 @@ const SAFE_LOCAL_ARGV = [
   {prefix: ['npx', 'eslint'], flags: ['--max-warnings=0']},
   {prefix: ['npx', 'playwright', 'test'], flags: []},
   {prefix: ['git', 'status'], flags: ['--porcelain', '--short', '--branch']},
-  {prefix: ['git', 'diff'], flags: ['--stat', '--name-only', '--cached', '--check']},
+  // diff en show alleen als samenvatting (--stat of --name-only): zonder die vlag tonen ze bestandsinhoud, ook van een gevolgd .env.
+  {prefix: ['git', 'diff'], flags: ['--stat', '--name-only', '--cached'], needsFlag: ['--stat', '--name-only']},
   {prefix: ['git', 'log'], flags: ['--oneline', '--stat'], pattern: /^(-n\d{1,4}|--max-count=\d{1,4})$/},
-  {prefix: ['git', 'show'], flags: ['--stat', '--name-only']},
+  {prefix: ['git', 'show'], flags: ['--stat', '--name-only'], needsFlag: ['--stat', '--name-only']},
   {prefix: ['git', 'rev-parse'], flags: ['--abbrev-ref', '--short']},
   {prefix: ['git', 'merge-base'], flags: ['--is-ancestor']}
 ];
@@ -178,6 +193,7 @@ export function safeLocalArgv(argv) {
   const rule = SAFE_LOCAL_ARGV.find(r => argv.length >= r.prefix.length && r.prefix.every((x, i) => argv[i] === x));
   if (!rule) return false;
   if (rule.operand && argv.length === rule.prefix.length) return false; // B6: node --test zonder concreet testbestand scant mappen
+  if (rule.needsFlag && !argv.some(a => rule.needsFlag.includes(a))) return false;
   return argv.slice(rule.prefix.length).every(a => rule.flags.includes(a) || Boolean(rule.pattern?.test(a)) || SAFE_OPERAND.test(a) && (!rule.operand || rule.operand(a)));
 }
 /** Shell-metatekens: een Bash-opdracht met een van deze tekens wordt nooit als argv geaccepteerd. */
@@ -195,7 +211,7 @@ const PROTECTED_BRANCH = /^(main|master|production|prod|release\/.*)$/i;
 export const branchName = b => typeof b === 'string' && BRANCH_SHAPE.test(b) && !/^(HEAD|FETCH_HEAD|ORIG_HEAD|MERGE_HEAD|CHERRY_PICK_HEAD)$/i.test(b) && !/^(refs|heads|tags|remotes)\//i.test(b) && !b.includes('..') && !b.includes('//') && !/(\.lock|\/|\.)$/.test(b) && !/@\{/.test(b);
 const BRANCH = {test: branchName};
 const sameArgv = (a, b) => stable(a) === stable(b);
-function addAllowed(c, p) {
+export function addAllowed(c, p) {
   try { p = relName(p); } catch { return false; }
   return areaAllows(c, p) || scopeContains(areaWrite(c), p) || p === 'docs/aae/PROGRESS.md' || p === 'docs/aae/work/' + c.id || p.startsWith('docs/aae/work/' + c.id + '/');
 }
@@ -222,13 +238,43 @@ function gitMergeOk(c, argv) {
   const x = /^([^:+]+):([^:+]+)$/.exec(argv[3]);
   return Boolean(x) && BRANCH.test(x[1]) && c.envelope.git.push.includes(x[1]) && x[2] === m.to && BRANCH.test(x[2]);
 }
+// Programma's die publiceren, uitrollen of het netwerk op gaan: nooit een "lokaal" extra commando, en git loopt nooit via een extra commando.
+const LOCAL_FORBIDDEN_PROGRAMS = new Set(['gh', 'curl', 'wget', 'ssh', 'scp', 'rsync', 'docker', 'podman', 'vercel', 'netlify', 'supabase', 'aws', 'gcloud', 'flyctl', 'fly', 'heroku', 'kubectl', 'terraform', 'ftp', 'sftp', 'nc', 'ncat']);
+const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun', 'npx', 'pnpx', 'bunx']);
+const PUBLISH_WORDS = /^(publish|deploy|release|login|adduser|unpublish|dist-tag|token)$/i;
+const GIT_VIA_CAPABILITY = new Set(['push', 'commit', 'merge', 'tag', 'rebase', 'cherry-pick', 'am', 'apply', 'remote', 'config', 'fetch', 'pull', 'update-ref', 'send-pack', 'bundle', 'notes', 'revert']);
+const programName = a => String(a || '').split(/[\\/]/).pop().toLowerCase().replace(/\.(exe|cmd|bat|ps1)$/, '');
+/** Waarom een extra commando niet is toegestaan (null = toegestaan als het in de envelop staat). */
+export function extraRefusal(argv, purpose) {
+  const prog = programName(argv[0]);
+  if (prog === 'git') {
+    // Publiceren, vastleggen en samenvoegen alleen via de capabilities en hun gate; andere git-handelingen (bijvoorbeeld checkout als destructief commando) blijven zichtbaar toegestaan.
+    const a = argv.slice(1); let i = 0;
+    while (i < a.length && a[i].startsWith('-')) i += /^(-C|-c|--git-dir|--work-tree|--namespace)$/.test(a[i]) ? 2 : 1;
+    const sub = String(a[i] || '').toLowerCase();
+    if (GIT_VIA_CAPABILITY.has(sub) || !sub) return 'git ' + (sub || '') + ' loopt nooit via een extra commando (ook niet met doel ' + purpose + '): commit, push en merge alleen via de capabilities en hun gate.';
+    if (LOCAL.includes(purpose)) return 'git ' + sub + ' is geen lokaal extra commando (' + purpose + ').';
+    return null;
+  }
+  if (LOCAL.includes(purpose)) {
+    if (LOCAL_FORBIDDEN_PROGRAMS.has(prog)) return prog + ' publiceert of gebruikt het netwerk en is geen lokaal commando (' + purpose + ').';
+    if (PACKAGE_MANAGERS.has(prog) && argv.slice(1).some(a => PUBLISH_WORDS.test(a) || LOCAL_FORBIDDEN_PROGRAMS.has(programName(a)))) return 'publiceren of uitrollen via ' + prog + ' is geen lokaal commando (' + purpose + ').';
+  }
+  return null;
+}
+/** Voert dit extra commando willekeurige code uit (interpreter met -e/-c)? Alleen voor de zichtbaarheid in het voorstel. */
+export const runsArbitraryCode = argv => {
+  const prog = programName(argv[0]);
+  return (['node', 'nodejs', 'deno', 'bun'].includes(prog) && argv.slice(1).some(a => /^(-e|--eval|-p|--print)$/.test(a))) || (['python', 'python3', 'sh', 'bash', 'zsh', 'pwsh', 'powershell', 'cmd', 'ruby', 'perl'].includes(prog) && argv.slice(1).some(a => /^(-c|-e|-Command|\/c)$/i.test(a)));
+};
 /** Classificeert een commando tegen de envelop. ok=false betekent: niet toegestaan binnen deze GO. */
 export function classifyCommand(c, cmd) {
   const argv = cmd.argv, purpose = cmd.purpose;
   const extra = (c.envelope.extra_commands || []).some(x => x.purpose === purpose && sameArgv(x.argv, argv));
   if (LOCAL.includes(purpose)) {
     if (safeLocalArgv(argv)) return {ok: true, kind: 'lokaal'};
-    return extra ? {ok: true, kind: 'extra'} : {ok: false, reason: 'Lokaal commando staat niet op de toegestane lijst en niet in de goedgekeurde extra commando\'s.'};
+    if (!extra) return {ok: false, reason: 'Lokaal commando staat niet op de toegestane lijst en niet in de goedgekeurde extra commando\'s.'};
+    const nee = extraRefusal(argv, purpose); return nee ? {ok: false, reason: nee} : {ok: true, kind: 'extra'};
   }
   if (purpose === 'commit') {
     if (argv[0] !== 'git' || !c.envelope.git.commit) return {ok: false, reason: 'Commit is niet toegestaan in deze envelop.'};
@@ -239,11 +285,12 @@ export function classifyCommand(c, cmd) {
     return gitPushOk(c, argv) ? {ok: true, kind: 'git-push'} : {ok: false, reason: 'Push alleen naar een branch uit envelop.git.push, nooit naar main, zonder force of refspec.'};
   }
   if (purpose === 'merge') {
-    if (argv[0] !== 'git') return extra ? {ok: true, kind: 'extra'} : {ok: false, reason: 'Merge-commando niet goedgekeurd.'};
+    if (argv[0] !== 'git') { const nee = extra ? extraRefusal(argv, purpose) : 'Merge-commando niet goedgekeurd.'; return nee ? {ok: false, reason: nee} : {ok: true, kind: 'extra'}; }
     return gitMergeOk(c, argv) ? {ok: true, kind: 'git-merge'} : {ok: false, reason: 'Merge alleen als git push origin <werkbranch>:<doelbranch> met een doel uit envelop.git.merge.'};
   }
   if (purpose === 'deploy' || purpose === 'install' || purpose === 'destructive') {
-    return extra ? {ok: true, kind: 'extra'} : {ok: false, reason: purpose + '-commando moet exact in de goedgekeurde extra commando\'s staan.'};
+    if (!extra) return {ok: false, reason: purpose + '-commando moet exact in de goedgekeurde extra commando\'s staan.'};
+    const nee = extraRefusal(argv, purpose); return nee ? {ok: false, reason: nee} : {ok: true, kind: 'extra'};
   }
   return {ok: false, reason: 'Onbekend doel ' + purpose};
 }
@@ -263,7 +310,9 @@ export function validateProviders(p, c) {
   }
   if (p.github) {
     const x = p.github;
-    keys(x, ['tools', 'max_calls', 'base', 'head'], ['tools', 'max_calls'], 'GitHub');
+    keys(x, ['tools', 'max_calls', 'base', 'head', 'owner', 'repo'], ['tools', 'max_calls', 'owner', 'repo', 'head'], 'GitHub');
+    for (const k of ['owner', 'repo']) requireThat(typeof x[k] === 'string' && /^[A-Za-z0-9_.-]{1,100}$/.test(x[k]), 'GitHub ' + k + ' is verplicht en moet een gewone naam zijn.');
+    requireThat(typeof x.head === 'string' && BRANCH.test(x.head) && (c.envelope.git.push || []).includes(x.head), 'GitHub head is verplicht en moet een werkbranch uit envelop.git.push zijn.');
     array(x.tools, 1, GITHUB_WRITE_TOOLS.length, 'GitHub-tools');
     requireThat(new Set(x.tools).size === x.tools.length, 'Dubbele GitHub-tool.');
     for (const t of x.tools) choice(t, GITHUB_WRITE_TOOLS, 'GitHub-tool');
@@ -363,7 +412,7 @@ export function validateContract(c) {
     array(m.watch, 0, 30, 'Commandobronnen'); for (const w of m.watch) relName(w);
     number(m.timeout_ms, 1000, 300000, 'Timeout');
     number(m.max_runs, 1, ['install', 'destructive', 'merge', 'deploy'].includes(m.purpose) ? 1 : 30, 'Aantal uitvoeringen');
-    if (e.phase === 'analysis') requireThat(['read', 'test'].includes(m.purpose), 'Analyse staat alleen lees- en testcommando\'s toe.');
+    if (e.phase === 'analysis') requireThat(m.purpose === 'read', 'Analyse staat alleen leescommando\'s toe (geen tests: projectcode kan gevolgde bestanden schrijven).');
     const k = classifyCommand(c, m);
     requireThat(k.ok, 'Commando ' + m.id + ' valt buiten de envelop: ' + k.reason);
   }
@@ -419,7 +468,7 @@ export function materialChanges(a, n) {
   if (dbLevel(en.db_max) > dbLevel(ea.db_max)) why.push('database-klasse');
   for (const prov of ['supabase', 'github']) {
     const pa = ea.providers[prov], pn = en.providers[prov];
-    if (pn && (!pa || !sub(pn.tools, pa.tools) || pn.max_calls > pa.max_calls || (prov === 'supabase' && pn.project_ref !== pa.project_ref) || (prov === 'github' && ((pn.base ?? null) !== (pa.base ?? null) || (pn.head ?? null) !== (pa.head ?? null))))) why.push('provider ' + prov);
+    if (pn && (!pa || !sub(pn.tools, pa.tools) || pn.max_calls > pa.max_calls || (prov === 'supabase' && pn.project_ref !== pa.project_ref) || (prov === 'github' && ((pn.base ?? null) !== (pa.base ?? null) || (pn.head ?? null) !== (pa.head ?? null) || (pn.owner ?? null) !== (pa.owner ?? null) || (pn.repo ?? null) !== (pa.repo ?? null))))) why.push('provider ' + prov);
   }
   if (en.git.commit && !ea.git.commit) why.push('git commit');
   if (!sub(en.git.push, ea.git.push)) why.push('git push');

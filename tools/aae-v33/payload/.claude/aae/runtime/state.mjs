@@ -1,6 +1,7 @@
-/** Eén statusbron per werkpakket: docs/aae/work/<id>/state.json (+ contract.json). Statusmachine, vergrendeling en registratie. */
+/** Eén statusbron per werkpakket: docs/aae/work/<id>/state.json (+ proposal.json, en de gevolgde snapshots in approved/). Statusmachine, vergrendeling en registratie. */
 import fs from 'node:fs';
 import path from 'node:path';
+import {ensureSnapshot} from './snapshot.mjs';
 import {
   WORK, STATE_DIR, requireThat, safePath, atomicJson, readJson, now, digest, sha, level,
   validateContract, envelopeHash, materialChanges
@@ -20,7 +21,9 @@ export const TRANSITIONS = {
   CANCELLED: []
 };
 const stateFile = id => WORK + '/' + id + '/state.json';
-export const contractFile = id => WORK + '/' + id + '/contract.json';
+/** Het voorstel van een werkpakket: lokaal, ongevolgd (genegeerd pad). Het gevolgde, duurzame bewijs van wat is goedgekeurd is de snapshot (snapshot.mjs). */
+export const proposalFile = id => WORK + '/' + id + '/proposal.json';
+export const contractFile = proposalFile; // verouderde naam, zelfde pad
 export const resultFile = id => WORK + '/' + id + '/result.json';
 
 /** Eén proces tegelijk schrijft; geen eigenaar-sessie. Een achtergebleven lock van een dode PID wordt niet gestolen (zie doctor). */
@@ -49,7 +52,7 @@ export function saveWork(root, st) { st.updated = now(); atomicJson(root, stateF
 export function newState(id) {
   return {
     version: 4, id, status: 'PLANNING', activity: null, created: now(), updated: now(),
-    contract: null, proposed: null, approved: null, presented: null, needs_human: null, pending_decision: null, confirmed: null, blockers: [],
+    contract: null, proposed: null, approved: null, presented: null, snapshot: null, recovered: null, needs_human: null, pending_decision: null, confirmed: null, blockers: [],
     usage: {agents: 0, commands: 0, external: 0}, agents: {}, command_counts: {}, receipts: [], command_running: null,
     external_calls: {}, external_receipts: [], extra_fp: {}, supabase_verified: null, preflight: null, files_touched: [], soft_exceeded: false,
     legacy: false, history: []
@@ -82,7 +85,7 @@ export function activeWork(root) {
  * het werkpakket op een beslissing van Jurgen (NEEDS_HUMAN); een nieuwe `cli present` + `AAE GO` keurt dan de actuele envelop opnieuw goed.
  */
 export function guardApproval(root, st) {
-  try { assertApproval(st); }
+  try { assertApproval(st); ensureSnapshot(root, st); }
   catch (e) {
     if (st && st.status === 'EXECUTING') { needsHuman(st, 'material_change', e.message, {reasons: ['goedkeuring ongeldig']}); saveWork(root, st); }
     throw e;
@@ -120,7 +123,7 @@ export function planningOutcome(st, c) {
   return blockers;
 }
 /**
- * Registreert (herregistreert) het contract van een werkpakket vanuit contract.json. Het contract is al gevalideerd.
+ * Registreert (herregistreert) het contract van een werkpakket vanuit proposal.json. Het contract is al gevalideerd.
  * Binnen de goedgekeurde envelop verandert er niets aan de goedkeuring; erbuiten wordt het voorstel NEEDS_HUMAN tot een expliciete GO.
  */
 export function registerContract(root, c) { return withLock(root, () => registerContractUnlocked(root, c)); }

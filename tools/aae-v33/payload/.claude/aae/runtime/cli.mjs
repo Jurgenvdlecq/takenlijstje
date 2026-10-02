@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {requireThat, readJson, validateContract, now, atomicText, safePath, STATE_DIR, WORK} from './core.mjs';
+import {requireThat, readJson, validateContract, now, atomicText, safePath, trackedUnder, STATE_DIR, WORK} from './core.mjs';
+import {recoverWork} from './recover.mjs';
 import {withLock, activeWork, guardApproval, listWork, loadWork, saveWork, registerContract, contractFile, needsHuman, log, TERMINAL} from './state.mjs';
 import {liveRows, reconcile, finalizeRun, findTranscript, transcriptFinalText} from './reports.mjs';
 import {runCommand, closeTask, reportTemplate, doctor} from './runner.mjs';
@@ -24,18 +25,22 @@ function projectie(root) {
   atomicText(root, 'docs/aae/PROGRESS.md', nieuw);
   return {geschreven: 'docs/aae/PROGRESS.md', regels: s.plain.length};
 }
+/** Ruwe lagen verdwijnen 7 dagen na READY. Alleen ongevolgde bestanden: een gevolgd bestand wordt nooit zonder GO verwijderd (en bij twijfel of git faalt: overslaan). */
 function prune(root) {
-  const weg = [];
+  const weg = [], overgeslagen = [];
   for (const id of listWork(root)) {
     const st = loadWork(root, id);
     if (st?.status === 'READY' && Date.now() - Date.parse(st.updated) > 7 * 86400000) {
-      const d = path.join(fs.realpathSync(root), STATE_DIR, 'raw', id);
-      if (fs.existsSync(d)) { fs.rmSync(d, {recursive: true, force: true}); weg.push('raw/' + id); }
-      const k = path.join(fs.realpathSync(root), WORK, id, 'raw');
-      if (fs.existsSync(k)) { fs.rmSync(k, {recursive: true, force: true}); weg.push(WORK + '/' + id + '/raw'); }
+      for (const rel of [STATE_DIR + '/raw/' + id, WORK + '/' + id + '/raw']) {
+        const d = path.join(fs.realpathSync(root), ...rel.split('/'));
+        if (!fs.existsSync(d)) continue;
+        const t = trackedUnder(root, rel);
+        if (t.fout || t.bestanden.length) { overgeslagen.push(rel + (t.fout ? ' (git niet te raadplegen)' : ' (' + t.bestanden.length + ' gevolgde bestanden)')); continue; }
+        fs.rmSync(d, {recursive: true, force: true}); weg.push(rel);
+      }
     }
   }
-  return {verwijderd: weg, regel: 'Ruwe lagen verdwijnen 7 dagen na READY; samenvattingen en bewijs blijven.'};
+  return {verwijderd: weg, overgeslagen, regel: 'Ruwe lagen verdwijnen 7 dagen na READY; samenvattingen en bewijs blijven. Gevolgde bestanden worden nooit zonder GO verwijderd.'};
 }
 
 try {
@@ -48,9 +53,10 @@ try {
     case 'plan': {
       requireThat(arg, 'Werkpakket-ID ontbreekt.');
       const c = validateContract(readJson(root, contractFile(arg)));
-      requireThat(c.id === arg, 'ID in het contract wijkt af van de mapnaam.');
+      requireThat(c.id === arg, 'ID in het voorstel wijkt af van de mapnaam.');
       result = registerContract(root, c); break;
     }
+    case 'recover': requireThat(arg, 'Werkpakket-ID ontbreekt.'); result = recoverWork(root, arg); break;
     case 'present': requireThat(arg, 'Werkpakket-ID ontbreekt.'); result = presentProposal(root, arg); break;
     case 'preflight': {
       requireThat(arg, 'Werkpakket-ID ontbreekt.');
@@ -110,7 +116,7 @@ try {
     }); break;
     case 'prune': result = prune(root); break;
     case 'report-template': result = reportTemplate(root); break;
-    default: throw new Error('Gebruik status | plan <id> | present <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template.');
+    default: throw new Error('Gebruik status | plan <id> | present <id> | recover <id> | preflight <id> | reconcile | observe-alive <agent> | observe-absent <agent> | scope-change | report <run> | keep-raw <run> | close | run <id> | doctor | project | prune | report-template.');
   }
   console.log(JSON.stringify(result, null, 2));
 } catch (e) { console.error('AAE: ' + e.message); process.exitCode = 2; }

@@ -136,7 +136,10 @@ export function finalizeRun(root, st, row, bronnen, opts = {}) {
   const {tekst: blok, onvolledig} = extractDigest(volledig);
   const verdict = parseVerdict(volledig, blok);
   const nr = String(row.seq || 0).padStart(3, '0');
-  const digestRel = WORK + '/' + id + '/runs/' + nr + '-' + slug(row.role) + '-' + slug(row.focus) + '.md';
+  // Een analyse-werkpakket (zonder GO) schrijft nooit een gevolgd bestand: samenvattingen en bewaarde ruwe rapporten gaan dan naar het genegeerde notitiepad.
+  const analyse = st.contract?.envelope?.phase === 'analysis';
+  const werkDir = analyse ? 'docs/aae/notes/runs-' + id : WORK + '/' + id;
+  const digestRel = werkDir + '/runs/' + nr + '-' + slug(row.role) + '-' + slug(row.focus) + '.md';
   let dm = ['# Agentrun ' + runKey, '', '- rol: ' + row.role, '- focus: ' + (row.focus || '-'), '- vraag: ' + String(row.why || '').slice(0, 200), '- start: ' + (row.reserved_at || '-'), '- einde: ' + (row.finished || now()),
     '- status: ' + status, '- verdict: ' + verdict, '- bronnen: ' + akkoord.join(', ') + (conflict.length ? ' (afwijkend: ' + conflict.join(', ') + ')' : ''), '- sha256 ruwe tekst: ' + sha(volledig), '- bytes ruwe tekst: ' + Buffer.byteLength(volledig), onvolledig ? '- samenvatting: onvolledig (kop en staart)' : '- samenvatting: uit SAMENVATTING-blok', '', blok, ''].join('\n');
   while (Buffer.byteLength(dm) > DIGEST_MAX) dm = dm.slice(0, dm.length - 200) + '\n[ingekort]\n';
@@ -144,11 +147,11 @@ export function finalizeRun(root, st, row, bronnen, opts = {}) {
   const keep = opts.keepRaw || row.keep_raw;
   let keepPad = null;
   if (keep) {
-    const dir = path.join(fs.realpathSync(root), WORK, id, 'raw');
+    const dir = path.join(fs.realpathSync(root), ...werkDir.split('/'), 'raw');
     const eigen = runKey + '.md';
     const bestaand = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f !== eigen).reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0) : 0;
     const kort = Buffer.byteLength(volledig) > KEEP_RAW_FILE ? volledig.slice(0, KEEP_RAW_FILE / 2) + '\n[... ingekort; sha256 van het geheel: ' + sha(volledig) + ' ...]\n' + volledig.slice(-KEEP_RAW_FILE / 2) : volledig;
-    if (bestaand + Buffer.byteLength(kort) <= KEEP_RAW_TOTAL) { keepPad = WORK + '/' + id + '/raw/' + runKey + '.md'; atomicText(root, keepPad, kort + '\n'); }
+    if (bestaand + Buffer.byteLength(kort) <= KEEP_RAW_TOTAL) { keepPad = werkDir + '/raw/' + runKey + '.md'; atomicText(root, keepPad, kort + '\n'); }
     else row.keep_raw_overgeslagen = true;
   }
   row.report = {status, verified: status === 'COMPLETED', sources: akkoord, afwijkend: conflict, raw_path: rawRel, raw_sha256: sha(volledig), raw_bytes: Buffer.byteLength(volledig), raw_afgekapt: afgekapt, digest_path: digestRel, digest_onvolledig: onvolledig, keep_raw_path: keepPad, verdict, at: now()};
