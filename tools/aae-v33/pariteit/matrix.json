@@ -152,6 +152,13 @@
     "B5": {"omschrijving": "Een READY-gate (nu: de merge-gate) verdwijnt niet stil.", "v33": ["B5 behouden", "R27", "R28", "T11"]},
     "B6": {"omschrijving": "node --test accepteert alleen concrete testbestanden, nooit mappen of scripts.", "v33": ["B6 behouden"]}
   },
+  "wijzigingen_001f": {
+    "bron": "Onafhankelijke review van commit b4f39b7 (BLOCKED: pg_-systeemtabellen en SHOW als vrije read; Grep/Glob lazen een geheim) en de besluiten van Jurgen voor AAE-V33-001F (docs/aae/notes/review-b4f39b7.md).",
+    "regels": {
+      "B1 een pg_-naam is nooit zuiver en SHOW is geen vrije read": ["RF01"],
+      "B2 één gedeelde geheimencontrole voor Read, Grep en Glob, onbekende selectors fail-closed, brede Grep geweigerd, file: via WebFetch geweigerd": ["RF02"]
+    }
+  },
   "wijzigingen_001e": {
     "bron": "Onafhankelijke review van commit 467ecdd (BLOCKED: een latere onschuldige functiedefinitie overschrijft de klasse van een eerdere destructieve) en de besluiten van Jurgen voor AAE-V33-001E (structurele vereenvoudiging, docs/aae/notes/review-467ecdd.md).",
     "regels": {

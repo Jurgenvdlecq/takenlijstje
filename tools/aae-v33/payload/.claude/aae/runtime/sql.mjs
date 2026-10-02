@@ -24,7 +24,7 @@ const KEYWORDS = new Set(['and', 'or', 'not', 'in', 'any', 'all', 'some', 'exist
 const NA = {key: ['PRIMARY', 'FOREIGN'], over: [')'], filter: [')'], include: [')'], conflict: ['ON']};
 const DECL = new Set(['TABLE', 'INTO', 'REFERENCES', 'EXISTS', 'VIEW']); // een naam die hier voor een haakje staat wordt gedeclareerd of genoemd, niet aangeroepen
 const GEVOELIG = new Set(['auth', 'vault', 'net', 'cron', 'supabase_functions', 'pgsodium', 'pg_catalog']);
-const GEVOELIGE_TABEL = new Set(['pg_authid', 'pg_shadow', 'pg_user_mapping', 'pg_stat_activity', 'pg_settings']); // systeemtabellen met wachtwoordhashes, queryteksten of configuratie: nooit leesbaar of schrijfbaar zonder bevestiging
+const PG = /^pg_/i; // elke naam die met pg_ begint (systeemtabellen met wachtwoordhashes, queryteksten of configuratie), zonder of met quotes: nooit zuiver
 // Een identifierteken is elk ASCII-letter, cijfer, _ of $, en elk teken vanaf U+0080 (Postgres), behalve de gereserveerde plaatsvervangers.
 const ID = 'A-Za-z_\\u0080-\\uDFFF\\uE002-\\u{10FFFF}';
 const TOKEN = new RegExp(S + '|' + Q + '|[' + ID + '][' + ID + '0-9$]*|\\d[\\d.]*|::|<>|<=|>=|!=|\\S', 'gu');
@@ -32,7 +32,7 @@ const IDENT = new RegExp('^[' + ID + Q + ']', 'u'), KAAL = /^[A-Za-z_][A-Za-z0-9
 
 /** Haalt commentaar, tekstwaarden, $-blokken en geciteerde namen weg. ok=false: niet afgesloten, U&-notatie, E'..' of een backslash in tekst: niet betrouwbaar te lezen. */
 export function scanSql(sql) {
-  const s = String(sql || ''), n = s.length, fout = {text: '', ok: false}; let i = 0, uit = '';
+  const s = String(sql || ''), n = s.length, fout = {text: '', ok: false, quoted: []}, quoted = []; let i = 0, uit = '';
   if (s.includes(S) || s.includes(Q)) return fout;
   const sluit = q => { while (i < n) { if (s[i] === q) { if (s[i + 1] === q) { i += 2; continue; } i++; return true; } i++; } return false; };
   while (i < n) {
@@ -46,11 +46,12 @@ export function scanSql(sql) {
     }
     if (los && ((/[Uu]/.test(c) && d === '&') || (/[Ee]/.test(c) && d === "'"))) return fout;
     if (c === "'") { const a = i++; if (!sluit("'") || s.slice(a, i).includes('\\')) return fout; uit += ' ' + S + ' '; continue; }
-    if (c === '"') { i++; if (!sluit('"')) return fout; uit += ' ' + Q + ' '; continue; }
+    if (c === '"') { const a = ++i; if (!sluit('"')) return fout; quoted.push(s.slice(a, i - 1).replace(/""/g, '"')); uit += ' ' + Q + ' '; continue; }
     uit += c; i++;
   }
-  return {text: uit, ok: true};
+  return {text: uit, ok: true, quoted};
 }
+const pgNaam = sc => sc.quoted.some(x => PG.test(x)) || tokens(sc.text).some(t => PG.test(t)); // één controle voor alle statements: een pg_-naam is nooit zuiver
 const tokens = s => s.match(TOKEN) || [];
 const norm = tok => tok.join(' ').toUpperCase().replace(/ ?\. ?/g, '.');
 const boven = (tok, f) => { let d = 0; for (const t of tok) { if (t === '(') d++; else if (t === ')') d--; else if (!d && f(t)) return true; } return false; }; // komt dit teken op haakjesdiepte 0 voor?
@@ -60,7 +61,6 @@ function onveilig(tok, U) {
   const index = /^CREATE (UNIQUE )?INDEX /.test(U);
   for (let i = 0; i < tok.length; i++) {
     const t = tok[i];
-    if (KAAL.test(t) && GEVOELIGE_TABEL.has(t.toLowerCase())) return 'gevoelige systeemtabel (' + t + ')';
     if (tok[i + 1] === '.' && (t === Q || (KAAL.test(t) && GEVOELIG.has(t.toLowerCase())))) { // alleen een exacte, toegestane aanroep zoals auth.uid() mag een gevoelig schema noemen
       let e = i; while (tok[e + 1] === '.' && IDENT.test(tok[e + 2] || '')) e += 2;
       const delen = tok.slice(i, e + 1).filter(x => x !== '.');
@@ -100,16 +100,18 @@ export function classifyDb(sql) {
   const sc = scanSql(sql), lijst = statements(sc.text);
   if (!sc.ok) return {klasse: 'C', redenen: ['C: de SQL is niet betrouwbaar te lezen (niet afgesloten, U&-notatie, E-string of backslash); behandeld als destructief.']};
   if (!lijst.length) return {klasse: 'C', redenen: ['C: lege migratie.']};
+  if (pgNaam(sc)) return {klasse: 'C', redenen: ['C: een naam die met pg_ begint (systeemtabel of -functie) is nooit zuiver.']};
   const uit = lijst.map(klasse), rang = {A: 1, B: 2, C: 3};
   return {klasse: uit.reduce((h, [k]) => rang[k] > rang[h] ? k : h, 'A'), redenen: uit.map(([k, r]) => k + ': ' + r)};
 }
-/** execute_sql: alleen één SELECT/SHOW/EXPLAIN/VALUES/WITH zonder schrijf- of bijwerkingswoorden en met uitsluitend zuivere aanroepen is read; al het andere is een wijziging. */
+/** execute_sql: alleen één SELECT/EXPLAIN/VALUES/WITH (SHOW niet) zonder schrijf- of bijwerkingswoorden en met uitsluitend zuivere aanroepen is read; al het andere is een wijziging. */
 export function classifySql(sql) {
   if (!String(sql || '').trim()) return {level: 'blocked', reason: 'SQL ontbreekt.'};
   const sc = scanSql(sql), lijst = statements(sc.text);
   if (!sc.ok) return {level: 'change', reason: 'SQL is niet betrouwbaar te lezen.'};
   if (lijst.length !== 1) return {level: 'sensitive', reason: 'Meerdere SQL-statements in een execute_sql-call zijn niet toegestaan.'};
+  if (pgNaam(sc)) return {level: 'change', reason: 'Een naam die met pg_ begint (systeemtabel of -functie) is nooit zuiver: behandeld als wijziging.'};
   const tok = tokens(lijst[0]), U = norm(tok), w = onveilig(tok, U);
-  const leest = /^(SELECT|SHOW|EXPLAIN|VALUES|WITH) /.test(U + ' ') && !/\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|EXECUTE|INTO|ANALYZE|VACUUM|LOCK|SET|RESET|REFRESH|COMMENT)\b/.test(U);
+  const leest = /^(SELECT|EXPLAIN|VALUES|WITH) /.test(U + ' ') && !/\b(INSERT|UPDATE|DELETE|MERGE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE|COPY|CALL|DO|EXECUTE|INTO|ANALYZE|VACUUM|LOCK|SET|RESET|REFRESH|COMMENT)\b/.test(U);
   return leest && !w ? {level: 'read', reason: 'Alleen-lezen SQL met uitsluitend zuivere functies.'} : {level: 'change', reason: w ? w + ': behandeld als wijziging; gebruik een benoemde apply_migration.' : 'Muterende SQL hoort via apply_migration.'};
 }

@@ -17,6 +17,7 @@ import {classifyExternalCall, projectRefFromInput, projectRefFromResponse, prNum
 import {assertGate, assertPrMerge} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
+import {guardSecretRead} from './secrets.mjs';
 
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob']);
 const HARMLESS_MAIN = new Set(['ToolSearch', 'AskUserQuestion', 'TodoWrite', 'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate', 'TaskOutput', 'TaskStop', 'EnterPlanMode', 'ExitPlanMode', 'WebSearch', 'WebFetch', 'ListAgents']);
@@ -46,15 +47,7 @@ function denied(root, st, wat, reden) {
 
 // ---------------------------------------------------------------- lezen
 function readPermission(root, st, e) {
-  const input = e.tool_input || {};
-  let p;
-  if (e.tool_name === 'Read') p = toolPath(root, e);
-  else if (input.path && path.resolve(input.path) !== fs.realpathSync(root)) p = relativeInput(root, input.path, e.cwd || root);
-  if (p) {
-    safePath(root, p);
-    requireThat(!p.startsWith('.claude/aae/private/'), 'Lees geen testauthcookies met modeltools. Gebruik alleen de fixturehelper.');
-    requireThat(!p.split('/').some(n => /^\.env(?:\.|$)/.test(n) && n !== '.env.example'), 'Lees geen secrets. Gebruik .env.example of namen zonder waarden.');
-  }
+  const p = guardSecretRead(root, e); // één gedeelde controle voor Read, Grep en Glob, ook voor subagents
   if (!isSubagent(e)) return null;
   const row = st && Object.values(st.agents).find(r => r.agent_id === e.agent_id && ['reserved', 'running', 'unverified'].includes(r.status));
   requireThat(row && row.role === e.agent_type, 'Geen geldige geregistreerde agentaanroep voor deze toolactie.');
@@ -266,6 +259,7 @@ export function preTool(root, e) {
     }
     const external = classifyExternalCall(name, input);
     if (external) return preExternal(root, e, external);
+    if (name === 'WebFetch') requireThat(!/^\s*file:/i.test(String(input.url || '')), 'Een file:-adres via WebFetch kan lokale geheimen lezen en wordt niet toegelaten.');
     if (HARMLESS_MAIN.has(name)) return null;
     if (WRITE_TOOLS.has(name)) return writePermission(root, st, e);
     if (name === 'Bash' || name === 'PowerShell') return bashPermission(root, st, e);

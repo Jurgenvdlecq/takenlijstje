@@ -2,9 +2,9 @@
 
 Doel: een onafhankelijk oordeel over de **definitieve bron** van AAE 3.3 voordat er iets wordt geïnstalleerd (AAE-V33-002). Deze review draait in een **aparte Claude Code-sessie**, strikt read-only, **zonder subagents**, op een **schone kloon**, gebonden aan één commit.
 
-**Let op: dit is de opdracht voor de volgende review, op de nieuwe commit na het herstelpakket AAE-V33-001E.** De eerdere reviews van commit `5e64919fbd282f69cdf7a5fd443cdefe6054b3d7`, `5ba1e59ba53b6826374f5272bdc07868ed44e6d0` en `467ecdd14bd5f5829234e383899c70636b8fc93d` zijn afgerond met VERDICT: BLOCKED en **blijven BLOCKED**; ze tellen nooit voor een nieuwere commit. Oordeel zelfstandig over de nieuwe commit.
+**Let op: dit is de opdracht voor de volgende review, op de nieuwe commit na het herstelpakket AAE-V33-001F.** De eerdere reviews van commit `5e64919fbd282f69cdf7a5fd443cdefe6054b3d7`, `5ba1e59ba53b6826374f5272bdc07868ed44e6d0`, `467ecdd14bd5f5829234e383899c70636b8fc93d` en `b4f39b70f768c538f1976508cad35d291aa10f88` zijn afgerond met VERDICT: BLOCKED en **blijven BLOCKED**; ze tellen nooit voor een nieuwere commit. Oordeel zelfstandig over de nieuwe commit.
 
-De **commit-sha** staat in het eindbericht van AAE-V33-001E. Deze opdracht noemt hem bewust niet zelf: de sha van een commit kan niet in een bestand van diezelfde commit staan. Vul hem hieronder in (vervang `<SHA>`) vóór je start. De **tree-hash** stelt de reviewer zelf vast in de schone kloon en noemt hem in het rapport.
+De **commit-sha** staat in het eindbericht van AAE-V33-001F. Deze opdracht noemt hem bewust niet zelf: de sha van een commit kan niet in een bestand van diezelfde commit staan. Vul hem hieronder in (vervang `<SHA>`) vóór je start. De **tree-hash** stelt de reviewer zelf vast in de schone kloon en noemt hem in het rapport.
 
 ## Starten (Jurgen, 4 stappen)
 ```
@@ -34,6 +34,7 @@ Een punt is ALLEEN blokkerend als je een CONCREET, REPRODUCEERBAAR pad beschrijf
 
 ONTWERP IN HET KORT (nieuw sinds AAE-V33-001E: eerst lezen, dan beoordelen).
 - SQL is default-deny (runtime/sql.mjs, ongeveer 100 regels): een statement is A of B alleen als het precies op één vorm uit VORMEN past; al het andere is C. Functies, procedures, triggers en vergelijkbare uitvoerbare objecten zijn altijd C (EXECUTABEL), zonder naar de body te kijken en zonder namen bij te houden. Een functieaanroep is alleen zuiver als de exacte naam op PURE_FUNCTIONS staat (inclusief exact auth.uid, auth.jwt, auth.role); anders is ze in een migratie C en via execute_sql een wijziging. Dus herdefinitie, overloads, schema's, Unicode en quotes hebben geen eigen logica. De tests staan tabelgedreven in payload/.claude/aae/tests/sql.test.mjs (RE01-RE03, de eerdere scenario's RB01-RB04/RD01 en een mutatiecorpus).
+- Sinds 001F: elke naam die met `pg_` begint (zonder of met quotes, hoofdletterongevoelig) is nooit zuiver (migratie C, execute_sql een wijziging; één controle `pgNaam` in sql.mjs) en `SHOW` is geen vrije read meer. Read, Grep en Glob gaan door één gedeelde geheimencontrole (runtime/secrets.mjs `guardSecretRead`, aangeroepen vanuit events.mjs `readPermission`, ook voor subagents): padselectors genormaliseerd en geweigerd bij `.env`/`.env.*` (behalve `.env.example`) of `.claude/aae/private` (zelf en eronder, met en zonder slash); glob-selectors alleen `[A-Za-z0-9_./*-]` en zonder `.env`/`private`; onbekende parameters geweigerd; een `file:`-URL via WebFetch is geweigerd. Tests: RF01 (sql.test.mjs) en RF02 (secrets.test.mjs).
 - extra_commands zijn één kleine toegestane lijst (runtime/core.mjs extraRefusal: node <relatief script>, npm/pnpm/yarn install of run <build|test|lint|…>, git met vast subcommando voor destructive, rm/mv/mkdir met relatieve paden); al het andere is geweigerd. merge en deploy accepteren geen extra commando's en lopen alleen via hun eigen capabilities en gates.
 - Een GO is `AAE GO <werkpakket-ID> <12 tekens>`, gebonden aan de volledige envelop-hash; een analyse zonder GO voert alleen alleen-lezen git uit.
 
@@ -48,6 +49,8 @@ Controleer, met alleen het releasecriteria-filter hierboven:
 8. Tests: testen ze echt wat ze beweren (geen altijd-groene tests, geen lege suites)? Alleen blokkerend als daardoor een van de bovenstaande paden ongetest EN aantoonbaar open staat.
 
 BEKENDE GRENZEN EN GEACCEPTEERDE FALSE POSITIVES (nooit zelfstandig blokkerend; wél kort te melden als je ze anders beoordeelt):
+- Bewuste, tijdelijke gebruiksbeperking van v3.3 (mogelijk te verbeteren in v3.4 op basis van werkelijk gebruik): een brede Grep of Glob (bijvoorbeeld `path: "."`) over een map waarin een geheim bestaat (`.env`-bestand of `.claude/aae/private`) wordt geweigerd zolang de zoekopdracht geen eenvoudige veilige afbakening heeft (een kleinere map of een eenvoudige glob zoals `*.ts` die geen bestaand geheim raakt). Dat is geen blokkerend punt; een concrete invoer die toch een geheim leest (criterium d) wel.
+- Elke naam die met `pg_` begint is C of een wijziging, ook een onschuldige kolom- of functienaam; `SHOW` is altijd een wijziging via execute_sql.
 - Elke functie, procedure of trigger (ook onschuldig) en elke onbekende functieaanroep vraagt AAE BEVESTIG of is een wijziging via execute_sql; een verwijzing naar auth/vault/net/cron (zoals REFERENCES auth.users) is C; een ALTER TABLE met meer dan één actie, CREATE TYPE/SEQUENCE en een kale SELECT in een migratie zijn C; geciteerde of niet-ASCII namen als functie zijn C.
 - Of een WHERE selectief is wordt niet beoordeeld (UPDATE met WHERE is B, vrijgegeven binnen db_max); USING (1 = 1) is geen USING (true); operators, casts en triggers die eerder met C zijn goedgekeurd draaien impliciet mee.
 - Programma's buiten de lijst (python, make, deno, docker, …) kunnen geen extra commando zijn; een goedgekeurd node-script blijft krachtige projectcode en is geen sandbox; git-instellingen in de map zelf (core.fsmonitor) vallen buiten de commandocontrole.
@@ -64,5 +67,5 @@ Als je niets blokkerends vindt, zeg dat uitdrukkelijk en noem wat je daarvoor he
 
 ## Daarna
 1. Plak het volledige rapport terug in de hoofdsessie. Het wordt als notitie bewaard (`docs/aae/notes/`) en aan de commit-sha gebonden.
-2. Zijn er blokkerende punten (concreet reproduceerbaar volgens de releasecriteria), dan volgt een herstelpakket met nieuwe commit; de review gaat dan opnieuw over de nieuwe sha. Een rapport voor een andere sha telt niet (de reviews van 5e64919, 5ba1e59 en 467ecdd blijven BLOCKED).
+2. Zijn er blokkerende punten (concreet reproduceerbaar volgens de releasecriteria), dan volgt een herstelpakket met nieuwe commit; de review gaat dan opnieuw over de nieuwe sha. Een rapport voor een andere sha telt niet (de reviews van 5e64919, 5ba1e59, 467ecdd en b4f39b7 blijven BLOCKED).
 3. Pas bij `READY` op de uiteindelijke sha kan AAE-V33-002 (installatie, terugdraaicontrole, rooktest, gate-beschermde merge naar `main`) met een eigen `AAE GO` starten. De gate van 002 controleert dat de sha waarop de review sloeg gelijk is aan de sha die wordt geïnstalleerd.

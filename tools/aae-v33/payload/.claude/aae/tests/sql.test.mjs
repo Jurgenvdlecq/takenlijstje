@@ -92,8 +92,8 @@ test('RE03 elke toegestane vorm (A en B) heeft een goed en een afgewezen voorbee
   assert.equal(scanSql('SELECT 1 -- x\n').ok, true); assert.equal(scanSql('SELECT $1, $a$ x $a$').ok, true); assert.equal(scanSql('SELECT /* a /* geneste */ b */ 1').ok, true);
   // commentaar en tekst verbergen niets, en tekst met streepjes blijft tekst
   assert.equal(k("INSERT INTO a (b) VALUES ('--'); INSERT INTO a (b) VALUES ('/*');"), 'B'); assert.equal(k("SELECT '--';\nDROP TABLE t;\nSELECT '--'"), 'C'); assert.equal(k("SELECT '/*'; DROP TABLE t; SELECT '*/'"), 'C'); assert.equal(k('SELECT 1; /* a /* geneste */ b */ DROP TABLE t;'), 'C');
-  // execute_sql: alleen één SELECT/SHOW/EXPLAIN/VALUES/WITH met uitsluitend zuivere functies is read
-  for (const s of ['SELECT 1', "SELECT 'gewone tekst' AS x", 'SELECT $1', "SELECT 'a--b' AS x", 'SELECT count(*) FROM t WHERE x > 1', 'SELECT lower(a), now(), coalesce(b, 0) FROM t ORDER BY 1', 'SELECT jsonb_agg(x) FROM t WHERE y IN (1, 2)', 'SELECT * FROM (SELECT 1) AS s', 'SELECT "a" FROM "t"', 'SHOW search_path', 'VALUES (1), (2)', 'EXPLAIN SELECT 1', 'WITH x AS (SELECT 1) SELECT * FROM x', 'SELECT * FROM generate_series(1, 3)']) assert.equal(lvl(s), 'read', s);
+  // execute_sql: alleen één SELECT/EXPLAIN/VALUES/WITH (SHOW niet, RF01) met uitsluitend zuivere functies is read
+  for (const s of ['SELECT 1', "SELECT 'gewone tekst' AS x", 'SELECT $1', "SELECT 'a--b' AS x", 'SELECT count(*) FROM t WHERE x > 1', 'SELECT lower(a), now(), coalesce(b, 0) FROM t ORDER BY 1', 'SELECT jsonb_agg(x) FROM t WHERE y IN (1, 2)', 'SELECT * FROM (SELECT 1) AS s', 'SELECT "a" FROM "t"', 'VALUES (1), (2)', 'EXPLAIN SELECT 1', 'WITH x AS (SELECT 1) SELECT * FROM x', 'SELECT * FROM generate_series(1, 3)']) assert.equal(lvl(s), 'read', s);
   for (const s of ['UPDATE t SET a = 1 WHERE id = 2', 'INSERT INTO t (a) VALUES (1)', 'DROP TABLE t', 'SELECT * FROM t FOR UPDATE', 'WITH x AS (DELETE FROM t RETURNING *) SELECT * FROM x', 'EXPLAIN ANALYZE SELECT 1', 'SELECT * INTO n FROM t', "SELECT 'a' || E'b'", 'SELECT 1 /* open', 'CREATE TABLE a (id int)', 'DO $$ BEGIN NULL; END $$']) assert.equal(lvl(s), 'change', s);
   assert.equal(lvl('SELECT 1; DROP TABLE x'), 'sensitive'); assert.equal(lvl(''), 'blocked'); assert.equal(lvl('   '), 'blocked');
 });
@@ -155,11 +155,26 @@ test('RD01 niet-ASCII en geciteerde functienamen vallen niet buiten de classific
   for (const s of ['SELECT max(1)', 'SELECT Max(x) FROM t', 'SELECT COUNT(*) FROM t', "SELECT lower(a) FROM t WHERE b = 'x'", 'SELECT * FROM "Max"']) assert.equal(lvl(s), 'read', s);
 });
 
+// ---------------------------------------------------------------- RF01: gevoelige database-informatie (reviewscenario van b4f39b7, letterlijk)
+test('RF01 een naam die met pg_ begint is nooit zuiver, zonder of met quotes, in elke hoofdletterstand en schema; SHOW is geen vrije read', () => {
+  const rel = ['pg_shadow', 'pg_authid', 'pg_stat_activity', 'pg_settings', 'pg_user_mapping', 'pg_roles'];
+  for (const r of rel) for (const naam of [r, '"' + r + '"', r.toUpperCase(), '"' + r.toUpperCase() + '"', 'pg_catalog.' + r, 'public."' + r + '"', '"pg_catalog"."' + r + '"', 'Pg_' + r.slice(3)]) {
+    const s = 'SELECT * FROM ' + naam;
+    assert.equal(lvl(s), 'change', s); assert.equal(k(s), 'C', s);
+    assert.equal(k('CREATE TABLE a (id int); ' + s), 'C', s); assert.equal(k('CREATE VIEW v AS ' + s), 'C', s);
+  }
+  for (const s of ['SHOW ALL', 'show all', 'SHOW search_path', 'SHOW "all"', 'SHOW transaction_isolation']) { assert.equal(lvl(s), 'change', s); assert.equal(k(s), 'C', s); }
+  assert.equal(lvl('SELECT 1; SELECT * FROM "pg_shadow"'), 'sensitive');
+  // gewone leesvormen blijven read; een geciteerde naam zonder pg_ is geen pg_-naam
+  for (const s of ['SELECT * FROM "pgtasks"', 'SELECT * FROM tasks WHERE a = \'pg_shadow\'', 'SELECT 1 -- pg_shadow', 'SELECT * FROM "tasks"']) assert.equal(lvl(s), 'read', s);
+});
+
 // ---------------------------------------------------------------- mutatiecorpus
 // Gevaarlijke basisstatements; elke mutatie hiervan moet C blijven (migratie) en nooit read-only zijn (execute_sql). Een nieuwe vondst van een reviewer is een regel in BASIS of MUTATIES.
 const BASIS = ['DELETE FROM tasks', 'TRUNCATE tasks', 'DROP TABLE tasks', 'UPDATE tasks SET a = 1', 'ALTER TABLE tasks DROP COLUMN a', 'ALTER TABLE tasks DISABLE ROW LEVEL SECURITY', "SELECT cron.schedule('j', '* * * * *', 'DELETE FROM tasks')", "SELECT net.http_post('https://x', '{}')",
   'ALTER ROLE authenticated BYPASSRLS', 'CREATE POLICY p ON tasks USING (true)', 'SET search_path = auth', "COPY tasks TO '/tmp/x'", 'DO $$ BEGIN DELETE FROM tasks; END $$', WIPE.slice(0, -1), REDEF.slice(0, -1), 'SELECT public.wipe()', 'CALL wipe()',
-  'CREATE TRIGGER t AFTER INSERT ON tasks FOR EACH ROW EXECUTE FUNCTION wipe()', 'SELECT * FROM pg_shadow', 'SELECT * FROM auth.users', 'INSERT INTO auth.users (id) VALUES (1)', 'GRANT ALL ON tasks TO anon', 'SELECT wipe(1, 2)', 'WITH x AS (DELETE FROM tasks RETURNING 1) SELECT * FROM x'];
+  'CREATE TRIGGER t AFTER INSERT ON tasks FOR EACH ROW EXECUTE FUNCTION wipe()', 'SELECT * FROM pg_shadow', 'SELECT * FROM auth.users', 'INSERT INTO auth.users (id) VALUES (1)', 'GRANT ALL ON tasks TO anon', 'SELECT wipe(1, 2)', 'WITH x AS (DELETE FROM tasks RETURNING 1) SELECT * FROM x',
+  'SELECT * FROM "pg_shadow"', 'SELECT * FROM "pg_authid"', 'SELECT * FROM "pg_stat_activity"', 'SELECT * FROM "pg_settings"', 'SHOW ALL', 'SHOW search_path']; // laatste regel: reviewscenario van b4f39b7 (RF01)
 const MUTATIES = {
   identiek: s => s, hoofdletters: s => s.toUpperCase(), kleine_letters: s => s.toLowerCase(), commentaar_overal: s => s.replace(/ /g, ' /* x */ '), regelcommentaar: s => s.replace(/ /g, ' -- x\n '), nieuwe_regels: s => s.replace(/ /g, '\n\t'), dubbele_spaties: s => s.replace(/ /g, '   '),
   voorafgaande_puntkomma: s => ';' + s, afgesloten: s => s + ';', na_een_onschuldig_statement: s => 'CREATE TABLE a (id int); ' + s, voor_een_onschuldig_statement: s => s + '; CREATE TABLE b (id int)', in_een_transactie: s => 'BEGIN; ' + s + '; COMMIT',

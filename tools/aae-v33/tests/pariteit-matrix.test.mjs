@@ -72,6 +72,10 @@ test('pariteit: elke 001E-regel (structurele vereenvoudiging na de review van 46
   for (const [naam, codes] of regels) { assert.ok(codes.length > 0, naam); for (const c of codes) assert.ok(alle.some(t => t.startsWith(c + ' ') || t.startsWith(c + ':')), '001E-test bestaat niet: ' + c + ' (bij: ' + naam + ')'); }
   for (const c of ['RE01', 'RE02', 'RE03', 'RE04']) assert.ok(alle.some(t => t.startsWith(c + ' ')), c + ' ontbreekt');
 });
+test('pariteit: elke 001F-regel (review van b4f39b7: pg_-namen/SHOW en de gedeelde geheimencontrole) heeft bestaande tests', () => {
+  const regels = Object.entries(matrix.wijzigingen_001f.regels); assert.equal(regels.length, 2);
+  for (const [naam, codes] of regels) { assert.ok(codes.length > 0, naam); for (const c of codes) assert.ok(alle.some(t => t.startsWith(c + ' ')), '001F-test bestaat niet: ' + c + ' (bij: ' + naam + ')'); }
+});
 test('pariteit: scenario\'s T1 t/m T22 bestaan alle als test', () => {
   for (let i = 1; i <= 22; i++) assert.ok(alle.some(t => new RegExp('^T' + i + '[ b]').test(t)), 'T' + i + ' ontbreekt');
 });
