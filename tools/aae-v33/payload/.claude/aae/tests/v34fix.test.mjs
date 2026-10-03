@@ -63,3 +63,36 @@ for (const naam of ['*', '?env', '[.]env']) {
     assert.ok(!dh.uitvoer.includes(GEHEIM), 'diff HEAD toonde het geheim via de naam ' + naam);
   }));
 }
+
+// AAE-V34-FLOW-FIX2 (review van 50b61eb): inhoud alleen vanaf een commit. Een maphash plus een kort pad (<map>:state.json) mag het geheimenfilter niet omzeilen.
+for (const [map, naam] of [['tests/.auth', 'state.json'], ['.claude/aae/private', 'cookies.json'], ['testauth', 'token.json']]) {
+  test('FIX-04 een gevolgd geheim in ' + map + ' wordt niet zichtbaar via een maphash of een tag naar een map', met(async root => {
+    put(root, 'src/a.js', 'export const a = 1;\n'); put(root, map + '/' + naam, GEHEIM + '\n');
+    sh(root, 'init', '-q'); sh(root, 'add', '-A'); sh(root, 'add', '-f', '--', map + '/' + naam); sh(root, 'commit', '-q', '-m', 'eerste');
+    const boom1 = sh(root, 'rev-parse', 'HEAD:' + map).stdout.trim();
+    assert.match(boom1, /^[0-9a-f]{40}$/, 'het geheim is gevolgd');
+    put(root, map + '/' + naam, GEHEIM + '_TWEE\n'); sh(root, 'add', '-f', '--', map + '/' + naam); sh(root, 'commit', '-q', '-m', 'tweede');
+    const boom2 = sh(root, 'rev-parse', 'HEAD:' + map).stdout.trim();
+    sh(root, 'tag', '-a', 'tboom', '-m', 'tag naar map', boom2); sh(root, 'tag', 'lboom', boom2);
+    sh(root, 'tag', '-a', 'tcommit', '-m', 'tag naar commit', 'HEAD');
+    // stap 1: een map opvragen geeft geen maphashes
+    const ouder = map.includes('/') ? map.slice(0, map.lastIndexOf('/')) : null;
+    if (ouder) for (const argv of [['cat-file', '-p', 'HEAD:' + ouder], ['cat-file', '-p', 'HEAD:src']]) {
+      let uit = ''; try { uit = inhoudLezen(root, argv).uitvoer; } catch { continue; }
+      assert.fail('niet geweigerd: ' + argv.join(' ') + (uit.includes(boom1.slice(0, 12)) || uit.includes(boom2.slice(0, 12)) ? ' (en de maphash is zichtbaar)' : ''));
+    }
+    // stap 2: met de maphash (of een tag naar de map) als revisie wordt elke inhoudelijke route geweigerd
+    for (const rev of [boom1, boom2, 'tboom', 'lboom']) {
+      for (const argv of [['cat-file', '-p', rev + ':' + naam], ['show', rev + ':' + naam], ['grep', '-e', 'TOPGEHEIM', rev, '--', naam], ['diff', boom1, rev, '--', naam], ['diff', rev, '--', naam], ['blame', rev, '--', naam]]) {
+        let uit = ''; try { uit = inhoudLezen(root, argv).uitvoer; } catch { continue; }
+        assert.fail('niet geweigerd: ' + argv.join(' ') + (uit.includes(GEHEIM) ? ' (en het geheim is zichtbaar)' : ''));
+      }
+    }
+    // inhoud vanaf een commit blijft werken
+    assert.match(inhoudLezen(root, ['show', 'HEAD:src/a.js']).uitvoer, /export const a = 1/);
+    assert.match(inhoudLezen(root, ['cat-file', '-p', 'tcommit:src/a.js']).uitvoer, /export const a = 1/);
+    assert.match(inhoudLezen(root, ['grep', '-e', 'export', 'tcommit', '--', 'src']).uitvoer, /src\/a\.js/);
+    assert.equal(inhoudLezen(root, ['diff', 'HEAD~1', 'HEAD', '--', 'src']).uitvoer, '');
+    assert.match(inhoudLezen(root, ['blame', 'tcommit', '--', 'src/a.js']).uitvoer, /export const a/);
+  }));
+}

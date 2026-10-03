@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V34-FLOW-FIX2",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-03T07:29:54.032Z",
+  "source": "AAE GO",
+  "hash": "59b51de768b30d70009d61f0209f942ddfed3ffbf9a197edfa7ebf47b784403e",
+  "short_hash": "59b51de768b3",
+  "envelope": {
+    "id": "AAE-V34-FLOW-FIX2",
+    "goal": "Het ene blokkerende geheimenpunt uit Jurgens review van commit 50b61eb herstellen, en niets anders: (1) de inhoudelijke routes in gitlezen.mjs (show, cat-file, diff, grep, blame via cli git) accepteren alleen revisies die volledig uitpakken tot een commit (<rev>^{commit}); een kale map (tree), ook via een tag, wordt geweigerd, zodat een pad altijd vanaf de projectroot door het geheimenfilter gaat; (2) cat-file -p op iets anders dan een bestand (zoals een map) wordt geweigerd, zodat er geen maphashes vrijkomen; (3) een regressietest bewijst dat een gevolgd geheim in een map (tests/.auth/state.json, .claude/aae/private/... en testauth/...) niet via een maphash plus een kort pad zichtbaar wordt. Alleen in tools/aae-v33 op de werkbranch claude/aae-v34-flow-001; geen installatie, geen main.",
+    "phase": "implementation",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "F1",
+        "text": "Alleen commits voor inhoud: in gitlezen.mjs accepteren de inhoudelijke routes (show <rev>:<pad>, cat-file -p <rev>:<pad>, diff, grep en blame via cli git) uitsluitend revisies die met <rev>^{commit} tot een commit uitpakken, voor elke kant van een bereik. Een tree-hash, een tag naar een tree of een blob wordt geweigerd. De brede route (alleen namen, hashes en statistiek) blijft ongewijzigd."
+      },
+      {
+        "id": "F2",
+        "text": "cat-file -p via cli git wordt geweigerd als <rev>:<pad> geen bestand (blob) is, zoals een map; er komen via cli git geen maphashes vrij."
+      },
+      {
+        "id": "F3",
+        "text": "Regressietest in v34fix.test.mjs met gevolgde geheimen tests/.auth/state.json, .claude/aae/private/<bestand> en testauth/<bestand>: cat-file -p HEAD:<map> wordt geweigerd; met de maphash (buiten AAE vastgesteld) worden cat-file -p, show, grep, diff en blame op <maphash>:<kort pad> of met <maphash> als revisie geweigerd en is het geheim nooit zichtbaar. De test faalt aantoonbaar op de code van 50b61eb en slaagt na de fix; inhoud lezen vanaf een commit (HEAD:src/a.js, een tag naar een commit) blijft werken."
+      },
+      {
+        "id": "F4",
+        "text": "Bewijs en afbakening: de v3.3-suite met de v3.4-tests slaagt; de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 50b61eb (gemeten in tijdelijke worktrees). Alleen dit ene punt; geen andere bevindingen of verbeterpunten. Geen installatie, geen main; commit en push alleen naar claude/aae-v34-flow-001."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/pariteit/nulmeting.mjs",
+      "tools/aae-v33/payload/.claude/aae/docs/REFERENTIE.md",
+      "tools/aae-v33/payload/.claude/aae/runtime/gitlezen.mjs",
+      "tools/aae-v33/payload/.claude/aae/tests/v34fix.test.mjs"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v34-flow-001"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 3,
+      "command_runs": 30,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf.",
+      "Stop en leg aan Jurgen voor als het herstel alleen kan door een andere harde grens te verzwakken of door buiten de genoemde bestanden te werken."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md.",
+      "Technische keuzes (implementatie van de commit-eis en de blob-eis, testopzet) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "AAE v3.4: inhoud via git alleen vanaf een commit, geen kale map",
+    "goal": "Het ene blokkerende geheimenpunt uit Jurgens review van commit 50b61eb herstellen, en niets anders: (1) de inhoudelijke routes in gitlezen.mjs (show, cat-file, diff, grep, blame via cli git) accepteren alleen revisies die volledig uitpakken tot een commit (<rev>^{commit}); een kale map (tree), ook via een tag, wordt geweigerd, zodat een pad altijd vanaf de projectroot door het geheimenfilter gaat; (2) cat-file -p op iets anders dan een bestand (zoals een map) wordt geweigerd, zodat er geen maphashes vrijkomen; (3) een regressietest bewijst dat een gevolgd geheim in een map (tests/.auth/state.json, .claude/aae/private/... en testauth/...) niet via een maphash plus een kort pad zichtbaar wordt. Alleen in tools/aae-v33 op de werkbranch claude/aae-v34-flow-001; geen installatie, geen main.",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.4 leesroute, tests en meetscript",
+          "write": [
+            "tools/aae-v33/payload/.claude/aae/runtime/gitlezen.mjs",
+            "tools/aae-v33/payload/.claude/aae/tests/v34fix.test.mjs",
+            "tools/aae-v33/payload/.claude/aae/docs/REFERENTIE.md",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v34-flow-001"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "command_runs": 30,
+        "external_calls": 0,
+        "max_parallel": 1,
+        "agent_calls": {
+          "soft": 2,
+          "hard": 3
+        }
+      },
+      "acceptance": [
+        {
+          "id": "F1",
+          "text": "Alleen commits voor inhoud: in gitlezen.mjs accepteren de inhoudelijke routes (show <rev>:<pad>, cat-file -p <rev>:<pad>, diff, grep en blame via cli git) uitsluitend revisies die met <rev>^{commit} tot een commit uitpakken, voor elke kant van een bereik. Een tree-hash, een tag naar een tree of een blob wordt geweigerd. De brede route (alleen namen, hashes en statistiek) blijft ongewijzigd."
+        },
+        {
+          "id": "F2",
+          "text": "cat-file -p via cli git wordt geweigerd als <rev>:<pad> geen bestand (blob) is, zoals een map; er komen via cli git geen maphashes vrij."
+        },
+        {
+          "id": "F3",
+          "text": "Regressietest in v34fix.test.mjs met gevolgde geheimen tests/.auth/state.json, .claude/aae/private/<bestand> en testauth/<bestand>: cat-file -p HEAD:<map> wordt geweigerd; met de maphash (buiten AAE vastgesteld) worden cat-file -p, show, grep, diff en blame op <maphash>:<kort pad> of met <maphash> als revisie geweigerd en is het geheim nooit zichtbaar. De test faalt aantoonbaar op de code van 50b61eb en slaagt na de fix; inhoud lezen vanaf een commit (HEAD:src/a.js, een tag naar een commit) blijft werken."
+        },
+        {
+          "id": "F4",
+          "text": "Bewijs en afbakening: de v3.3-suite met de v3.4-tests slaagt; de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 50b61eb (gemeten in tijdelijke worktrees). Alleen dit ene punt; geen andere bevindingen of verbeterpunten. Geen installatie, geen main; commit en push alleen naar claude/aae-v34-flow-001."
+        }
+      ],
+      "assumptions": [
+        "De lokale repo staat schoon op claude/aae-v34-flow-001 met HEAD 50b61eb.",
+        "HIGH omdat dit de geheimenbescherming raakt, zonder agentreview: onder de live v3.3.1 telt geen reviewoordeel formeel, dus dit pakket sluit af als PARTIAL; het eindoordeel is Jurgens eigen review op de nieuwe SHA.",
+        "Het meetscript voor de eigen suite is tijdelijk, wordt niet gecommit en verwijdert zichzelf na de meting.",
+        "De push kan opnieuw worden geweigerd door de bekende lokale testfixture; die wordt niet omzeild, Jurgen pusht dan zelf."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (implementatie van de commit-eis en de blob-eis, testopzet) beslist de hoofdsessie zelf.",
+        "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als het herstel alleen kan door een andere harde grens te verzwakken of door buiten de genoemde bestanden te werken.",
+        "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat 50b61eb HEAD tonen alleen wijzigingen in de genoemde bestanden; geen installatie, geen main; het meetscript is weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De nieuwe regressietest faalt vóór de fix en slaagt erna; de v3.3-suite met v3.4-tests slaagt."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De installertests slagen en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 50b61eb."
+    }
+  ],
+  "snapshot_digest": "daccde3d4519e9b5fd946f3d3a493b96aefe01f752eea212cc575cf8f4202211"
+}

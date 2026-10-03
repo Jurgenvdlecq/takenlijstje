@@ -3,7 +3,8 @@
  * Breed (namen, hashes en statistiek; direct via Bash): status, log, diff/show met --stat|--name-only|--name-status|--numstat, ls-files, ls-tree --name-only,
  *   rev-parse (ook <rev>^{tree}), merge-base, branch (alleen tonen), cat-file -t|-s|-e.
  * Inhoudelijk (alleen via `node .claude/aae/runtime/cli.mjs git ...`, met expliciete paden die door het geheimenfilter gaan en een scan van de uitvoer):
- *   diff <rev> [<rev>] -- <pad...>, show <rev>:<pad>, cat-file -p <rev>:<pad>, grep [vlaggen] -e <patroon> [<rev>] -- <pad...>, blame [<rev>] -- <pad>.
+ *   diff <rev> [<rev>] -- <pad...>, show <rev>:<pad>, cat-file -p <rev>:<pad> (alleen een bestand), grep [vlaggen] -e <patroon> [<rev>] -- <pad...>, blame [<rev>] -- <pad>.
+ *   Elke <rev> moet daar tot een commit uitpakken (nooit een kale map): zo begint elk pad bij de projectroot.
  * Mappen worden eerst uitgeschreven naar losse bestanden; elk geheim bestand valt daarbij weg. Uitvoer met een bekend geheimpatroon wordt geweigerd, niet ingekort.
  */
 import {spawnSync} from 'node:child_process';
@@ -57,15 +58,21 @@ export function breedLezen(argv, root = null) {
 // Paden zijn altijd letterlijk (GIT_LITERAL_PATHSPECS): een bestandsnaam met *, ? of [ is nooit een zoekpatroon dat een geheim bestand ernaast raakt.
 const GIT_OPTS = {encoding: 'utf8', shell: false, timeout: 30000, maxBuffer: 16 * 1024 * 1024, env: {...process.env, GIT_LITERAL_PATHSPECS: '1'}};
 const run = (root, args) => spawnSync('git', args, {cwd: root, ...GIT_OPTS});
-/**
- * Wijst deze revisie (of elke kant van een bereik a..b / a...b), na het volledig uitpakken van tags, naar een commit of tree? Een (annotated) tag, ook een tag op een
- * tag, die uiteindelijk naar een blob wijst, telt dus als blob. Zonder projectmap of bij twijfel: nee.
- */
-export function geenBlob(root, rev) {
+const soortNa = (root, rev, uitpak, soorten) => {
   if (!root) return false;
   const delen = rev.includes('..') ? rev.split(/\.\.\.?/) : [rev];
-  return delen.every(d => { if (!d) return true; const r = run(root, ['cat-file', '-t', d + '^{}']); return r.status === 0 && ['commit', 'tree'].includes(String(r.stdout).trim()); });
-}
+  return delen.every(d => { if (!d) return true; const r = run(root, ['cat-file', '-t', d + uitpak]); return r.status === 0 && soorten.includes(String(r.stdout).trim()); });
+};
+/**
+ * Wijst deze revisie (of elke kant van een bereik a..b / a...b), na het volledig uitpakken van tags, naar een commit of tree? Een (annotated) tag, ook een tag op een
+ * tag, die uiteindelijk naar een blob wijst, telt dus als blob. Zonder projectmap of bij twijfel: nee. Voor de brede route (alleen namen en statistiek).
+ */
+export const geenBlob = (root, rev) => soortNa(root, rev, '^{}', ['commit', 'tree']);
+/**
+ * Pakt deze revisie (of elke kant van een bereik) uit tot een commit (<rev>^{commit})? Verplicht voor elke inhoudelijke route: alleen dan begint een pad bij de
+ * projectroot en ziet het geheimenfilter het volledige pad. Een kale map (tree-hash of tag naar een map) zou een geheim als <maphash>:state.json laten lezen.
+ */
+export const isCommit = (root, rev) => soortNa(root, rev, '^{commit}', ['commit']);
 /** Schrijft paden (bestanden of mappen) uit naar losse, niet-geheime bestanden voor de gegeven revisie (of de werkmap). */
 function bestanden(root, rev, paden, gewijzigdTussen = null) {
   const args = gewijzigdTussen ? ['diff', '--name-only', '-z', ...gewijzigdTussen, '--', ...paden] : rev ? ['ls-tree', '-r', '--name-only', '-z', rev, '--', ...paden] : ['ls-files', '-z', '--', ...paden];
@@ -91,7 +98,9 @@ export function inhoudLezen(root, argv) {
     const i = kale.indexOf(':'); eis(i > 0, 'Een pad is verplicht: <rev>:<pad> (een kale blob-hash of revisie zonder pad wordt geweigerd).');
     const rev = kale.slice(0, i), pad = kale.slice(i + 1);
     eis(isRev(rev) && veiligPad(pad), 'Revisie of pad niet toegestaan (geheim, jokerteken, .. of pathspec-magie): ' + kale);
-    eis(geenBlob(root, rev), 'De revisie moet (na het uitpakken van tags) een commit of tree zijn.');
+    eis(isCommit(root, rev), 'De revisie moet (na het uitpakken van tags) een commit zijn; een map of bestand als revisie wordt geweigerd.');
+    // cat-file -p op een map toont objecthashes (waarmee een kort pad het filter zou omzeilen): alleen een bestand
+    if (sub === 'cat-file') { const t = run(root, ['cat-file', '-t', rev + ':' + pad]); eis(t.status === 0 && String(t.stdout).trim() === 'blob', 'git cat-file -p kan alleen een bestand tonen, geen map.'); }
     return toon(run(root, sub === 'show' ? ['show', '--no-ext-diff', '--no-textconv', rev + ':' + pad] : ['cat-file', '-p', rev + ':' + pad]), 0);
   }
   if (sub === 'diff') {
@@ -99,7 +108,7 @@ export function inhoudLezen(root, argv) {
     eis(paden.every(veiligPad), 'Een pad is niet toegestaan (geheim, jokerteken, .. of pathspec-magie).');
     const revs = voor.filter(t => t !== '--cached' && t !== '--staged');
     eis(revs.every(isRev) && revs.length <= 2 && voor.every(t => isRev(t) || t === '--cached' || t === '--staged'), 'Alleen revisies en --cached zijn toegestaan vóór --.');
-    eis(revs.every(t => geenBlob(root, t)), 'Een revisie moet een commit, tag of tree zijn (geen blob-hash).');
+    eis(revs.every(t => isCommit(root, t)), 'Een revisie moet (na het uitpakken van tags) een commit zijn; geen map en geen blob-hash.');
     const lijst = bestanden(root, null, paden, [...voor]); // dezelfde vergelijking, alleen namen: zo valt elk geheim bestand weg vóór de inhoud wordt opgevraagd
     if (!lijst.veilig.length) return {uitvoer: '', weggelaten: lijst.weggelaten};
     return toon(run(root, ['diff', '--no-ext-diff', '--no-textconv', ...voor, '--', ...lijst.veilig]), lijst.weggelaten);
@@ -110,14 +119,14 @@ export function inhoudLezen(root, argv) {
     const ei = voor.indexOf('-e'); eis(ei >= 0 && voor[ei + 1], 'Gebruik: git grep [vlaggen] -e <patroon> [<rev>] -- <pad...>.');
     const vlaggen = voor.slice(0, ei), na = voor.slice(ei + 2);
     eis(vlaggen.every(t => ['-n', '-i', '-l', '-c', '-w', '-F', '-E', '-I', '--count', '--line-number', '--ignore-case', '--files-with-matches'].includes(t)) && na.length <= 1 && na.every(isRev), 'Vlag of revisie niet toegestaan in git grep.');
-    eis(na.every(t => geenBlob(root, t)), 'Een revisie moet een commit, tag of tree zijn (geen blob-hash).');
+    eis(na.every(t => isCommit(root, t)), 'Een revisie moet (na het uitpakken van tags) een commit zijn; geen map en geen blob-hash.');
     const rev = na[0] || null, lijst = bestanden(root, rev, paden);
     if (!lijst.veilig.length) return {uitvoer: '', weggelaten: lijst.weggelaten};
     return toon(run(root, ['grep', ...vlaggen, '-e', voor[ei + 1], ...(rev ? [rev] : []), '--', ...lijst.veilig]), lijst.weggelaten, true);
   }
   if (sub === 'blame') {
     eis(metStreep && paden.length === 1 && veiligPad(paden[0]), 'Gebruik: git blame [<rev>] -- <pad> (één niet-geheim bestand).');
-    eis(voor.length <= 1 && voor.every(isRev) && voor.every(t => geenBlob(root, t)), 'Alleen één revisie (commit, tag of tree) is toegestaan vóór --.');
+    eis(voor.length <= 1 && voor.every(isRev) && voor.every(t => isCommit(root, t)), 'Alleen één revisie (een commit, ook via een tag) is toegestaan vóór --.');
     return toon(run(root, ['blame', ...voor, '--', paden[0]]), 0);
   }
   throw new Error('Deze git-opdracht is zonder GO niet toegestaan (alleen diff/show/cat-file/grep/blame met veilige paden, of de brede opdrachten met --stat/--name-only).');
