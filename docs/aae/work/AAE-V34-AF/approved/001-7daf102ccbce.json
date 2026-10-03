@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V34-AF",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-03T07:44:59.771Z",
+  "source": "AAE GO",
+  "hash": "7daf102ccbceb9a2eac71fdd65465fb1e2b8fe2a5a51807460ae3f0acd40a866",
+  "short_hash": "7daf102ccbce",
+  "envelope": {
+    "id": "AAE-V34-AF",
+    "goal": "AAE v3.4 afronden zonder nieuwe reviewronde (besluit van Jurgen op 2026-10-03). (1) Het onderdeel 'inhoud van bestanden lezen via git zonder GO' (cli git, inhoudLezen en de bijbehorende uitzondering in de bewaking) wordt verwijderd; de brede alleen-lezen git-route (namen, hashes, statistiek), cli diagnose en alle andere v3.4-onderdelen blijven ongewijzigd. (2) Tests bewijzen dat de route dicht is en dat de eerder gevonden geheimenscenario's (tags naar een blob, bijzondere bestandsnamen, maphashes) zonder GO geen inhoud meer kunnen tonen. (3) Daarna wordt v3.4.0 op het live systeem geïnstalleerd met de bestaande installer: vooraf een byte-exacte terugdraaicontrole op een kopie, achteraf een terugdraaiplan (alleen lezen), doctor en een rooktest. Geen merge naar main (doet Jurgen zelf), geen deploy, geen review, geen andere verbeterpunten.",
+    "phase": "implementation",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "A1",
+        "text": "Verwijderd: de opdracht cli git bestaat niet meer, inhoudLezen en de hulpfuncties die alleen daarvoor dienden zijn uit gitlezen.mjs verwijderd, en de bewaking staat 'node .claude/aae/runtime/cli.mjs git ...' zonder GO niet meer toe. Inhoud via git (diff zonder --stat, show <rev>:<pad>, cat-file -p, grep, blame) kan zonder GO op geen enkele manier meer. De brede alleen-lezen git-route, cli diagnose, de blob-controle in cli run en alle andere v3.4-onderdelen zijn inhoudelijk ongewijzigd."
+      },
+      {
+        "id": "A2",
+        "text": "Bewijs in tests: de tests die de inhoudsroute gebruikten zijn omgezet naar tests die aantonen dat die route dicht is (via de Bash-bewaking en de opdrachtregel), en de eerder gevonden geheimenscenario's (een tag of tag-op-tag naar een blob, bestandsnamen met *, ? of [ naast een geheim, een maphash van tests/.auth, .claude/aae/private of testauth) tonen zonder GO geen inhoud. De volledige v3.3/v3.4-suite slaagt, de installertests slagen en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van f96a10b."
+      },
+      {
+        "id": "A3",
+        "text": "Documentatie: ENTRY.md, REFERENTIE.md, README.md en REVIEW-OPDRACHT.md beschrijven cli git niet meer en vermelden kort dat het lezen van inhoud via git zonder GO bewust is weggelaten (eventueel later als eigen versie)."
+      },
+      {
+        "id": "A4",
+        "text": "Installatie vooraf: het installatieplan (installer zonder --apply) toont 3.3.1 naar 3.4.0 zonder conflicten en schrijft niets; op een tijdelijke kopie van de live .claude, CLAUDE.md en .gitignore lukt installeren, zet terugdraaien alles byte-exact terug naar 3.3.1 en lukt opnieuw installeren; de kopie is daarna verwijderd. Zonder byte-exacte uitkomst wordt er niets live geïnstalleerd."
+      },
+      {
+        "id": "A5",
+        "text": "Live installatie: de installer met --apply slaagt inclusief zijn eigen hash- en doctor-controle, met een back-up in .aae-backups (RESTORE.json, status applied) en een archief van 3.3.1 in docs/archief. Daarna: het terugdraaiplan meldt geen conflicten en alle back-upblobs zijn intact (het exacte terugdraaicommando staat in het resultaat en in docs/aae/PROGRESS.md); cli doctor meldt alle controles PASS met versie 3.4.0; de geïnstalleerde v3.4-tests slagen; dit werkpakket is onder 3.4 opnieuw geregistreerd met dezelfde goedgekeurde hash en zonder NEEDS_HUMAN. .claude/settings.json, CLAUDE.md en .claude/aae/state blijven ongemoeid."
+      },
+      {
+        "id": "A6",
+        "text": "Afbakening: geen merge naar main, geen deploy, geen review, geen andere verbeterpunten. De bronwijzigingen en de voortgang worden gecommit en gepusht naar claude/aae-v34-flow-001 (weigert de geheimencontrole de push om de bekende testfixture, dan pusht Jurgen zelf; dat wordt niet omzeild). De door de installer gewijzigde systeembestanden worden niet door AAE gecommit; die commit en de merge doet Jurgen zelf. De tijdelijke controlescripts zijn aan het eind verwijderd."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/README.md",
+      "tools/aae-v33/REVIEW-OPDRACHT.md",
+      "tools/aae-v33/installer/installcontrole.mjs",
+      "tools/aae-v33/pariteit/nulmeting.mjs",
+      "tools/aae-v33/payload/.claude/aae"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v34-flow-001"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 2,
+      "command_runs": 45,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Samenvoegen met main en het committen van de geïnstalleerde systeembestanden doet Jurgen zelf, buiten AAE.",
+      "Stop en leg aan Jurgen voor als de live installatie of de rooktest faalt; terugdraaien op het live systeem is dan zijn besluit (het terugdraaicommando staat klaar).",
+      "Stop en leg aan Jurgen voor als het installatieplan conflicten toont of de terugdraaicontrole op de kopie niet byte-exact is: dan wordt er niets live geïnstalleerd.",
+      "Stop en leg aan Jurgen voor als het verwijderen alleen kan door een ander v3.4-onderdeel of een harde grens te wijzigen."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md.",
+      "Technische keuzes (hoe de route wordt verwijderd, testopzet, scriptopzet, volgorde) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/install.mjs\",\"--project\",\".\",\"--apply\"],\"purpose\":\"install\"}",
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/install.mjs\",\"--project\",\".\"],\"purpose\":\"read\"}",
+      "{\"argv\":[\"node\",\"tools/aae-v33/installer/installcontrole.mjs\"],\"purpose\":\"test\"}",
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "AAE v3.4 afronden: inhoud lezen via git zonder GO eruit, daarna live installeren",
+    "goal": "AAE v3.4 afronden zonder nieuwe reviewronde (besluit van Jurgen op 2026-10-03). (1) Het onderdeel 'inhoud van bestanden lezen via git zonder GO' (cli git, inhoudLezen en de bijbehorende uitzondering in de bewaking) wordt verwijderd; de brede alleen-lezen git-route (namen, hashes, statistiek), cli diagnose en alle andere v3.4-onderdelen blijven ongewijzigd. (2) Tests bewijzen dat de route dicht is en dat de eerder gevonden geheimenscenario's (tags naar een blob, bijzondere bestandsnamen, maphashes) zonder GO geen inhoud meer kunnen tonen. (3) Daarna wordt v3.4.0 op het live systeem geïnstalleerd met de bestaande installer: vooraf een byte-exacte terugdraaicontrole op een kopie, achteraf een terugdraaiplan (alleen lezen), doctor en een rooktest. Geen merge naar main (doet Jurgen zelf), geen deploy, geen review, geen andere verbeterpunten.",
+    "risk_class": "STANDARD",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.4-bron: verwijderen van de inhoudsroute, tests, documentatie en tijdelijke controlescripts",
+          "write": [
+            "tools/aae-v33/payload/.claude/aae",
+            "tools/aae-v33/README.md",
+            "tools/aae-v33/REVIEW-OPDRACHT.md",
+            "tools/aae-v33/installer/installcontrole.mjs",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v34-flow-001"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "command_runs": 45,
+        "external_calls": 0,
+        "max_parallel": 1,
+        "agent_calls": {
+          "soft": 1,
+          "hard": 2
+        }
+      },
+      "acceptance": [
+        {
+          "id": "A1",
+          "text": "Verwijderd: de opdracht cli git bestaat niet meer, inhoudLezen en de hulpfuncties die alleen daarvoor dienden zijn uit gitlezen.mjs verwijderd, en de bewaking staat 'node .claude/aae/runtime/cli.mjs git ...' zonder GO niet meer toe. Inhoud via git (diff zonder --stat, show <rev>:<pad>, cat-file -p, grep, blame) kan zonder GO op geen enkele manier meer. De brede alleen-lezen git-route, cli diagnose, de blob-controle in cli run en alle andere v3.4-onderdelen zijn inhoudelijk ongewijzigd."
+        },
+        {
+          "id": "A2",
+          "text": "Bewijs in tests: de tests die de inhoudsroute gebruikten zijn omgezet naar tests die aantonen dat die route dicht is (via de Bash-bewaking en de opdrachtregel), en de eerder gevonden geheimenscenario's (een tag of tag-op-tag naar een blob, bestandsnamen met *, ? of [ naast een geheim, een maphash van tests/.auth, .claude/aae/private of testauth) tonen zonder GO geen inhoud. De volledige v3.3/v3.4-suite slaagt, de installertests slagen en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van f96a10b."
+        },
+        {
+          "id": "A3",
+          "text": "Documentatie: ENTRY.md, REFERENTIE.md, README.md en REVIEW-OPDRACHT.md beschrijven cli git niet meer en vermelden kort dat het lezen van inhoud via git zonder GO bewust is weggelaten (eventueel later als eigen versie)."
+        },
+        {
+          "id": "A4",
+          "text": "Installatie vooraf: het installatieplan (installer zonder --apply) toont 3.3.1 naar 3.4.0 zonder conflicten en schrijft niets; op een tijdelijke kopie van de live .claude, CLAUDE.md en .gitignore lukt installeren, zet terugdraaien alles byte-exact terug naar 3.3.1 en lukt opnieuw installeren; de kopie is daarna verwijderd. Zonder byte-exacte uitkomst wordt er niets live geïnstalleerd."
+        },
+        {
+          "id": "A5",
+          "text": "Live installatie: de installer met --apply slaagt inclusief zijn eigen hash- en doctor-controle, met een back-up in .aae-backups (RESTORE.json, status applied) en een archief van 3.3.1 in docs/archief. Daarna: het terugdraaiplan meldt geen conflicten en alle back-upblobs zijn intact (het exacte terugdraaicommando staat in het resultaat en in docs/aae/PROGRESS.md); cli doctor meldt alle controles PASS met versie 3.4.0; de geïnstalleerde v3.4-tests slagen; dit werkpakket is onder 3.4 opnieuw geregistreerd met dezelfde goedgekeurde hash en zonder NEEDS_HUMAN. .claude/settings.json, CLAUDE.md en .claude/aae/state blijven ongemoeid."
+        },
+        {
+          "id": "A6",
+          "text": "Afbakening: geen merge naar main, geen deploy, geen review, geen andere verbeterpunten. De bronwijzigingen en de voortgang worden gecommit en gepusht naar claude/aae-v34-flow-001 (weigert de geheimencontrole de push om de bekende testfixture, dan pusht Jurgen zelf; dat wordt niet omzeild). De door de installer gewijzigde systeembestanden worden niet door AAE gecommit; die commit en de merge doet Jurgen zelf. De tijdelijke controlescripts zijn aan het eind verwijderd."
+        }
+      ],
+      "assumptions": [
+        "De lokale repo staat schoon op claude/aae-v34-flow-001 met HEAD f96a10b; het live systeem draait 3.3.1.",
+        "STANDARD en niet HIGH: dit pakket verkleint de geheimenrisico's (het verwijdert een route in plaats van er een toe te voegen) en de installatie is volledig terug te draaien, net als bij AAE-V331-002. Jurgen besloot op 2026-10-03 bewust tot geen nieuwe review vóór de installatie.",
+        "Na de installatie draaien de hooks van deze sessie met v3.4; de status van werkpakketten (versie 4) blijft geldig.",
+        "De controlescripts zijn tijdelijk, worden niet gecommit en verwijderen zichzelf na afloop."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (hoe de route wordt verwijderd, testopzet, scriptopzet, volgorde) beslist de hoofdsessie zelf.",
+        "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als het verwijderen alleen kan door een ander v3.4-onderdeel of een harde grens te wijzigen.",
+        "Stop en leg aan Jurgen voor als het installatieplan conflicten toont of de terugdraaicontrole op de kopie niet byte-exact is: dan wordt er niets live geïnstalleerd.",
+        "Stop en leg aan Jurgen voor als de live installatie of de rooktest faalt; terugdraaien op het live systeem is dan zijn besluit (het terugdraaicommando staat klaar).",
+        "Samenvoegen met main en het committen van de geïnstalleerde systeembestanden doet Jurgen zelf, buiten AAE."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/install.mjs",
+            "--project",
+            "."
+          ],
+          "purpose": "read"
+        },
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/install.mjs",
+            "--project",
+            ".",
+            "--apply"
+          ],
+          "purpose": "install"
+        },
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/installer/installcontrole.mjs"
+          ],
+          "purpose": "test"
+        },
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat f96a10b HEAD: alleen bronwijzigingen in tools/aae-v33 (payload, README, REVIEW-OPDRACHT), docs/aae/PROGRESS.md en de eigen werkpakketmap gecommit; na de installatie alleen de door de installer verwachte paden (.claude, docs/archief) als ongecommitte wijziging; geen main; controlescripts weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De v3.3/v3.4-suite met de omgezette tests slaagt; het controlescript bevestigt vooraf de byte-exacte terugdraaiing op een kopie en achteraf een conflictvrij terugdraaiplan met intacte back-upblobs."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "Installertests slagen, eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van f96a10b, cli doctor meldt alles PASS en de geïnstalleerde v3.4-tests slagen."
+    }
+  ],
+  "snapshot_digest": "e4063faec158a26242a80a95ea0de9f845f9af173c01449d3e2bfb4fe45c4f40"
+}

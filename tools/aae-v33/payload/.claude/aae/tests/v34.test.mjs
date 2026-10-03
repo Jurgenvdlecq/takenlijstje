@@ -11,7 +11,7 @@ import {registerContract, loadWork, saveWork, withLock, contractFile, tellers} f
 import {runCommand, reportTemplate, closeTask, commitVrij, adminCommit, adminPush} from '../runtime/runner.mjs';
 import {assertGate} from '../runtime/gates.mjs';
 import {presentProposal} from '../runtime/commands.mjs';
-import {breedLezen, inhoudLezen, veiligPad} from '../runtime/gitlezen.mjs';
+import * as gitlezen from '../runtime/gitlezen.mjs';
 import {secretPath, secretContent} from '../runtime/secrets.mjs';
 import {diagnose, netwerkGeblokkeerd, nodeVersieOk} from '../runtime/diagnose.mjs';
 import {alleenVerwijzing} from '../runtime/events.mjs';
@@ -36,6 +36,11 @@ const makeResult = (root, receipt, mutate) => {
   put(root, 'docs/aae/work/W-T/result.json', t); return t;
 };
 const PRIV = ['-----BEGIN ', 'RSA PRIVATE ', 'KEY-----'].join('');
+const {breedLezen, veiligPad} = gitlezen;
+// AAE-V34-AF: inhoud lezen via git zonder GO is verwijderd. Elke inhoudelijke vorm, direct of via de opdrachtregel, wordt door de Bash-bewaking geweigerd.
+const INHOUD = blob => ['git show HEAD:src/a.js', 'git show HEAD~1:.env', 'git diff HEAD', 'git diff HEAD -- src', 'git cat-file -p HEAD:src/a.js', 'git cat-file -p ' + blob, 'git grep -e export HEAD -- src', 'git grep -e const',
+  'git blame -- src/a.js', 'git log -p -- src', 'git show HEAD', 'node .claude/aae/runtime/cli.mjs git show HEAD:src/a.js', 'node .claude/aae/runtime/cli.mjs git diff HEAD -- src', 'node .claude/aae/runtime/cli.mjs git grep -e export HEAD -- src',
+  'node .claude/aae/runtime/cli.mjs git blame -- src/a.js', 'node .claude/aae/runtime/cli.mjs git cat-file -p HEAD:src/a.js'];
 
 // ---- V1: read-only git zonder GO, veilig voor geheimen ----
 test('V34-01 brede git-opdrachten (namen, hashes, statistiek) mogen zonder GO; inhoud, schrijven en geheime paden niet', met(async root => {
@@ -51,36 +56,27 @@ test('V34-01 brede git-opdrachten (namen, hashes, statistiek) mogen zonder GO; i
   // via de Bash-bewaking, zonder werkpakket
   assert.equal(bash(root, 'git rev-parse HEAD^{tree}'), null, 'tree-hash zonder GO');
   assert.equal(bash(root, 'git log --oneline -n3 -- src'), null);
-  assert.match(msg(() => bash(root, 'git show HEAD:src/a.js')), /cli\.mjs git/);
-  assert.equal(bash(root, 'node .claude/aae/runtime/cli.mjs git show HEAD:src/a.js'), null, 'inhoud lezen loopt via cli git (die zelf filtert)');
+  assert.match(msg(() => bash(root, 'git show HEAD:src/a.js')), /werkpakket met GO/);
+  assert.ok(denies(() => bash(root, 'node .claude/aae/runtime/cli.mjs git show HEAD:src/a.js')), 'cli git bestaat niet meer (AAE-V34-AF)');
   assert.ok(denies(() => bash(root, 'node .claude/aae/runtime/cli.mjs git show HEAD:src/a.js; rm -rf src')), 'geen shell-metatekens');
   assert.ok(denies(() => bash(root, 'git branch nieuw')), 'een branch maken is geen leesactie');
 }));
-test('V34-02 inhoudelijk lezen alleen met veilige paden; .env, geheime namen en geheime inhoud blijven geweigerd, ook uit oude commits', met(async root => {
+test('V34-02 (AAE-V34-AF) inhoud lezen via git zonder GO kan niet meer: direct noch via de opdrachtregel; geheime namen en inhoud blijven herkend', met(async root => {
   gitFixture(root, {'src/a.js': 'export const a = 1;\n', '.env': 'SUPABASE_URL=geheim\n', 'src/geheim.pem': 'x', 'src/sleutel.txt': PRIV + '\nabc\n', 'src/deel/b.js': 'export const b = 2;\n'});
   sh(root, 'rm', '-q', '.env'); sh(root, 'commit', '-q', '-m', 'env weg');
-  assert.match(inhoudLezen(root, ['show', 'HEAD:src/a.js']).uitvoer, /export const a = 1/);
-  for (const kale of ['HEAD:.env', 'HEAD~1:.env', 'HEAD~1:.ENV', 'HEAD:src/../.env', 'HEAD:src/geheim.pem', 'HEAD:.claude/aae/private/x', 'HEAD::(glob)src/*', 'HEAD:src/*.js'])
-    assert.ok(denies(() => inhoudLezen(root, ['show', kale])), kale);
-  assert.match(msg(() => inhoudLezen(root, ['show', 'HEAD~1:.env'])), /niet toegestaan/);
+  assert.equal(gitlezen.inhoudLezen, undefined, 'de inhoudsroute bestaat niet meer');
   const blob = sh(root, 'rev-parse', 'HEAD:src/a.js').stdout.trim();
-  assert.match(msg(() => inhoudLezen(root, ['cat-file', '-p', blob])), /kale blob-hash/);
-  assert.match(inhoudLezen(root, ['cat-file', '-p', 'HEAD:src/a.js']).uitvoer, /export const a/);
-  assert.match(msg(() => inhoudLezen(root, ['grep', '-e', 'const'])), /grep zonder pad/);
-  assert.ok(denies(() => inhoudLezen(root, ['grep', '-e', 'const', '--', '.'])), 'de hele werkmap is geen veilig pad');
-  const g = inhoudLezen(root, ['grep', '-n', '-e', 'export', 'HEAD', '--', 'src']);
-  assert.match(g.uitvoer, /src\/a\.js/); assert.ok(!/geheim\.pem/.test(g.uitvoer)); assert.ok(g.weggelaten >= 1, 'het .pem-bestand is weggelaten');
-  assert.match(msg(() => inhoudLezen(root, ['show', 'HEAD:src/sleutel.txt'])), /mogelijk geheim \(privésleutel\)/, 'een privésleutel in een onschuldig genoemd bestand');
-  fs.appendFileSync(path.join(root, 'src/sleutel.txt'), 'meer\n');
-  assert.match(msg(() => inhoudLezen(root, ['diff', '--', 'src/sleutel.txt'])), /mogelijk geheim/, 'ook een diff met een privésleutel in de context wordt geweigerd');
-  sh(root, 'checkout', '-q', '--', 'src/sleutel.txt');
-  assert.match(inhoudLezen(root, ['blame', '--', 'src/a.js']).uitvoer, /export const a/);
-  assert.match(msg(() => inhoudLezen(root, ['blame', '--', '.env'])), /niet-geheim/);
-  assert.match(msg(() => inhoudLezen(root, ['log', '-p', '--', 'src'])), /niet toegestaan/);
-  // de diff van een map laat geheime bestanden weg vóór de inhoud wordt opgevraagd
-  fs.writeFileSync(path.join(root, 'src/deel/b.js'), 'export const b = 3;\n'); fs.writeFileSync(path.join(root, 'src/deel/.env.local'), 'X=geheim\n');
-  const d = inhoudLezen(root, ['diff', '--', 'src/deel']);
-  assert.match(d.uitvoer, /b = 3/); assert.ok(!/geheim/.test(d.uitvoer));
+  for (const c of INHOUD(blob)) assert.ok(denies(() => bash(root, c)), c);
+  for (const kale of ['HEAD:.env', 'HEAD~1:.env', 'HEAD:src/geheim.pem', 'HEAD:.claude/aae/private/x', 'HEAD:src/a.js']) {
+    assert.ok(denies(() => bash(root, 'git show ' + kale)), 'git show ' + kale);
+    assert.ok(denies(() => bash(root, 'git cat-file -p ' + kale)), 'git cat-file -p ' + kale);
+  }
+  // namen en statistiek blijven wel mogelijk
+  assert.equal(bash(root, 'git show --stat HEAD'), null);
+  assert.equal(bash(root, 'git ls-tree -r --name-only HEAD'), null);
+  // ook met een actief werkpakket blijft inhoud lezen buiten een gepland commando om dicht
+  executing(root);
+  for (const c of INHOUD(blob)) assert.ok(denies(() => bash(root, c)), 'met werkpakket: ' + c);
   for (const p of ['.env', '.env.local', 'a/.ENV', 'x.pem', 'id_rsa', 'tests/.auth/state.json', 'playwright/storageState.json', '.claude/aae/private', '.claude/aae/private/k']) assert.equal(secretPath(p), true, p);
   for (const p of ['.env.example', 'src/a.js', 'docs/README.md']) assert.equal(secretPath(p), false, p);
   assert.equal(veiligPad('src/a.js'), true); assert.equal(veiligPad(':(top)src'), false); assert.equal(veiligPad('src/[ab].js'), false);
@@ -309,12 +305,11 @@ test('V34-18 een blob-hash toont nooit inhoud, ook niet met --stat of via cli ru
   const blob = sh(root, 'rev-parse', 'HEAD:src/a.js').stdout.trim();
   for (const argv of [['git', 'show', '--stat', blob], ['git', 'show', '--name-only', blob], ['git', 'diff', '--stat', blob, blob], ['git', 'log', '--oneline', blob]]) assert.equal(breedLezen(argv, root), false, argv.join(' '));
   assert.ok(denies(() => bash(root, 'git show --stat ' + blob)));
-  assert.ok(denies(() => inhoudLezen(root, ['show', '--stat', blob])));
-  assert.match(msg(() => inhoudLezen(root, ['diff', blob, blob, '--', 'src/a.js'])), /geen blob-hash/);
+  assert.ok(denies(() => bash(root, 'git diff ' + blob + ' ' + blob + ' -- src/a.js')));
   assert.equal(breedLezen(['git', 'show', '--stat', 'HEAD'], root), true, 'een commit mag wel');
   assert.equal(breedLezen(['git', 'show', '--stat', 'HEAD^{tree}'.replace('^{tree}', '')], root), true);
   assert.equal(veiligPad('a//b'), false); assert.equal(veiligPad('.claude//aae/private/x'), false);
-  assert.ok(denies(() => inhoudLezen(root, ['blame', 'HEAD', '--', '.claude//aae/private/x'])));
+  assert.equal(breedLezen(['git', 'log', '--oneline', '--', '.claude//aae/private/x'], root), false);
   executing(root, {plan: {...contract().plan, commands: [...contract().plan.commands, C('blob', ['git', 'show', '--stat', blob], 'read')]}});
   assert.match(await amsg(runCommand(root, 'blob')), /blob-hash/);
 }));
@@ -353,7 +348,7 @@ test('V34-16 versie 3.4.0 en documentatie: ENTRY.md (kort) en REFERENTIE.md besc
   assert.equal(VERSION, '3.4.0');
   const lees = rel => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
   const entry = lees('ENTRY.md'), ref = lees('docs/REFERENTIE.md');
-  for (const w of ['AAE REVIEW', 'cli diagnose', 'required', 'supporting', 'optional', 'NIET GECONTROLEERD', 'cli git']) { assert.ok(entry.includes(w), 'ENTRY.md noemt ' + w); assert.ok(ref.includes(w), 'REFERENTIE.md noemt ' + w); }
+  for (const w of ['AAE REVIEW', 'cli diagnose', 'required', 'supporting', 'optional', 'NIET GECONTROLEERD']) { assert.ok(entry.includes(w), 'ENTRY.md noemt ' + w); assert.ok(ref.includes(w), 'REFERENTIE.md noemt ' + w); }
   assert.ok(entry.split('\n').length <= 60, 'ENTRY.md blijft kort');
 });
 test('V34-17 harde grenzen: zonder GO geen schrijven, commit of administratie; geen branch-, push- of configopdrachten via de leesroute', met(async root => {
@@ -361,5 +356,5 @@ test('V34-17 harde grenzen: zonder GO geen schrijven, commit of administratie; g
   assert.match(msg(() => write(root, 'src/a.js')), /Geen werkpakket in uitvoering/);
   assert.match(await amsg(commitVrij(root, 'W-T', 'Zonder werkpakket')), /niet het werkpakket in uitvoering/);
   for (const c of ['git push origin claude/w', 'git checkout -b x', 'git -c core.pager=less log', 'git reset --hard', 'git clean -fd', 'git stash', 'git commit -m x', 'git config user.name x']) assert.ok(denies(() => bash(root, c)), c);
-  for (const argv of [['push', 'origin', 'x'], ['checkout', 'x'], ['config', 'a', 'b'], ['reset', '--hard']]) assert.ok(denies(() => inhoudLezen(root, argv)), argv.join(' '));
+  for (const argv of [['push', 'origin', 'x'], ['checkout', 'x'], ['config', 'a', 'b'], ['reset', '--hard']]) assert.ok(denies(() => bash(root, 'node .claude/aae/runtime/cli.mjs git ' + argv.join(' '))), argv.join(' '));
 }));

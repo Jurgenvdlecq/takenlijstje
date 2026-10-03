@@ -29,7 +29,7 @@ const FOCUS_LINE = /^\s*FOCUS:\s*([a-z]+)\s*$/m;
 const GENERIC = /^(standaard|voor de zekerheid|best practice|zoals altijd|omdat het kan|iedere|elke|altijd)\b/i;
 const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template|present|recover)(?: ([A-Za-z0-9_-]+))?$/;
 const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight', 'present', 'recover']);
-const CLI_ARGS = /^node \.claude\/aae\/runtime\/cli\.mjs (git|diagnose|commit|admin-commit|admin-push) (.+)$/;
+const CLI_ARGS = /^node \.claude\/aae\/runtime\/cli\.mjs (diagnose|commit|admin-commit|admin-push) (.+)$/;
 /** bashArgv, met één uitzondering: een revisie met ^{tree} of ^{commit} (voor git rev-parse en cat-file). */
 export function argvMetBoom(command) {
   const s = String(command || '').trim();
@@ -161,7 +161,7 @@ function bashPermission(root, st, e) {
   requireThat(fs.realpathSync(e.cwd || root) === fs.realpathSync(root), 'Voer de AAE-runner uit vanuit de projectroot; geen cd-ketens.');
   requireThat(!input.run_in_background, 'Geen onbeheerde shell-achtergrondtaken.');
   const command = String(input.command || '').trim();
-  // v3.4: opdrachten met argumenten (alleen veilige tokens, geen shell-metatekens). git en diagnose zijn alleen-lezen en mogen zonder GO;
+  // v3.4: opdrachten met argumenten (alleen veilige tokens, geen shell-metatekens). diagnose is alleen-lezen en mag zonder GO;
   // commit vraagt een werkpakket in uitvoering met GO (de runner controleert dat); admin-* alleen voor de net afgesloten administratie (de runner controleert dat).
   const ma = command.match(CLI_ARGS);
   if (ma) {
@@ -182,7 +182,7 @@ function bashPermission(root, st, e) {
   }
   const argv = argvMetBoom(command);
   if (argv && argv[0] === 'git' && breedLezen(argv, root)) return null; // breedLezen omvat de oude alleen-lezen git-lijst, nu met de blob-controle
-  throw new GuardError('Geen vrije shell binnen de agentworkflow (geen ; & | > < $( ` of aanhalingstekens). Zet het commando in plan.commands van het contract en gebruik: node .claude/aae/runtime/cli.mjs run <id>. Alleen-lezen git mag direct (namen en statistiek); inhoud lezen via node .claude/aae/runtime/cli.mjs git <opdracht>.');
+  throw new GuardError('Geen vrije shell binnen de agentworkflow (geen ; & | > < $( ` of aanhalingstekens). Zet het commando in plan.commands van het contract en gebruik: node .claude/aae/runtime/cli.mjs run <id>. Alleen-lezen git mag direct (namen, hashes en statistiek); de inhoud van bestanden via git lezen kan alleen als gepland commando binnen een werkpakket met GO.');
 }
 
 // ---------------------------------------------------------------- extern
