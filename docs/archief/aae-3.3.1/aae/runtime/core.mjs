@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
-export const VERSION = '3.4.0';
+export const VERSION = '3.3.1';
 export const WORK = 'docs/aae/work';
 export const STATE_DIR = '.claude/aae/state';
 export const ROLES = ['aae-product-partner', 'aae-architect', 'aae-reviewer'];
@@ -25,10 +25,6 @@ export const HIGH_FLAGS = ['authorization', 'financial', 'sensitive_data', 'migr
 /** Intern agentplafond per niveau (geen onderdeel van de GO): normaal gebruik en hard maximum. Binnen het plafond is nooit een nieuwe GO nodig. */
 export const AGENT_CAP = {LIGHT: {normal: 0, hard: 1}, STANDARD: {normal: 1, hard: 2}, HIGH: {normal: 2, hard: 3}};
 const METHOD_RANK = {manual: 0, inspection: 1, command: 2};
-/** v3.4: bewijsniveaus. required bepaalt READY; supporting niet gedraaid = NIET GECONTROLEERD, gedraaid en gefaald = PARTIAL; optional blokkeert nooit. */
-export const LEVELS = ['required', 'supporting', 'optional'];
-const LEVEL_RANK = {optional: 0, supporting: 1, required: 2};
-export const checkLevel = (c, kind) => requiredChecks(c).includes(kind) ? 'required' : (c.plan.test_plan.find(t => t.kind === kind)?.level || 'required');
 export const PURPOSES = ['read', 'test', 'build', 'preview', 'commit', 'push', 'merge', 'deploy', 'install', 'destructive'];
 export const LOCAL = ['read', 'test', 'build', 'preview'];
 export const SUPABASE_TOOLS_ALL = ['get_project_url', 'list_tables', 'list_extensions', 'list_migrations', 'query_logs', 'get_advisors', 'generate_typescript_types', 'search_docs', 'execute_sql', 'apply_migration'];
@@ -420,11 +416,9 @@ export function validateContract(c) {
   if (p.preflight !== undefined) validatePreflight(p.preflight);
   array(p.read, 0, 30, 'Leesscope'); for (const x of p.read) relName(x);
   array(p.test_plan, 1, 24, 'Bewijsplan');
-  for (const t of p.test_plan) { keys(t, ['kind', 'method', 'description', 'level'], ['kind', 'method', 'description'], 'Bewijsplan'); choice(t.kind, [...CHECKS], 'Controle'); choice(t.method, ['command', 'inspection', 'manual'], 'Bewijsmethode'); text(t.description, 'Bewijsomschrijving'); if (t.level !== undefined) choice(t.level, LEVELS, 'Bewijsniveau'); }
+  for (const t of p.test_plan) { keys(t, ['kind', 'method', 'description'], ['kind', 'method', 'description'], 'Bewijsplan'); choice(t.kind, [...CHECKS], 'Controle'); choice(t.method, ['command', 'inspection', 'manual'], 'Bewijsmethode'); text(t.description, 'Bewijsomschrijving'); }
   requireThat(new Set(p.test_plan.map(t => t.kind)).size === p.test_plan.length, 'Dubbele controle in bewijsplan.');
   for (const k of requiredChecks(c)) requireThat(p.test_plan.some(t => t.kind === k), 'Ontbrekende kwaliteitsondergrens: ' + k);
-  // De kwaliteitsondergrens en de risicogebonden controles zijn altijd required; ze kunnen niet worden verlaagd.
-  for (const t of p.test_plan) if (requiredChecks(c).includes(t.kind)) requireThat((t.level || 'required') === 'required', 'Controle ' + t.kind + ' hoort bij de kwaliteitsondergrens of een risicovlag en is altijd required.');
   array(p.agents, 0, 8, 'Agents');
   for (const a of p.agents) {
     keys(a, ['name', 'focus', 'question', 'files', 'model'], ['name', 'question', 'files'], 'Agent');
@@ -515,8 +509,7 @@ export function materialChanges(a, n) {
   // Bewijsvloer: een goedgekeurde controlesoort blijft aanwezig en de bewijsmethode wordt niet zwakker (command > inspection > manual); de omschrijving is vrij.
   // Een controle die alleen door een inmiddels vervallen risicovlag verplicht was, mag vervallen (een risicoverlaging is toegestaan).
   const vervalt = new Set(requiredChecks(a).filter(k => !requiredChecks(n).includes(k)));
-  // v3.4: ook het niveau (required > supporting > optional) mag niet lager worden; een niveau dat ontbreekt geldt als required.
-  if (!a.plan.test_plan.every(x => vervalt.has(x.kind) || n.plan.test_plan.some(y => y.kind === x.kind && (METHOD_RANK[y.method] ?? -1) >= (METHOD_RANK[x.method] ?? 9) && (LEVEL_RANK[y.level || 'required'] ?? -1) >= (LEVEL_RANK[x.level || 'required'] ?? 9)))) why.push('bewijsplan');
+  if (!a.plan.test_plan.every(x => vervalt.has(x.kind) || n.plan.test_plan.some(y => y.kind === x.kind && (METHOD_RANK[y.method] ?? -1) >= (METHOD_RANK[x.method] ?? 9)))) why.push('bewijsplan');
   return [...new Set(why)];
 }
 /** Commando's die buiten de allowlist vallen, moeten exact in extra_commands staan; goedgekeurde fingerprint voor niet-lokale doelen. */

@@ -18,7 +18,6 @@ import {assertGate, assertPrMerge} from './gates.mjs';
 import {context, handlePrompt, bindProbe} from './commands.mjs';
 import {importLegacy} from './legacy.mjs';
 import {guardSecretRead} from './secrets.mjs';
-import {breedLezen} from './gitlezen.mjs';
 
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob']);
 const HARMLESS_MAIN = new Set(['ToolSearch', 'AskUserQuestion', 'TodoWrite', 'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate', 'TaskOutput', 'TaskStop', 'EnterPlanMode', 'ExitPlanMode', 'WebSearch', 'WebFetch', 'ListAgents']);
@@ -29,17 +28,7 @@ const FOCUS_LINE = /^\s*FOCUS:\s*([a-z]+)\s*$/m;
 const GENERIC = /^(standaard|voor de zekerheid|best practice|zoals altijd|omdat het kan|iedere|elke|altijd)\b/i;
 const CLI = /^node \.claude\/aae\/runtime\/cli\.mjs (status|plan|preflight|reconcile|observe-alive|observe-absent|scope-change|close|run|report|doctor|project|prune|keep-raw|report-template|present|recover)(?: ([A-Za-z0-9_-]+))?$/;
 const NEEDS_ARG = new Set(['run', 'report', 'observe-alive', 'observe-absent', 'keep-raw', 'plan', 'preflight', 'present', 'recover']);
-const CLI_ARGS = /^node \.claude\/aae\/runtime\/cli\.mjs (diagnose|commit|admin-commit|admin-push) (.+)$/;
-/** bashArgv, met één uitzondering: een revisie met ^{tree} of ^{commit} (voor git rev-parse en cat-file). */
-export function argvMetBoom(command) {
-  const s = String(command || '').trim();
-  const zonder = s.replace(/\^\{(tree|commit)\}(?=\s|$)/g, '');
-  if (!bashArgv(zonder)) return null;
-  return s.split(/\s+/);
-}
 const isSubagent = e => Boolean(e.agent_id || e.agent_type);
-/** Een korte toolrespons die alleen verwijst naar een als bericht bezorgd rapport (geen eigen inhoud). */
-export const alleenVerwijzing = t => String(t).length < 1500 && /(delivered to you as a message|not repeated here|SubagentHandback)/i.test(String(t)) && !/SAMENVATTING/.test(String(t));
 const toolPath = (root, e) => relativeInput(root, e.tool_input.file_path || e.tool_input.notebook_path, e.cwd || root);
 
 /** Het enige werkpakket dat nu werk mag doen (EXECUTING) of op een mens wacht (NEEDS_HUMAN). */
@@ -96,7 +85,7 @@ function delegation(root, st, e) {
   const hash = questionHash(role, focus, input.prompt);
   requireThat(!duplicateOf(st, hash), 'Dezelfde vraag loopt nog of is niet aantoonbaar afgerond. Stem eerst af (cli reconcile) of stel een kleinere, andere vraag.');
   const mislukt = Object.values(st.agents).filter(r => r.question_hash === hash && (['presumed_dead', 'abandoned'].includes(r.status) || r.report?.status === 'REPORT_CONFLICT') && !(r.report?.status === 'COMPLETED'));
-  requireThat(mislukt.length === 0 && Object.values(st.agents).filter(r => r.question_hash === hash && r.status === 'failed').length < 2, 'Dezelfde vraag is al eerder niet afgerond (of gaf een rapportconflict). Geen herhaling van een identieke poging: stel een kleinere of andere vraag, of laat Jurgen zelf AAE REVIEW <id> <sha12> READY|BLOCKED typen.');
+  requireThat(mislukt.length === 0 && Object.values(st.agents).filter(r => r.question_hash === hash && r.status === 'failed').length < 2, 'Dezelfde vraag is al eerder niet afgerond. Geen herhaling van een identieke poging: stel een kleinere of andere vraag.');
   const b = c.envelope.budgets, cap = AGENT_CAP[c.risk_class];
   requireThat(st.usage.agents < cap.hard, 'Het agentplafond van niveau ' + c.risk_class + ' (' + cap.hard + ') is bereikt. Doe het zelf of rond af; dit is een intern plafond en geen reden om Jurgen te vragen.');
   requireThat(liveRows(st).filter(r => ['reserved', 'running', 'unverified'].includes(r.status)).length < b.max_parallel, 'Het maximum aan gelijktijdige agents is bereikt.');
@@ -161,14 +150,6 @@ function bashPermission(root, st, e) {
   requireThat(fs.realpathSync(e.cwd || root) === fs.realpathSync(root), 'Voer de AAE-runner uit vanuit de projectroot; geen cd-ketens.');
   requireThat(!input.run_in_background, 'Geen onbeheerde shell-achtergrondtaken.');
   const command = String(input.command || '').trim();
-  // v3.4: opdrachten met argumenten (alleen veilige tokens, geen shell-metatekens). diagnose is alleen-lezen en mag zonder GO;
-  // commit vraagt een werkpakket in uitvoering met GO (de runner controleert dat); admin-* alleen voor de net afgesloten administratie (de runner controleert dat).
-  const ma = command.match(CLI_ARGS);
-  if (ma) {
-    const tokens = argvMetBoom(ma[2]);
-    requireThat(tokens && tokens.length > 0, 'Onjuiste argumenten (geen shell-metatekens, aanhalingstekens of jokertekens).');
-    return null;
-  }
   const m = command.match(CLI);
   if (m) {
     requireThat(NEEDS_ARG.has(m[1]) ? Boolean(m[2]) : !m[2], 'Onjuiste runnerargumenten.');
@@ -180,9 +161,9 @@ function bashPermission(root, st, e) {
     }
     return null;
   }
-  const argv = argvMetBoom(command);
-  if (argv && argv[0] === 'git' && breedLezen(argv, root)) return null; // breedLezen omvat de oude alleen-lezen git-lijst, nu met de blob-controle
-  throw new GuardError('Geen vrije shell binnen de agentworkflow (geen ; & | > < $( ` of aanhalingstekens). Zet het commando in plan.commands van het contract en gebruik: node .claude/aae/runtime/cli.mjs run <id>. Alleen-lezen git mag direct (namen, hashes en statistiek); de inhoud van bestanden via git lezen kan alleen als gepland commando binnen een werkpakket met GO.');
+  const argv = bashArgv(command);
+  if (argv && argv[0] === 'git' && safeLocalArgv(argv)) return null;
+  throw new GuardError('Geen vrije shell binnen de agentworkflow (geen ; & | > < $( ` of aanhalingstekens). Zet het commando in plan.commands van het contract en gebruik: node .claude/aae/runtime/cli.mjs run <id>. Alleen-lezen git mag direct.');
 }
 
 // ---------------------------------------------------------------- extern
@@ -364,9 +345,8 @@ export function lifecycle(root, e) {
         if (pad) row.transcript_path = pad;
         const tekst = pad ? transcriptFinalText(pad) : null;
         const bron = {};
-        // v3.4: het overdrachtbericht (hand-back) is een eigen bron naast de laatste boodschap en het transcript.
-        if (e.last_assistant_message) bron.last_message = e.last_assistant_message;
-        if (row.handback_text) bron.handback = row.handback_text;
+        const last = e.last_assistant_message || row.handback_text || null;
+        if (last) bron.last_message = last;
         if (tekst) bron.transcript = tekst;
         safeFinalize(root, st, row, bron);
         settle(st); saveWork(root, st);
@@ -391,15 +371,9 @@ export function lifecycle(root, e) {
       if (r.usage) row.last_request_usage = r.usage; // uitdrukkelijk niet het totaal van de hele run
       if (r.status === 'completed') {
         if (row.status !== 'stopped') { row.status = 'stopped'; row.finished = now(); }
-        const bron = {}; const content = contentText(r);
-        // Een toolrespons die alleen meldt dat het rapport als bericht is bezorgd, is geen rapport en geen tegenbron (de oorzaak van REPORT_CONFLICT in v3.3.1).
-        if (content && !alleenVerwijzing(content)) bron.content = content;
-        if (row.handback_text) bron.handback = row.handback_text;
+        const bron = {}; const content = contentText(r); if (content) bron.content = content;
         const pad = row.transcript_path || findTranscript(row.agent_id); if (pad) { row.transcript_path = pad; const tt = transcriptFinalText(pad); if (tt) bron.transcript = tt; }
-        const rep = safeFinalize(root, st, row, bron);
-        settle(st); saveWork(root, st);
-        if (rep?.status === 'REPORT_CONFLICT') return {hookSpecificOutput: {hookEventName: 'PostToolUse', additionalContext: 'AAE: het rapport van ' + row.run_key + ' heeft afwijkende bronnen (REPORT_CONFLICT) en telt niet als bevestigd reviewbewijs. Er volgt geen automatische herhaling; dezelfde reviewvraag op dezelfde bron wordt geweigerd. Uitweg bij HIGH: Jurgen typt zelf AAE REVIEW <id> <sha12> READY|BLOCKED.'}};
-        return null;
+        safeFinalize(root, st, row, bron);
       } else if (r.status === 'async_launched' && !['stopped', 'failed', 'abandoned'].includes(row.status)) row.status = 'running';
       else if (row.status === 'reserved') row.status = 'unverified';
       settle(st); saveWork(root, st);

@@ -239,7 +239,7 @@ test('G48 het hookproces bepaalt de projectroot zelf en vangt ongeldige invoer a
   assert.equal(slecht.code, 2); assert.match(slecht.stderr, /AAE blokkeert/);
   const ok = await spawnHook(root, {hook_event_name: 'SessionStart'});
   assert.equal(ok.code, 0);
-  assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /AAE v3\.\d/); // v3.4: versie-onafhankelijk
+  assert.match(JSON.parse(ok.stdout).hookSpecificOutput.additionalContext, /AAE v3\.3/);
   assert.ok(fs.existsSync(path.join(root, '.claude/aae/state/events.jsonl')), 'de state staat in de projectroot van het script');
 }));
 test('G49 een beschadigde status faalt gesloten en wordt niet stilzwijgend gereset', met(root => {

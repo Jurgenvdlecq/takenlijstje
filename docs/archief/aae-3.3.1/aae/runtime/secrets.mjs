@@ -13,26 +13,10 @@ const PARAMS = { // de enige bekende parameters per tool; een onbekende paramete
 };
 const MAX_ITEMS = 100000;
 
-// Eén lijst van geheime bestandsnamen en -inhoud, gedeeld door de leescontrole, de git-leesopdrachten, cli diagnose en de commitcontrole (gitops.mjs).
-export const SECRET_NAME = [/(^|\/)\.env(\.[^/]*)?$/i, /\.(pem|key|p12|pfx|jks|keystore)$/i, /(^|\/)id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$/i, /(^|\/)\.npmrc$/i, /(^|\/)\.netrc$/i, /(^|\/)credentials(\.json)?$/i, /service[-_]?account[^/]*\.json$/i,
-  /(^|\/)\.auth(\/|$)/i, /(^|\/)testauth(\/|$)/i, /storage-?state[^/]*\.json$/i, /\.session$/i];
-export const SECRET_OK = [/(^|\/)\.env\.example$/i];
-export const SECRET_CONTENT = [
-  [new RegExp('-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----'), 'privésleutel'],
-  [/\bAKIA[0-9A-Z]{16}\b/, 'AWS-sleutel'],
-  [/\bgh[pousr]_[A-Za-z0-9]{36,}\b/, 'GitHub-token'], [/\bgithub_pat_[A-Za-z0-9_]{40,}\b/, 'GitHub-token'],
-  [/\bsk-[A-Za-z0-9_-]{32,}\b/, 'API-sleutel'], [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, 'Slack-token'],
-  [/SUPABASE_SERVICE_ROLE_KEY\s*[=:]\s*['"]?[A-Za-z0-9._-]{20,}/, 'Supabase service-role-sleutel']
-];
-/** Bevat deze tekst een bekend geheimpatroon? Geeft de soort terug (nooit de inhoud), of null. */
-export const secretContent = tekst => (SECRET_CONTENT.find(([re]) => re.test(String(tekst))) || [])[1] || null;
-
-/** Is dit (relatieve) pad een geheim? Hoofdletterongevoelig; .claude/aae/private met en zonder slash; .env*, test-auth- en sessiebestanden en bekende geheime bestandsnamen. */
+/** Is dit (relatieve) pad een geheim? Hoofdletterongevoelig; .claude/aae/private met en zonder slash. */
 export function secretPath(rel) {
-  const r = String(rel).replace(/\\/g, '/').replace(/^\.\/+/, ''), l = r.toLowerCase();
-  if (l === '.claude/aae/private' || l.startsWith('.claude/aae/private/')) return true;
-  if (l.split('/').some(s => /^\.env(?:\.|$)/.test(s) && s !== '.env.example')) return true;
-  return SECRET_NAME.some(re => re.test(r)) && !SECRET_OK.some(re => re.test(r));
+  const l = String(rel).toLowerCase();
+  return l === '.claude/aae/private' || l.startsWith('.claude/aae/private/') || l.split('/').some(s => /^\.env(?:\.|$)/.test(s) && s !== '.env.example');
 }
 // Conservatief: raakt deze eenvoudige glob (alleen letters, cijfers, _ . / * -) dit pad, een deel van het pad of een map erin? Liever te veel dan te weinig.
 const globRe = g => new RegExp('^' + g.replace(/^\.?\/+/, '').replace(/\/+$/, '').split('**').map(d => d.split('*').map(x => x.replace(/\./g, '\\.')).join('[^/]*')).join('.*') + '$', 'i');
