@@ -16,7 +16,8 @@ export const TRANSITIONS = {
   EXECUTING: ['NEEDS_HUMAN', 'PAUSED', 'READY', 'BLOCKED', 'CANCELLED', 'EXECUTING'],
   NEEDS_HUMAN: ['EXECUTING', 'WAITING_FOR_APPROVAL', 'PLANNING', 'PAUSED', 'BLOCKED', 'CANCELLED', 'NEEDS_HUMAN'],
   PAUSED: ['EXECUTING', 'WAITING_FOR_APPROVAL', 'NEEDS_HUMAN', 'CANCELLED'],
-  BLOCKED: ['EXECUTING', 'PLANNING', 'CANCELLED'],
+  // v3.4: een PARTIAL/BLOCKED-pakket neemt een aangepast voorstel aan (NEEDS_HUMAN) en wacht dan op precies één GO, zonder AAE VERDER vooraf.
+  BLOCKED: ['EXECUTING', 'PLANNING', 'CANCELLED', 'NEEDS_HUMAN'],
   READY: [],
   CANCELLED: []
 };
@@ -71,6 +72,11 @@ export function needsHuman(st, kind, summary, extra = {}) {
   st.status === 'NEEDS_HUMAN' || transition(st, 'NEEDS_HUMAN', kind);
   st.needs_human = {kind, summary, at: now(), ...extra};
   log(st, 'needs_human', {kind, summary});
+}
+/** v3.4: zichtbare tellers per werkpakket (uit de geschiedenis): hoeveel GO's, NEEDS_HUMAN, BLOCKED en agentruns kostte dit doel? */
+export function tellers(st) {
+  const h = st.history || [];
+  return {go: h.filter(x => x.type === 'goedkeuring').length, needs_human: h.filter(x => x.type === 'needs_human').length, blocked: h.filter(x => x.type === 'status' && x.naar === 'BLOCKED').length, agentruns: st.usage?.agents || 0};
 }
 export function contractOf(root, id) { return validateContract(readJson(root, contractFile(id))); }
 

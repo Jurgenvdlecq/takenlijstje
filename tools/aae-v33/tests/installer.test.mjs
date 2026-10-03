@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {planInstall, apply, planRollback, rollback, payloadFiles, atomicWrite, VERSION} from '../installer/install.mjs';
+import {VERSION as RUNTIME_VERSION} from '../payload/.claude/aae/runtime/core.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
@@ -59,7 +60,7 @@ test('installer: apply installeert v3.3; instellingen, CLAUDE.md en status blijv
   const payload = payloadFiles();
   for (const [rel, f] of payload) assert.equal(sha(fs.readFileSync(path.join(dir, rel))), f.sha, rel);
   const managed = JSON.parse(fs.readFileSync(path.join(dir, '.claude/aae/managed.json'), 'utf8'));
-  assert.equal(managed.version, VERSION); assert.equal(VERSION, '3.3.1', 'v3.3.1: de installer meldt dezelfde versie als de runtime in de payload'); assert.deepEqual(Object.keys(managed.files).sort(), [...payload.keys()].sort());
+  assert.equal(managed.version, VERSION); assert.equal(VERSION, RUNTIME_VERSION, 'de installer meldt dezelfde versie als de runtime in de payload (anders faalt de doctor-controle in apply)'); assert.equal(VERSION, '3.4.0'); assert.deepEqual(Object.keys(managed.files).sort(), [...payload.keys()].sort());
   assert.deepEqual(fs.readdirSync(path.join(dir, '.claude/agents')).sort(), ['aae-architect.md', 'aae-product-partner.md', 'aae-reviewer.md']);
   for (const p of ['.claude/settings.json', 'CLAUDE.md', '.claude/aae/state/marker.txt']) assert.equal(sha(fs.readFileSync(path.join(dir, p))), voor[p], p + ' is ongewijzigd');
   assert.equal(sha(fs.readFileSync(path.join(dir, 'docs/archief/aae-3.2.0-local/aae/ENTRY.md'))), voor['.claude/aae/ENTRY.md'], 'archief bevat de v3.2-versie');
@@ -328,7 +329,7 @@ function v330Project() {
   fs.mkdirSync(path.join(dir, '.claude/aae/state'), {recursive: true}); fs.writeFileSync(path.join(dir, '.claude/aae/state/marker.txt'), 'blijft staan');
   return dir;
 }
-test('upgrade 3.3.0 → 3.3.1: installeren, byte-exact terugdraaien met behoud van het bestaande .gitignore-blok, en opnieuw installeren', () => {
+test('upgrade vanaf 3.3.0 naar de huidige versie: installeren, byte-exact terugdraaien met behoud van het bestaande .gitignore-blok, en opnieuw installeren', () => {
   const dir = v330Project();
   try {
     const versie = () => JSON.parse(fs.readFileSync(path.join(dir, '.claude/aae/managed.json'), 'utf8')).version;

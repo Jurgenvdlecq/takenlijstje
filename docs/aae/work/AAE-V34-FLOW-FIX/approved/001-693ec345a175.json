@@ -1,0 +1,169 @@
+{
+  "schema": 1,
+  "work_id": "AAE-V34-FLOW-FIX",
+  "sequence": 1,
+  "previous_hash": null,
+  "approved_at": "2026-10-03T07:01:10.697Z",
+  "source": "AAE GO",
+  "hash": "693ec345a175a3c4159d3e7cf30616d3524826f02b71d2e038b82f2aacc8478b",
+  "short_hash": "693ec345a175",
+  "envelope": {
+    "id": "AAE-V34-FLOW-FIX",
+    "goal": "De twee geheimgerelateerde bevindingen uit Jurgens review van commit 99fc88b herstellen, en niets anders: (1) de alleen-lezen git-routes pakken een annotated tag volledig uit naar het uiteindelijke object, zodat een tag (ook een tag op een tag) die naar een blob wijst nooit inhoud toont, terwijl een tag naar een commit of tree toegestaan blijft; (2) inhoudelijke git-operaties met paden behandelen elk pad letterlijk (geen glob of pathspec), zodat een bestandsnaam met *, ? of [ nooit een geheim bestand ernaast kan raken. Alleen in tools/aae-v33 op de werkbranch claude/aae-v34-flow-001; geen installatie, geen main.",
+    "phase": "implementation",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "acceptance": [
+      {
+        "id": "F1",
+        "text": "Annotated tags: elke revisie in de alleen-lezen git-routes (breed via Bash, cli git en de blob-controle in cli run) wordt volledig uitgepakt naar het uiteindelijke object. Een tag die naar een blob wijst, ook een tag op een tag naar een blob en een lichtgewicht tag naar een blob, wordt geweigerd voor show, diff, log, ls-tree, grep en blame; een tag naar een commit of tree blijft toegestaan."
+      },
+      {
+        "id": "F2",
+        "text": "Letterlijke paden: inhoudelijke git-operaties met paden (diff, grep, blame en het uitschrijven van mappen) behandelen elk pad letterlijk en niet als glob of pathspec. Een bestaand bestand met *, ? of [ in de naam naast een geheim bestand kan dat geheim nooit raken of tonen."
+      },
+      {
+        "id": "F3",
+        "text": "Bewijs: de nieuwe negatieve tests (tags en letterlijke paden) falen aantoonbaar op de code van 99fc88b en slagen na de fix; de v3.3-suite met de v3.4-tests slaagt; de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 99fc88b (gemeten in tijdelijke worktrees)."
+      },
+      {
+        "id": "F4",
+        "text": "Afbakening: alleen deze twee punten; geen andere verbeterpunten of reviewbevindingen (geen worktree prune, netwerkproef, weesproces, result.json na close, bewijsniveau-presentatie, AAE REVIEW vuilcontrole of HEAD~1-gebruiksgemak). Geen installatie, geen main; commit en push alleen naar claude/aae-v34-flow-001."
+      }
+    ],
+    "write": [
+      "tools/aae-v33/pariteit/nulmeting.mjs",
+      "tools/aae-v33/payload/.claude/aae/docs/REFERENTIE.md",
+      "tools/aae-v33/payload/.claude/aae/runtime/gitlezen.mjs",
+      "tools/aae-v33/payload/.claude/aae/runtime/runner.mjs",
+      "tools/aae-v33/payload/.claude/aae/tests/v34fix.test.mjs"
+    ],
+    "support": [],
+    "db_max": "none",
+    "providers": {},
+    "git": {
+      "commit": true,
+      "push": [
+        "claude/aae-v34-flow-001"
+      ],
+      "merge": null,
+      "deploy": "none"
+    },
+    "budgets": {
+      "agent_calls_hard": 3,
+      "command_runs": 30,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "decision_points": [
+      "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf.",
+      "Stop en leg aan Jurgen voor als een van de twee herstelpunten alleen kan door een andere harde grens te verzwakken of door buiten de genoemde bestanden te werken."
+    ],
+    "decision_defaults": [
+      "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md.",
+      "Technische keuzes (implementatie van het uitpakken en van letterlijke paden, testopzet) beslist de hoofdsessie zelf."
+    ],
+    "extra_commands": [
+      "{\"argv\":[\"node\",\"tools/aae-v33/pariteit/nulmeting.mjs\"],\"purpose\":\"test\"}"
+    ]
+  },
+  "contract": {
+    "title": "AAE v3.4: twee geheimenpunten uit de review van 99fc88b herstellen",
+    "goal": "De twee geheimgerelateerde bevindingen uit Jurgens review van commit 99fc88b herstellen, en niets anders: (1) de alleen-lezen git-routes pakken een annotated tag volledig uit naar het uiteindelijke object, zodat een tag (ook een tag op een tag) die naar een blob wijst nooit inhoud toont, terwijl een tag naar een commit of tree toegestaan blijft; (2) inhoudelijke git-operaties met paden behandelen elk pad letterlijk (geen glob of pathspec), zodat een bestandsnaam met *, ? of [ nooit een geheim bestand ernaast kan raken. Alleen in tools/aae-v33 op de werkbranch claude/aae-v34-flow-001; geen installatie, geen main.",
+    "risk_class": "HIGH",
+    "risk_flags": [],
+    "envelope": {
+      "phase": "implementation",
+      "areas": [
+        {
+          "name": "AAE v3.4 leesroute, tests en meetscript",
+          "write": [
+            "tools/aae-v33/payload/.claude/aae/runtime/gitlezen.mjs",
+            "tools/aae-v33/payload/.claude/aae/runtime/runner.mjs",
+            "tools/aae-v33/payload/.claude/aae/tests/v34fix.test.mjs",
+            "tools/aae-v33/payload/.claude/aae/docs/REFERENTIE.md",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "support": []
+        }
+      ],
+      "db_max": "none",
+      "providers": {},
+      "git": {
+        "commit": true,
+        "push": [
+          "claude/aae-v34-flow-001"
+        ],
+        "merge": null,
+        "deploy": "none"
+      },
+      "budgets": {
+        "command_runs": 30,
+        "external_calls": 0,
+        "max_parallel": 1,
+        "agent_calls": {
+          "soft": 2,
+          "hard": 3
+        }
+      },
+      "acceptance": [
+        {
+          "id": "F1",
+          "text": "Annotated tags: elke revisie in de alleen-lezen git-routes (breed via Bash, cli git en de blob-controle in cli run) wordt volledig uitgepakt naar het uiteindelijke object. Een tag die naar een blob wijst, ook een tag op een tag naar een blob en een lichtgewicht tag naar een blob, wordt geweigerd voor show, diff, log, ls-tree, grep en blame; een tag naar een commit of tree blijft toegestaan."
+        },
+        {
+          "id": "F2",
+          "text": "Letterlijke paden: inhoudelijke git-operaties met paden (diff, grep, blame en het uitschrijven van mappen) behandelen elk pad letterlijk en niet als glob of pathspec. Een bestaand bestand met *, ? of [ in de naam naast een geheim bestand kan dat geheim nooit raken of tonen."
+        },
+        {
+          "id": "F3",
+          "text": "Bewijs: de nieuwe negatieve tests (tags en letterlijke paden) falen aantoonbaar op de code van 99fc88b en slagen na de fix; de v3.3-suite met de v3.4-tests slaagt; de installertests slagen; eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 99fc88b (gemeten in tijdelijke worktrees)."
+        },
+        {
+          "id": "F4",
+          "text": "Afbakening: alleen deze twee punten; geen andere verbeterpunten of reviewbevindingen (geen worktree prune, netwerkproef, weesproces, result.json na close, bewijsniveau-presentatie, AAE REVIEW vuilcontrole of HEAD~1-gebruiksgemak). Geen installatie, geen main; commit en push alleen naar claude/aae-v34-flow-001."
+        }
+      ],
+      "assumptions": [
+        "De lokale repo staat schoon op claude/aae-v34-flow-001 met HEAD 99fc88b.",
+        "HIGH omdat dit de geheimenbescherming raakt, maar zonder agentreview: onder de live v3.3.1 telt geen reviewoordeel formeel, dus dit pakket sluit af als PARTIAL; het eindoordeel is Jurgens eigen review op de nieuwe SHA.",
+        "Het meetscript voor de eigen suite is tijdelijk, wordt niet gecommit en verwijdert zichzelf na de meting."
+      ],
+      "decision_defaults": [
+        "Technische keuzes (implementatie van het uitpakken en van letterlijke paden, testopzet) beslist de hoofdsessie zelf.",
+        "Geen zijprojecten: andere bevindingen gaan naar docs/aae/notes/verbeterpunten.md."
+      ],
+      "decision_points": [
+        "Stop en leg aan Jurgen voor als een van de twee herstelpunten alleen kan door een andere harde grens te verzwakken of door buiten de genoemde bestanden te werken.",
+        "Installeren op het live systeem en samenvoegen met main zijn aparte stappen met eigen GO of door Jurgen zelf."
+      ],
+      "extra_commands": [
+        {
+          "argv": [
+            "node",
+            "tools/aae-v33/pariteit/nulmeting.mjs"
+          ],
+          "purpose": "test"
+        }
+      ]
+    }
+  },
+  "evidence_floor": [
+    {
+      "kind": "scope",
+      "method": "inspection",
+      "description": "git status en git diff --stat tonen alleen wijzigingen in de genoemde bestanden; geen installatie, geen main; het meetscript is weg."
+    },
+    {
+      "kind": "functional",
+      "method": "command",
+      "description": "De nieuwe tests (tags en letterlijke paden) falen vóór de fix en slagen erna; de v3.3-suite met v3.4-tests slaagt."
+    },
+    {
+      "kind": "regression",
+      "method": "command",
+      "description": "De installertests slagen en eigen.test.mjs voegt geen nieuwe failures toe ten opzichte van 99fc88b."
+    }
+  ],
+  "snapshot_digest": "59aae4ebf5d8ab612bfcca71b56ce260de8af11b8e57cb6e1575fed668d90b99"
+}

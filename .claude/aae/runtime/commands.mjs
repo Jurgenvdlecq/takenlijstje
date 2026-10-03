@@ -4,8 +4,9 @@
  */
 import {requireThat, digest, now, classifyCommand, commandFingerprint, commandRefs, stable, envelopeHash, shortHash, SHORT_HASH_LENGTH, AGENT_CAP} from './core.mjs';
 import {
-  withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, blockSnapshot, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman
+  withLock, listWork, loadWork, saveWork, log, transition, approve, assertApproval, blockSnapshot, TERMINAL, loadGlobal, saveGlobal, eventLog, needsHuman, tellers
 } from './state.mjs';
+import {gitHead} from './gitops.mjs';
 import {writeSnapshot, writeSnapshotRetry} from './snapshot.mjs';
 import {liveRows, reconcile} from './reports.mjs';
 import {importLegacy} from './legacy.mjs';
@@ -35,7 +36,7 @@ export function plainSummary(root) {
     if (st.status === 'NEEDS_HUMAN' && st.needs_human) r += ' ' + st.needs_human.summary;
     if (st.status === 'PLANNING' && st.blockers.length) r += ' Nog nodig: ' + st.blockers.join(' ');
     regels.push(r);
-    tech.push({id, status: st.status, activity: st.activity, agents: st.usage.agents, commando_runs: st.usage.commands, live_agents: liveRows(st).length, soft_overschreden: st.soft_exceeded});
+    tech.push({id, status: st.status, activity: st.activity, agents: st.usage.agents, commando_runs: st.usage.commands, live_agents: liveRows(st).length, soft_overschreden: st.soft_exceeded, tellers: tellers(st), review: st.human_review ? {verdict: st.human_review.verdict, sha: st.human_review.sha.slice(0, 12)} : null});
   }
   if (!regels.length) regels.push('Er is geen actief werkpakket. Zonder goedgekeurd werkpakket verandert er niets aan de applicatie.');
   return {plain: regels, technical: tech};
@@ -81,11 +82,32 @@ export function presentProposal(root, id) {
       'Aannames: ' + (e.assumptions.length ? e.assumptions.join(' | ') : 'geen') + '.',
       'Stopmomenten voor jou: ' + (e.decision_points.length ? e.decision_points.join(' | ') : 'geen vastgelegd') + '.'
     ];
+    if (st.human_review) regels.push('Review van Jurgen: ' + st.human_review.verdict + ' op commit ' + st.human_review.sha.slice(0, 12) + ' (' + st.human_review.at + ').');
     for (const n of st.legacy_notes || []) regels.push('Let op (overname uit v3.2): ' + n);
     if (st.blockers?.length) regels.push('Let op, nog niet klaar om te starten: ' + st.blockers.join(' '));
     st.presented = {hash, at: now()}; log(st, 'voorstel_getoond', {hash: kort}); saveWork(root, st);
     return {id, short_hash: kort, status: st.status, samenvatting: regels, exacte_go: 'AAE GO ' + id + ' ' + kort, vraag: 'Stuur als los bericht exact: AAE GO ' + id + ' ' + kort + ' (alleen geldig voor envelop ' + kort + '). Verandert het voorstel, dan vraag ik opnieuw.'};
   });
+}
+/**
+ * v3.4: AAE REVIEW <id> <sha12> READY|BLOCKED - Jurgens eigen reviewoordeel, alleen als los bericht in exact deze vorm (dit pad wordt uitsluitend door de
+ * UserPromptSubmit-hook bereikt; geen tool, agent, bestand of hook-melding kan het geven). Gebonden aan de huidige HEAD; zichtbaar in geschiedenis en resultaat.
+ */
+const REVIEW = /^AAE REVIEW ([A-Za-z0-9][A-Za-z0-9_-]{0,63}) ([0-9a-f]{12}) (READY|BLOCKED)$/;
+function menselijkeReviewOpdracht(root, prompt) {
+  const m = REVIEW.exec(prompt);
+  const weiger = reden => { eventLog(root, 'review_geweigerd', {reden}); return context('UserPromptSubmit', 'AAE: REVIEW niet vastgelegd: ' + reden + ' De enige geldige vorm is een los bericht: AAE REVIEW <werkpakket-ID> <eerste 12 tekens van de huidige commit> READY|BLOCKED.'); };
+  if (!m) return weiger('het bericht heeft niet exact de vorm (hoofdletters, ID, 12 kleine hextekens, READY of BLOCKED, niets meer).');
+  const [, id, kort, verdict] = m;
+  const st = loadWork(root, id);
+  if (!st || TERMINAL.has(st.status)) return weiger('werkpakket ' + id + ' bestaat niet of is al afgerond.');
+  const head = gitHead(root);
+  if (!head) return weiger('de huidige commit (HEAD) is niet te bepalen.');
+  if (head.slice(0, 12) !== kort) return weiger('de 12 tekens horen niet bij de huidige HEAD (' + head.slice(0, 12) + ').');
+  st.human_review = {door: 'Jurgen', bron: 'UserPromptSubmit', sha: head, verdict, at: now(), envelope_hash: st.contract ? envelopeHash(st.contract) : null};
+  log(st, 'human_review', {sha: head.slice(0, 12), verdict});
+  saveWork(root, st); eventLog(root, 'review', {id, sha: head.slice(0, 12), verdict});
+  return context('UserPromptSubmit', 'AAE: REVIEW ' + verdict + ' van Jurgen vastgelegd voor ' + id + ' op commit ' + head.slice(0, 12) + '. ' + (verdict === 'READY' ? 'Dit telt als het vereiste reviewoordeel zolang HEAD exact deze commit is en de gebieden schoon zijn.' : 'READY is geblokkeerd tot een nieuwe review op een nieuwe commit.'));
 }
 function pauzeer(st, why) { st.paused_from = st.status; st.confirmed = null; transition(st, 'PAUSED', why); st.activity = null; } // een bevestiging overleeft een pauze niet
 
@@ -93,6 +115,7 @@ export function handlePrompt(root, e) {
   const prompt = String(e.prompt || '').trim();
   requireThat(String(e.session_id || ''), 'Sessie-ID ontbreekt.');
   importLegacy(root);
+  if (/^AAE REVIEW\b/.test(prompt)) return withLock(root, () => menselijkeReviewOpdracht(root, prompt));
   const m = prompt.match(CMD);
   return withLock(root, () => {
     if (!m) {
@@ -182,6 +205,7 @@ export function handlePrompt(root, e) {
       requireThat(st.status === 'NEEDS_HUMAN' || !st.blockers.length, 'Plan is nog niet klaar: ' + st.blockers.join(' '));
       const bron = st.status === 'NEEDS_HUMAN' ? 'AAE GO (envelopewijziging)' : 'AAE GO';
       approve(st, c, bron);
+      st.start_head = st.start_head || gitHead(root); // v3.4: de commit waarop het pakket startte (voor de administratie-push na close)
       // Als eerste schrijfactie na de GO legt de runtime de goedgekeurde envelop vast (gevolgde, append-only snapshot), met automatische herpogingen.
       // Een blijvende technische fout geeft BLOCKED (geen beslissing van Jurgen); AAE VERDER hervat dezelfde envelop.
       st.approved.snapshot_required = true;

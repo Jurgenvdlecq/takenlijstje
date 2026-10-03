@@ -1,4 +1,4 @@
-# Adaptive Agent Environment 3.3.1
+# Adaptive Agent Environment 3.4
 
 Eén GO per werkpakket. De bewaking stelt grenzen; jij orkestreert. Spreek met Jurgen in gewone taal, zonder technisch jargon. Details: `.claude/aae/docs/REFERENTIE.md` (alleen lezen als je iets precies moet weten).
 
@@ -28,8 +28,14 @@ Ben je een `aae-*` subagent? Voer alleen je afgebakende, read-only vraag uit. St
 - **NEEDS_HUMAN** alleen voor een echte beslissing of handeling van Jurgen: wezenlijke envelopwijziging, scope-change, productvraag, een handeling die alleen hij kan (preflight) of `AAE BEVESTIG`. Nooit voor administratie of technische uitvoering: een snapshotfout wordt herprobeerd en daarna `BLOCKED`, en dat los je zelf op.
 - **Geen zijproject**: nieuwe testinfrastructuur, tooling of refactoring alleen als het in het oorspronkelijke doel staat of een concreet HIGH-risico er anders niet te controleren is. "Handig voor later" noteer je in `docs/aae/notes/verbeterpunten.md`; het werk gaat door.
 
+## Vooruitkomen zonder bureaucratie (v3.4)
+- **Zonder GO lezen en diagnosticeren**: brede git (status, log, ls-files, rev-parse ook `HEAD^{tree}`, diff/show met `--stat` of `--name-only`) mag direct: alleen namen, hashes en statistiek. De inhoud van bestanden via git lezen (diff, show `<rev>:<pad>`, cat-file -p, grep, blame) kan zonder GO niet; dat is bewust weggelaten (eventueel later als eigen versie). De huidige bestanden lees je gewoon met Read. `cli diagnose <pad.test.mjs> [rev]` draait precies één testbestand in een wegwerpkopie zonder netwerk; al het andere blijft GO-plichtig.
+- **Bewijsniveaus**: `required` bepaalt READY (de ondergrens is altijd required); `supporting` niet gedraaid = NIET GECONTROLEERD, gedraaid en gefaald = PARTIAL; `optional` blokkeert nooit.
+- **Reviews als hulpmiddel**: bij HIGH telt een bevestigd agentrapport of Jurgens losse bericht `AAE REVIEW <id> <sha12> READY|BLOCKED` op de huidige, schone commit. Bij een rapportconflict: één melding, geen herhaling.
+- **Minder stappen**: een PARTIAL-pakket bijsturen = aangepast voorstel + één GO; commit met vrij bericht via `cli commit <id> <bericht>`; na close alleen `cli admin-commit`/`admin-push` voor de eigen voortgang en werkmap (24 uur, eigen branch).
+
 ## Commando's van Jurgen (exacte tekst)
-`AAE GO <id> <korte hash van 12 tekens>` · `AAE PAUZE` · `AAE VERDER` (hervat uitsluitend dezelfde eerder goedgekeurde envelop; nooit een nieuwe GO) · `AAE STATUS` · `AAE ANNULEER` · `AAE BEVESTIG` (alleen voor één beschreven destructieve database-actie). Bij meerdere werkpakketten voeg je het ID toe.
+`AAE GO <id> <korte hash van 12 tekens>` · `AAE REVIEW <id> <12 tekens van HEAD> READY|BLOCKED` · `AAE PAUZE` · `AAE VERDER` (hervat uitsluitend dezelfde eerder goedgekeurde envelop; nooit een nieuwe GO) · `AAE STATUS` · `AAE ANNULEER` · `AAE BEVESTIG` (alleen voor één beschreven destructieve database-actie). Bij meerdere werkpakketten voeg je het ID toe.
 
 ## Herstel na verlies van sessie of container
 Is de lokale status weg of beschadigd terwijl er een goedgekeurde snapshot is (de SessionStart-melding zegt het), voer dan `node .claude/aae/runtime/cli.mjs recover <id>` uit. Het pakket komt terug als PAUSED uit de snapshot-keten in de repository (hash klopt, keten sluit, snapshot staat in HEAD); verbruik is niet te herstellen. Registreer het voorstel opnieuw (`cli plan`); daarbuiten wacht het op een nieuwe GO, daarbinnen hervat `AAE VERDER` dezelfde envelop. Een lopende v3.2-route wordt bij de overgang nooit stil goedgekeurd: ze wacht op een expliciete GO.

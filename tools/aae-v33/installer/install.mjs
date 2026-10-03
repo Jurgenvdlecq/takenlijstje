@@ -15,7 +15,7 @@ import {fileURLToPath} from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const PAYLOAD = path.resolve(HERE, '../payload');
-export const VERSION = '3.3.1'; // moet gelijk zijn aan VERSION in payload/.claude/aae/runtime/core.mjs: de doctor-controle aan het eind van apply weigert een afwijkend manifest
+export const VERSION = '3.4.0'; // moet gelijk zijn aan VERSION in payload/.claude/aae/runtime/core.mjs: de doctor-controle aan het eind van apply weigert een afwijkend manifest
 export const MANAGED = '.claude/aae/managed.json';
 const GITIGNORE = '.gitignore';
 const MARK_START = '# >>> AAE 3.3 (beheerd blok) >>>', MARK_END = '# <<< AAE 3.3 <<<';

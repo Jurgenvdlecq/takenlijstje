@@ -1,0 +1,41 @@
+{
+  "schema_version": 4,
+  "id": "<UNIEKE-CODE>",
+  "title": "<VUL IN: korte naam van het werkpakket>",
+  "goal": "<VUL IN: wat moet er na dit werkpakket anders zijn, in gewone taal>",
+  "risk_class": "STANDARD",
+  "risk_flags": [],
+  "envelope": {
+    "phase": "implementation",
+    "areas": [
+      {"name": "<VUL IN: onderdeel van de applicatie>", "write": ["<pad/van/het/gebied>"], "support": ["tests"]}
+    ],
+    "db_max": "none",
+    "providers": {},
+    "git": {"commit": false, "push": [], "merge": null, "deploy": "none"},
+    "budgets": {
+      "command_runs": 40,
+      "external_calls": 0,
+      "max_parallel": 1
+    },
+    "acceptance": [
+      {"id": "AC1", "text": "<VUL IN: wat moet aantoonbaar waar zijn>"}
+    ],
+    "assumptions": [],
+    "decision_defaults": [],
+    "decision_points": [],
+    "extra_commands": []
+  },
+  "plan": {
+    "test_plan": [
+      {"kind": "scope", "method": "inspection", "description": "<VUL IN: hoe wordt gecontroleerd dat alleen het gebied is gewijzigd>"},
+      {"kind": "functional", "method": "command", "description": "<VUL IN: welke test bewijst dat het werkt>"},
+      {"kind": "regression", "method": "command", "description": "<VUL IN: welke bestaande tests blijven groen>"}
+    ],
+    "agents": [],
+    "commands": [],
+    "read": [],
+    "open_product_questions": [],
+    "keep_raw": false
+  }
+}
