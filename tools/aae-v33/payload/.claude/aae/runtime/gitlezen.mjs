@@ -54,13 +54,17 @@ export function breedLezen(argv, root = null) {
   return false;
 }
 
-const GIT_OPTS = {encoding: 'utf8', shell: false, timeout: 30000, maxBuffer: 16 * 1024 * 1024};
+// Paden zijn altijd letterlijk (GIT_LITERAL_PATHSPECS): een bestandsnaam met *, ? of [ is nooit een zoekpatroon dat een geheim bestand ernaast raakt.
+const GIT_OPTS = {encoding: 'utf8', shell: false, timeout: 30000, maxBuffer: 16 * 1024 * 1024, env: {...process.env, GIT_LITERAL_PATHSPECS: '1'}};
 const run = (root, args) => spawnSync('git', args, {cwd: root, ...GIT_OPTS});
-/** Is deze revisie (of elke kant van een bereik a..b / a...b) een commit, tag of tree? Zonder projectmap of bij twijfel: nee. */
+/**
+ * Wijst deze revisie (of elke kant van een bereik a..b / a...b), na het volledig uitpakken van tags, naar een commit of tree? Een (annotated) tag, ook een tag op een
+ * tag, die uiteindelijk naar een blob wijst, telt dus als blob. Zonder projectmap of bij twijfel: nee.
+ */
 export function geenBlob(root, rev) {
   if (!root) return false;
   const delen = rev.includes('..') ? rev.split(/\.\.\.?/) : [rev];
-  return delen.every(d => { if (!d) return true; const r = run(root, ['cat-file', '-t', d]); return r.status === 0 && ['commit', 'tag', 'tree'].includes(String(r.stdout).trim()); });
+  return delen.every(d => { if (!d) return true; const r = run(root, ['cat-file', '-t', d + '^{}']); return r.status === 0 && ['commit', 'tree'].includes(String(r.stdout).trim()); });
 }
 /** Schrijft paden (bestanden of mappen) uit naar losse, niet-geheime bestanden voor de gegeven revisie (of de werkmap). */
 function bestanden(root, rev, paden, gewijzigdTussen = null) {
@@ -87,6 +91,7 @@ export function inhoudLezen(root, argv) {
     const i = kale.indexOf(':'); eis(i > 0, 'Een pad is verplicht: <rev>:<pad> (een kale blob-hash of revisie zonder pad wordt geweigerd).');
     const rev = kale.slice(0, i), pad = kale.slice(i + 1);
     eis(isRev(rev) && veiligPad(pad), 'Revisie of pad niet toegestaan (geheim, jokerteken, .. of pathspec-magie): ' + kale);
+    eis(geenBlob(root, rev), 'De revisie moet (na het uitpakken van tags) een commit of tree zijn.');
     return toon(run(root, sub === 'show' ? ['show', '--no-ext-diff', '--no-textconv', rev + ':' + pad] : ['cat-file', '-p', rev + ':' + pad]), 0);
   }
   if (sub === 'diff') {
